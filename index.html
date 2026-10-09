@@ -672,7 +672,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession) };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '' };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -703,6 +703,7 @@ const Store = {
       depositId: form.depositId || '', depositAmount: form.depositId ? r2(form.depositAmount) : 0, depositMethod: form.depositId ? form.depositMethod || '' : '',
       cashierName: prev && prev.cashierName ? prev.cashierName : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
+      txn: String(form.txn || '').trim(),
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
     if (!prev) doc.createdBy = uid;
@@ -928,7 +929,7 @@ function saleDetail(s) {
     <dt>Precio neto</dt><dd>${money(c.net, 1)}</dd><dt>Tip</dt><dd>${money(c.tip, 1)}</dd><dt>Total cobrado</dt><dd>${money(c.totalPaid, 1)}</dd>
     <dt>% comisión guardado</dt><dd>${pct(s.rate)}</dd><dt>Comisión lashista</dt><dd>${money(c.commission, 1)} ${s.manual ? '<span class="tag warn">manual</span>' : ''}</dd>
     <dt>Pago a lashista</dt><dd>${money(c.payout, 1)}</dd><dt>Ingreso Fluffy</dt><dd>${money(c.fluffyIncome, 1)}</dd>
-    <dt>Método de pago</dt><dd>${esc(s.method || 'Sin registrar')}</dd><dt>Comentarios</dt><dd style="white-space:normal">${esc(s.comments || '—')}</dd>
+    <dt>Método de pago</dt><dd>${esc(s.method || 'Sin registrar')}</dd>${s.txn ? `<dt>TXN</dt><dd>${esc(s.txn)}</dd>` : ''}<dt>Comentarios</dt><dd style="white-space:normal">${esc(s.comments || '—')}</dd>
     ${s.depositAmount ? `<dt>Depósito aplicado</dt><dd>${money(s.depositAmount, 1)} · ${esc(s.depositMethod || '')}</dd>` : ''}${s.cashierName ? `<dt>Cobró</dt><dd>${esc(s.cashierName)}</dd>` : ''}<dt>Origen</dt><dd>${s.source === 'excel' ? `Excel, fila ${esc(s.id.replace('H25-', 'HOJA PRINCIPAL 2025 #').replace('H26-', 'HOJA PRINCIPAL 2026 #'))}` : 'Registrada en la app'}</dd></dl>
     ${s.source === 'excel' ? '<p class="formula">Las ventas importadas del Excel son de solo lectura para proteger el histórico.</p>' : ''}
     <div class="acts">${canEdit ? '<button class="btn danger" data-x="del">Eliminar</button><button class="btn" data-x="edit">Editar</button>' : ''}<button class="btn primary" data-x="close">Cerrar</button></div>`, m => {
@@ -1031,8 +1032,8 @@ Views.dia = {
         <section class="panel"><h2>Por método de pago</h2><p class="hint">Total cobrado (neto + tip). El Excel no guardaba el método.</p>${rankList(byM, { countLabel: 'pagos' })}</section>
       </div>
       <section class="panel"><h2>Servicios del día</h2>
-        ${(rec => table([{ label: 'Lashista' }, { label: 'Servicio' }, { label: 'Cliente' }, { label: 'Precio', r: 1, f: v => money(v, 1) }, { label: 'Tip', r: 1, f: v => money(v, 1) }, ...(rec ? [{ label: 'Cobró' }] : [{ label: 'Comisión', r: 1, f: v => money(v, 1) }])],
-          r.list.map(s => [s.artistName, s.service, client(s), s.price, s.tip, rec ? (s.cashierName || '—') : s.commission]), null, { click: 1, emptyTitle: 'Sin servicios', empty: 'No hay ventas registradas en esta fecha.' }))(typeof Mode !== 'undefined' && Mode.reception)}</section>`;
+        ${(rec => table([{ label: 'Lashista' }, { label: 'Servicio' }, { label: 'Cliente' }, { label: 'Precio', r: 1, f: v => money(v, 1) }, { label: 'Tip', r: 1, f: v => money(v, 1) }, { label: 'Método' }, { label: 'TXN' }, ...(rec ? [{ label: 'Cobró' }] : [{ label: 'Comisión', r: 1, f: v => money(v, 1) }])],
+          r.list.map(s => [s.artistName, s.service, client(s), s.price, s.tip, s.method || '—', s.txn || '—', rec ? (s.cashierName || '—') : s.commission]), null, { click: 1, emptyTitle: 'Sin servicios', empty: 'No hay ventas registradas en esta fecha.' }))(typeof Mode !== 'undefined' && Mode.reception)}</section>`;
   },
   mount(root) {
     const r = Logic.calculateDailySales(Store.sales, S.dia.day);
@@ -1046,7 +1047,7 @@ function ventasFiltered() {
   const f = S.ventas, q = f.q.trim().toLowerCase();
   return Store.sales.filter(s => (f.from == null || s.day >= f.from) && (f.to == null || s.day <= f.to) && (!f.artist || s.artistKey === f.artist)
     && (!f.service || s.service === f.service) && (!f.source || s.source === f.source)
-    && (!q || (s.first + ' ' + s.last + ' ' + s.service + ' ' + s.artistName + ' ' + s.comments).toLowerCase().includes(q)));
+    && (!q || (s.first + ' ' + s.last + ' ' + s.service + ' ' + s.artistName + ' ' + s.comments + ' ' + (s.txn || '')).toLowerCase().includes(q)));
 }
 Views.ventas = {
   html() {
@@ -1081,9 +1082,9 @@ Views.ventas = {
   },
 };
 function salesRows(list) {
-  return [['Fecha', 'Lashista', 'Servicio', 'Precio', 'Descuento', 'Tip', 'Total cobrado', '% comisión', 'Comisión', 'Pago lashista', 'Ingreso Fluffy', 'Método de pago', 'Cliente nombre', 'Cliente apellido', 'Comentarios', 'Origen', 'Semana Fluffy']]
+  return [['Fecha', 'Lashista', 'Servicio', 'Precio', 'Descuento', 'Tip', 'Total cobrado', '% comisión', 'Comisión', 'Pago lashista', 'Ingreso Fluffy', 'Método de pago', 'TXN', 'Cliente nombre', 'Cliente apellido', 'Comentarios', 'Origen', 'Semana Fluffy']]
     .concat(list.map(s => { const c = Logic.calculateSale({ price: s.price, discount: s.discount, tip: s.tip, rate: s.rate, manualCommission: s.commission });
-      return [Dates.toISO(s.day), s.artistName, s.service, c.subtotal, c.discount, c.tip, c.totalPaid, s.rate, c.commission, c.payout, c.fluffyIncome, s.method || '', s.first, s.last, s.comments, s.source === 'excel' ? s.id : 'App', weekLabel(Dates.fluffyWeekStart(s.day))]; }));
+      return [Dates.toISO(s.day), s.artistName, s.service, c.subtotal, c.discount, c.tip, c.totalPaid, s.rate, c.commission, c.payout, c.fluffyIncome, s.method || '', s.txn || '', s.first, s.last, s.comments, s.source === 'excel' ? s.id : 'App', weekLabel(Dates.fluffyWeekStart(s.day))]; }));
 }
 function bindExport(root, rowsFn, name) {
   $$('[data-export]', root).forEach(b => b.onclick = () => Exporter.run(b.dataset.kind, name, rowsFn()));
@@ -1095,7 +1096,7 @@ Views.nueva = {
   html() {
     const edit = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null;
     if (!this.form || this.form._for !== (UI.params.edit || 'new')) {
-      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' } : this.blank();
+      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
       this.form._for = UI.params.edit || 'new';
     }
     const f = this.form, ro = !Store.writable();
@@ -1108,6 +1109,7 @@ Views.nueva = {
         <label class="field">Descuento<input type="number" inputmode="decimal" step="0.01" min="0" name="discount" value="${esc(f.discount)}" placeholder="0.00"><span class="err"></span></label>
         <label class="field">Tip<input type="number" inputmode="decimal" step="0.01" min="0" name="tip" value="${esc(f.tip)}" placeholder="0.00"><span class="err"></span></label>
         <label class="field">Método de pago<select name="method"><option value="">Sin registrar</option>${Store.config.methods.map(m => `<option ${f.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+        <label class="field">TXN:<input name="txn" value="${esc(f.txn || '')}" placeholder="Número de transacción (Clover, Zelle…)" autocomplete="off"></label>
         <label class="field">Cliente nombre<input name="first" value="${esc(f.first)}" autocomplete="off"></label>
         <label class="field">Cliente apellido<input name="last" value="${esc(f.last)}" autocomplete="off"></label>
         <label class="field full">Comentarios<textarea name="comments">${esc(f.comments)}</textarea></label>
@@ -2661,7 +2663,7 @@ Views.config.mount = function (root) {
    cola de insumos de lashistas y notas del día. Cada acción queda a nombre de quien
    inició turno con su clave. Basado en el prototipo de recepción de Fluffy Co.
    ========================================================= */
-const DEPOSIT_METHODS = ['Zelle', 'Cash App', 'Venmo', 'PayPal', 'Efectivo', 'Otro'];
+const DEPOSIT_METHODS = ['Zelle', 'Cash App', 'Apple Cash', 'Venmo', 'PayPal', 'Tarjeta (Clover)', 'Efectivo', 'Otro'];
 const RECEP_ROUTES = ['recepcion', 'nueva', 'dia', 'depositos', 'insumos'];
 
 const Mode = {
@@ -2803,6 +2805,7 @@ function depositForm(d) {
       <label class="field">Monto recibido<input type="number" min="0" step="0.01" data-d="amount" value="${esc(st.amount)}"></label>
       <label class="field">Método<select data-d="method">${DEPOSIT_METHODS.map(m => `<option ${st.method === m ? 'selected' : ''}>${m}</option>`).join('')}</select></label>
       <label class="field">Estado<select data-d="status">${[['Pendiente', 'Pendiente de verificar'], ['Verificado', 'Verificado ✓'], ['Rechazado', 'Rechazado']].map(([v, l]) => `<option value="${v}" ${st.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="field">TXN:<input data-d="txn" value="${esc(st.txn || '')}" placeholder="Número de transacción" autocomplete="off"></label>
       <label class="field">Teléfono (opcional)<input data-d="phone" value="${esc(st.phone || '')}"></label>
       <label class="field full">Nota (opcional)<input data-d="note" value="${esc(st.note || '')}"></label></div>
     <p class="formula">Zelle: sales@fluffylashesco.com · Cash App: $FLUFFYLASHESMIAMI</p>
@@ -2815,7 +2818,7 @@ function depositForm(d) {
       if (!Dates.fromISO(v('date'))) { err.textContent = 'Escribe la fecha de la cita.'; return; }
       if (!(num(v('amount')) > 0)) { err.textContent = 'Escribe el monto recibido.'; return; }
       const a = Store.config.artists.find(x => x.id === v('artistId'));
-      const data = { first: v('first'), last: v('last'), phone: v('phone'), date: v('date'), time: v('time'), artistId: v('artistId'), artistName: a ? a.name : '', service: v('service'), amount: r2(v('amount')), method: v('method'), status: v('status'), note: v('note') };
+      const data = { first: v('first'), last: v('last'), phone: v('phone'), date: v('date'), time: v('time'), artistId: v('artistId'), artistName: a ? a.name : '', service: v('service'), amount: r2(v('amount')), method: v('method'), txn: v('txn'), status: v('status'), note: v('note') };
       if (data.status === 'Verificado' && (!d || d.status !== 'Verificado')) Object.assign(data, { verifiedAt: new Date().toISOString(), verifiedByName: Mode.who() });
       data._event = d ? `Editó (${data.status})` : `Registró ${money(data.amount, 1)} por ${data.method} (${data.status === 'Pendiente' ? 'por verificar' : data.status.toLowerCase()})`;
       const b = $('[data-x=ok]', m); b.disabled = true;
@@ -2827,7 +2830,7 @@ function depositForm(d) {
 function depositDetail(d) {
   const can = Store.writable(), free = !d.outcome && d.status !== 'Rechazado';
   UI.modal(`<h3>Depósito de ${esc(depClient(d))}</h3><p style="color:var(--muted);margin:0 0 14px">${depStatusTag(d)} ${depUseTag(d)}</p>
-    <dl class="dl"><dt>Monto</dt><dd>${money(d.amount, 1)} · ${esc(d.method)}</dd><dt>Cita</dt><dd>${d.day != null ? Dates.fmt(d.day, { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}${d.time ? ' · ' + esc(d.time) : ''}</dd>
+    <dl class="dl"><dt>Monto</dt><dd>${money(d.amount, 1)} · ${esc(d.method)}</dd><dt>TXN</dt><dd>${esc(d.txn || '—')}</dd><dt>Cita</dt><dd>${d.day != null ? Dates.fmt(d.day, { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}${d.time ? ' · ' + esc(d.time) : ''}</dd>
     <dt>Lashista / servicio</dt><dd>${esc(d.artistName || 'Sin asignar')}${d.service ? ' · ' + esc(d.service) : ''}</dd><dt>Teléfono</dt><dd>${esc(d.phone || '—')}</dd><dt>Nota</dt><dd style="white-space:normal">${esc(d.note || '—')}</dd>
     <dt>Registró</dt><dd>${esc(d.createdByName || '—')}${d.verifiedByName ? ' · verificó ' + esc(d.verifiedByName) : ''}</dd></dl>
     ${(d.history || []).length ? `<h4 style="margin:16px 0 6px">Historial</h4><ul class="audit">${d.history.slice().reverse().map(h => `<li><b>${esc(h.by)}</b> <span class="mutedc">${esc(new Date(h.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span><br>${esc(h.what)}</li>`).join('')}</ul>` : ''}
@@ -2855,7 +2858,7 @@ function noShow(d) {
     $('[data-x=ok]', m).onclick = async () => {
       const aid = $('[data-ns]', m).value; if (!aid) { $('[data-nerr]', m).textContent = 'Elige la lashista.'; return; }
       try {
-        const saleId = await _saveSale({ date: d.date, artistId: aid, serviceId: ns.id, price: d.amount, discount: 0, tip: 0, method: d.method, first: d.first || '', last: d.last || '', comments: 'No-show: se queda el depósito', manualOn: false, manualCommission: '', cashierName: Mode.operator ? Mode.operator.name : '' });
+        const saleId = await _saveSale({ date: d.date, artistId: aid, serviceId: ns.id, price: d.amount, discount: 0, tip: 0, method: d.method, txn: d.txn || '', first: d.first || '', last: d.last || '', comments: 'No-show: se queda el depósito', manualOn: false, manualCommission: '', cashierName: Mode.operator ? Mode.operator.name : '' });
         await Store.saveDeposit({ outcome: 'No-show', saleId, _event: 'Registró no-show; el depósito pasó a venta' }, d.id);
         UI.close(); UI.toast('No-show registrado');
       } catch (e) { $('[data-nerr]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); }
@@ -2869,16 +2872,16 @@ Views.depositos = {
   list() {
     const f = S.dep, q = f.q.trim().toLowerCase();
     return Store.deposits.filter(d => (f.f === 'todos' || (f.f === 'pendientes' && d.status === 'Pendiente') || (f.f === 'disponibles' && d.status === 'Verificado' && !d.outcome) || (f.f === 'usados' && (d.outcome || d.status === 'Rechazado')))
-      && (!q || (depClient(d) + ' ' + (d.phone || '') + ' ' + (d.artistName || '')).toLowerCase().includes(q))).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+      && (!q || (depClient(d) + ' ' + (d.phone || '') + ' ' + (d.artistName || '') + ' ' + (d.txn || '')).toLowerCase().includes(q))).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
   },
   html() {
     const f = S.dep, list = this.list(), c = k => Store.deposits.filter(d => k === 'pendientes' ? d.status === 'Pendiente' : k === 'disponibles' ? d.status === 'Verificado' && !d.outcome : k === 'usados' ? d.outcome || d.status === 'Rechazado' : true).length;
     this._list = list;
     return `<div class="head"><div><h1>Depósitos</h1><p>Depósitos de clientas para apartar su cita. Se aplican al cobrar o se convierten en no-show.</p></div><div class="chips"><button class="btn primary" data-newdep ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Registrar depósito</button></div></div>
       <div class="filters no-print" style="align-items:center"><div class="chips">${[['pendientes', 'Por verificar'], ['disponibles', 'Disponibles'], ['usados', 'Usados'], ['todos', 'Todos']].map(([k, l]) => `<button class="chip ${f.f === k ? 'on' : ''}" data-df="${k}">${l} · ${c(k)}</button>`).join('')}</div>
-        <label class="field" style="max-width:none;flex:1 1 220px">Buscar<input type="search" data-dq value="${esc(f.q)}" placeholder="Clienta, teléfono o lashista"></label></div>
-      ${table([{ label: 'Cita' }, { label: 'Clienta' }, { label: 'Lashista / servicio' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'Estado', html: 1 }, { label: 'Uso', html: 1 }, { label: 'Registró' }],
-        list.map(d => [d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) + (d.time ? ' ' + d.time : '') : '—', depClient(d), [d.artistName, d.service].filter(Boolean).join(' · ') || '—', money(d.amount, 1), d.method, depStatusTag(d), depUseTag(d), d.createdByName || '']),
+        <label class="field" style="max-width:none;flex:1 1 220px">Buscar<input type="search" data-dq value="${esc(f.q)}" placeholder="Clienta, teléfono, lashista o TXN"></label></div>
+      ${table([{ label: 'Cita' }, { label: 'Clienta' }, { label: 'Lashista / servicio' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }, { label: 'Estado', html: 1 }, { label: 'Uso', html: 1 }, { label: 'Registró' }],
+        list.map(d => [d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) + (d.time ? ' ' + d.time : '') : '—', depClient(d), [d.artistName, d.service].filter(Boolean).join(' · ') || '—', money(d.amount, 1), d.method, d.txn || '—', depStatusTag(d), depUseTag(d), d.createdByName || '']),
         null, { click: 1, emptyTitle: 'Sin depósitos aquí', empty: 'Registra el depósito cuando la clienta lo envíe.' })}`;
   },
   mount(root) {
@@ -3172,6 +3175,7 @@ function apptForm(a, preset) {
       <div class="full newdep" data-newdep style="display:none"><div class="formgrid">
         <label class="field">Monto<input type="number" min="0" step="0.01" data-nd="amount" value="${ns ? ns.price : ''}"></label>
         <label class="field">Método<select data-nd="method">${DEPOSIT_METHODS.map(m => `<option>${m}</option>`).join('')}</select></label>
+        <label class="field">TXN:<input data-nd="txn" placeholder="Número de transacción" autocomplete="off"></label>
         <label class="field">Estado<select data-nd="status"><option value="Pendiente">Por verificar</option><option value="Verificado">Verificado ✓</option></select></label></div></div>
       <label class="field full">Notas (opcional)<input data-a="notes" value="${esc(st.notes || '')}"></label></div>
     <p class="err" data-aerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
@@ -3195,7 +3199,7 @@ function apptForm(a, preset) {
         if (dsel.value === '__new') {
           const amt = num($('[data-nd=amount]', m).value); if (!(amt > 0)) { err.textContent = 'Escribe el monto del depósito.'; b.disabled = false; return; }
           const status = $('[data-nd=status]', m).value;
-          depId = await Store.saveDeposit({ first: data.first, last: data.last, phone: data.phone, date: data.date, time: data.time, artistId: art.id, artistName: art.name, service: svc.name, amount: r2(amt), method: $('[data-nd=method]', m).value, status, note: '',
+          depId = await Store.saveDeposit({ first: data.first, last: data.last, phone: data.phone, date: data.date, time: data.time, artistId: art.id, artistName: art.name, service: svc.name, amount: r2(amt), method: $('[data-nd=method]', m).value, txn: $('[data-nd=txn]', m).value.trim(), status, note: '',
             ...(status === 'Verificado' ? { verifiedAt: new Date().toISOString(), verifiedByName: Mode.who() } : {}), _event: `Registró depósito al agendar` });
         }
         const prevDep = a && a.depositId;
@@ -3334,7 +3338,7 @@ Views.recepcion.mount = function (root) {
 function apptMailto(a) {
   const when = `${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + a.time : ''}`;
   const d = apptDeposit(a);
-  const body = `Hi ${a.first || ''},\n\nYour appointment at Fluffy Lashes is confirmed:\n${a.serviceName} with ${title(a.artistName)}\n${when}\n${d ? `Deposit received: ${money(d.amount)} (${d.method})\n` : ''}\n2693 Biscayne Blvd, Miami, FL 33137\n\nHola ${a.first || ''}, tu cita en Fluffy Lashes está confirmada: ${a.serviceName} con ${title(a.artistName)}, ${when}.\n\nFluffy Lashes`;
+  const body = `Hi ${a.first || ''},\n\nYour appointment at Fluffy Lashes is confirmed:\n${a.serviceName} with ${title(a.artistName)}\n${when}\n${d ? `Deposit received: ${money(d.amount)} (${d.method}${d.txn ? ' · TXN ' + d.txn : ''})\n` : ''}\n2693 Biscayne Blvd, Miami, FL 33137\n\nHola ${a.first || ''}, tu cita en Fluffy Lashes está confirmada: ${a.serviceName} con ${title(a.artistName)}, ${when}.\n\nFluffy Lashes`;
   return `mailto:${encodeURIComponent(a.email)}?subject=${encodeURIComponent('Fluffy Lashes · ' + when)}&body=${encodeURIComponent(body)}`;
 }
 function rescheduleForm(a) {
@@ -3429,6 +3433,7 @@ function packageForm(p) {
       <label class="field">Total pagado por las sesiones<input type="number" min="0" step="0.01" data-k="total" value="${esc(st.total)}" placeholder="precio normal × sesiones" ${p ? 'disabled' : ''}></label>
       <label class="field">Propina pagada por adelantado (opcional)<input type="number" min="0" step="0.01" data-k="tipTotal" value="${esc(st.tipTotal)}" placeholder="0.00" ${p ? 'disabled' : ''}></label>
       <label class="field">Método de pago<select data-k="method" ${p ? 'disabled' : ''}>${methods.map(m => `<option ${st.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+      <label class="field">TXN:<input data-k="txn" value="${esc(st.txn || '')}" placeholder="Número de transacción" ${p ? 'disabled' : ''} autocomplete="off"></label>
       <label class="field">Fecha de pago<input type="date" data-k="date" value="${esc(st.date)}" ${p ? 'disabled' : ''}></label><label class="field">Teléfono (opcional)<input data-k="phone" value="${esc(st.phone || '')}"></label>
       <label class="field full">Comisión de la lashista en cada sesión<select data-k="commissionBase" ${p ? 'disabled' : ''}><option value="">Elige…</option><option value="paquete" ${st.commissionBase === 'paquete' ? 'selected' : ''}>Sobre lo que pagó la clienta por sesión</option><option value="normal" ${st.commissionBase === 'normal' ? 'selected' : ''}>Sobre el precio normal del servicio</option></select></label>
       <label class="field full">Notas (opcional)<input data-k="notes" value="${esc(st.notes || '')}"></label></div>
@@ -3460,7 +3465,7 @@ function packageForm(p) {
       if (!v('commissionBase')) { err.textContent = 'Elige sobre qué monto se paga la comisión de cada sesión.'; return; }
       if (!Dates.fromISO(v('date'))) { err.textContent = 'Escribe la fecha de pago.'; return; }
       b.disabled = true;
-      try { await Store.savePackage({ first: v('first'), last: v('last'), phone: v('phone'), serviceId: svc.id, serviceName: svc.name, regularPrice: svc.price, sessions: n, total, tipTotal: r2(v('tipTotal') || 0), method: v('method'), date: v('date'), commissionBase: v('commissionBase'), notes: v('notes') }); UI.close(); UI.toast('Paquete cobrado'); }
+      try { await Store.savePackage({ first: v('first'), last: v('last'), phone: v('phone'), serviceId: svc.id, serviceName: svc.name, regularPrice: svc.price, sessions: n, total, tipTotal: r2(v('tipTotal') || 0), method: v('method'), txn: v('txn'), date: v('date'), commissionBase: v('commissionBase'), notes: v('notes') }); UI.close(); UI.toast('Paquete cobrado'); }
       catch (e) { b.disabled = false; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
     };
   });
@@ -3571,7 +3576,7 @@ Views.paquetes = {
 };
 function packageDetail(p) {
   const can = Store.writable() && p.status === 'Activo';
-  UI.modal(`<h3>Paquete de ${esc(Pkg.client(p))}</h3><p style="color:var(--muted);margin:0 0 14px">${esc(p.serviceName)} · ${p.sessions} sesiones · pagó ${money(r2(num(p.total) + num(p.tipTotal)), 1)} con ${esc(p.method)} el ${Dates.fmt(p.day)}</p>
+  UI.modal(`<h3>Paquete de ${esc(Pkg.client(p))}</h3><p style="color:var(--muted);margin:0 0 14px">${esc(p.serviceName)} · ${p.sessions} sesiones · pagó ${money(r2(num(p.total) + num(p.tipTotal)), 1)} con ${esc(p.method)}${p.txn ? ' · TXN ' + esc(p.txn) : ''} el ${Dates.fmt(p.day)}</p>
     <dl class="dl"><dt>Precio normal</dt><dd>${money(p.regularPrice, 1)} por sesión</dd><dt>Pagó por sesión</dt><dd>${money(Pkg.share(p.total, p.sessions, 1), 1)}${p.tipTotal ? ` + tip ${money(Pkg.share(p.tipTotal, p.sessions, 1), 1)}` : ''}</dd>
     <dt>Comisión</dt><dd>${p.commissionBase === 'normal' ? 'Sobre el precio normal' : 'Sobre lo que pagó por sesión'}</dd><dt>Saldo por usar</dt><dd>${money(Pkg.balance(p), 1)} (${Pkg.left(p)} sesiones)</dd>
     <dt>Vendió</dt><dd>${esc(p.createdByName || '—')}</dd><dt>Notas</dt><dd style="white-space:normal">${esc(p.notes || '—')}</dd></dl>
