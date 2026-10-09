@@ -179,6 +179,19 @@ h3.agday{font-size:17px;font-weight:700;margin:22px 0 10px}
 .xline{display:grid;grid-template-columns:1.6fr 1fr 90px 80px 34px;gap:8px;margin:6px 0}
 @media (max-width:640px){.xline{grid-template-columns:1fr 1fr}}
 a.btn{text-decoration:none;color:inherit}
+.nav a.cta{border:1.5px solid var(--gold);background:var(--blush);font-weight:700;margin:6px 0;padding-left:10px!important;color:var(--ink)!important;box-shadow:0 2px 10px rgba(212,175,55,.18)}
+.nav a.cta svg{opacity:1;stroke:var(--gold-ink)}.nav a.cta.on{background:var(--pink);box-shadow:inset 3px 0 0 var(--gold),0 2px 10px rgba(212,175,55,.25)}
+.bottom a.cta span.p{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--gold)}
+.btn.cta{box-shadow:0 0 0 3px rgba(212,175,55,.35)}
+.segmented{display:inline-flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;margin:-8px 0 22px;gap:2px;background:var(--bg)}
+.segmented button{border:0;background:none;padding:8px 18px;border-radius:999px;font-weight:700;font-size:14px;cursor:pointer;color:var(--muted)}
+.segmented button.on{background:var(--pink);color:#3A2A2E}
+.phead,.pline{display:grid;grid-template-columns:minmax(160px,2fr) 70px 90px 80px 34px;gap:8px;align-items:center}
+.phead{font-size:12px;color:var(--muted);font-weight:600}.pline{margin-top:6px}.pline .inp.num{max-width:none}.pline .amt{text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.pstock{grid-column:1/-1;font-size:12px;margin-top:-2px}
+@media (max-width:640px){.phead{display:none}.pline{grid-template-columns:1fr 1fr}}
+@media (max-width:640px){.kpis[style]{grid-template-columns:repeat(2,1fr)!important}}
+.segmented.small{margin:0;align-self:flex-start}.segmented.small button{padding:6px 16px;font-size:13.5px}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -1013,7 +1026,9 @@ Views.dia = {
     const parts = r.list.flatMap(s => { const tot = s.price - s.discount + s.tip, dep = Math.min(s.depositAmount || 0, tot);
       const mth = s.method === 'Paquete prepagado' ? 'Paquete prepagado (ya cobrado)' : (s.method || 'Sin registrar');
       return dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }, { m: mth, v: tot - dep }] : [{ m: mth, v: tot }]; })
-      .concat((Store.packages || []).filter(p => p.day === d).map(p => ({ m: p.method + ' (paquete vendido)', v: num(p.total) + num(p.tipTotal) }))).filter(x => x.v);
+      .concat((Store.packages || []).filter(p => p.day === d).map(p => ({ m: p.method + ' (paquete vendido)', v: num(p.total) + num(p.tipTotal) })))
+      .concat((Store.moves || []).filter(x => x.type === 'Venta en salón' && Dates.fromISO(x.date) === d).map(x => ({ m: (x.method || 'Sin registrar') + ' (producto)', v: num(x.qty) * num(x.unitPrice) })))
+      .concat((Store.notePayments || []).filter(x => x.day === d).map(x => ({ m: x.method + ' (pago de lashista)', v: num(x.amount) }))).filter(x => x.v);
     const byM = Logic.groupBy(parts, x => x.m, x => x.v);
     return `<div class="head"><div><h1>Hoja del día</h1><p>${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</p></div>
       <div class="chips no-print"><button class="btn sm" data-d="-1" aria-label="Día anterior">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-day value="${Dates.toISO(d)}"><button class="btn sm" data-d="1" aria-label="Día siguiente">${ic('right')}</button><button class="btn sm" data-d="0">Hoy</button></div></div>
@@ -1348,7 +1363,7 @@ function buildReport() {
       const cols = f.tab === 'tips' ? ['Lashista', 'Servicios', 'Tips', 'Tip promedio'] : ['Lashista', 'Servicios', 'Ventas netas', '% efectivo', 'Comisión'];
       const rows = g.map(r => f.tab === 'tips' ? [r.name, r.count, r.tips, r.count ? r.tips / r.count : 0] : [r.name, r.count, r.netas, r.pct, r.comision]);
       const foot = f.tab === 'tips' ? ['Total', sales.length, Logic.sum(sales, 'tip'), sales.length ? Logic.sum(sales, 'tip') / sales.length : 0] : ['Total', sales.length, Logic.sum(g, 'netas'), '', Logic.sum(sales, 'commission')];
-      return { cols: cols.map((l, i) => ({ label: l, r: i > 0, f: i === 1 ? intf : (l.startsWith('%') ? (v => v === '' ? '' : pct(v)) : M) })), rows, foot, aoa: [cols].concat(rows, [foot]) };
+      return { cols: cols.map((l, i) => ({ label: l, r: i > 0, f: i === 0 ? null : i === 1 ? intf : (l.startsWith('%') ? (v => v === '' ? '' : pct(v)) : M) })), rows, foot, aoa: [cols].concat(rows, [foot]) };
     }
     case 'gastos': {
       const g = Logic.groupBy(exps, e => e.category, e => e.amount), tot = Logic.sum(exps, 'amount');
@@ -2163,7 +2178,7 @@ function moveModal(type) {
   const extra = {
     'Compra': `<label class="field">Entra a<select data-mv="to"><option value="bodega">Bodega</option><option value="salon">Salón</option></select></label><label class="field">Costo unitario<input type="number" min="0" step="0.01" data-mv="unitCost"></label>`,
     'Transferencia': `<label class="field">De<select data-mv="from"><option value="bodega">Bodega</option><option value="salon">Salón</option></select></label><label class="field">A<select data-mv="to"><option value="salon">Salón</option><option value="bodega">Bodega</option></select></label>`,
-    'Venta en salón': `<label class="field">Precio unitario (salón)<input type="number" min="0" step="0.01" data-mv="unitPrice"></label><label class="field">Cliente (opcional)<input data-mv="client"></label>`,
+    'Venta en salón': `<label class="field">Precio unitario (salón)<input type="number" min="0" step="0.01" data-mv="unitPrice"></label><label class="field">Cliente (opcional)<input data-mv="client"></label><label class="field">Tipo de cliente<select data-mv="buyerType"><option>Público</option><option>Estudiante</option></select></label><label class="field">Método de pago<select data-mv="method">${[...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito').map(m => `<option>${esc(m)}</option>`).join('')}</select></label><label class="field">TXN:<input data-mv="txn" placeholder="Número de transacción" autocomplete="off"></label>`,
     'Ajuste': `<label class="field">Ubicación<select data-mv="location"><option value="bodega">Bodega</option><option value="salon">Salón</option></select></label><label class="field">Conteo físico<input type="number" min="0" step="1" data-mv="counted"></label>`,
   }[type];
   const titleTxt = { 'Compra': 'Registrar compra', 'Transferencia': 'Transferir entre bodega y salón', 'Venta en salón': 'Venta de producto en salón', 'Ajuste': 'Ajuste por conteo físico' }[type];
@@ -2197,7 +2212,7 @@ function moveModal(type) {
         move.qty = qty;
         if (type === 'Compra') { if (v('unitCost') === '' || num(v('unitCost')) < 0) { err.textContent = 'Escribe el costo unitario.'; return; } Object.assign(move, { from: null, to: v('to'), unitCost: r2(v('unitCost')) }); }
         if (type === 'Transferencia') { if (v('from') === v('to')) { err.textContent = 'Origen y destino deben ser distintos.'; return; } if (qty > s[v('from')]) { err.textContent = `Solo hay ${s[v('from')]} en ${LOCS[v('from')].toLowerCase()}.`; return; } Object.assign(move, { from: v('from'), to: v('to') }); }
-        if (type === 'Venta en salón') { if (v('unitPrice') === '' || num(v('unitPrice')) < 0) { err.textContent = 'Escribe el precio de venta.'; return; } if (qty > s.salon) { err.textContent = `Solo hay ${s.salon} en el salón. Transfiere de bodega primero.`; return; } Object.assign(move, { from: 'salon', to: null, unitPrice: r2(v('unitPrice')), client: (v('client') || '').trim() }); }
+        if (type === 'Venta en salón') { if (v('unitPrice') === '' || num(v('unitPrice')) < 0) { err.textContent = 'Escribe el precio de venta.'; return; } if (qty > s.salon && !m._ok) { m._ok = true; err.textContent = `En el sistema solo hay ${s.salon} en el salón. Si sí lo tienes, toca Guardar otra vez y el inventario quedará en negativo hasta registrar la entrada o el conteo.`; return; } Object.assign(move, { from: 'salon', to: null, unitPrice: r2(v('unitPrice')), client: (v('client') || '').trim(), buyerType: v('buyerType') || 'Público', method: v('method') || '', txn: (v('txn') || '').trim(), byName: Mode.who() }); }
       }
       const b = $('[data-x=ok]', m); b.disabled = true; b.textContent = 'Guardando…';
       try { await Store.saveMove(move); UI.close(); UI.toast('Movimiento guardado'); } catch (e) { b.disabled = false; b.textContent = 'Guardar'; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
@@ -2237,7 +2252,7 @@ Views.productos = {
     const t = S.prod.tab;
     return `<div class="head"><div><h1>Productos</h1><p>Catálogo, inventario de bodega y de salón, y venta de producto.</p></div>
       <div class="chips no-print">${MOVE_TYPES.map(k => `<button class="btn sm ${k === 'Compra' ? 'primary' : ''}" data-move="${k}" ${Store.writable() ? '' : 'disabled'}>${{ 'Compra': '+ Compra', 'Transferencia': 'Transferir', 'Venta en salón': 'Venta en salón', 'Ajuste': 'Ajuste de conteo' }[k]}</button>`).join('')}</div></div>
-      <div class="tabs no-print" role="tablist">${[['inventario', 'Inventario'], ['catalogo', 'Catálogo'], ['movimientos', 'Movimientos'], ['resumen', 'Resumen']].map(([k, l]) => `<button role="tab" class="${t === k ? 'on' : ''}" data-prtab="${k}">${l}</button>`).join('')}</div>
+      <div class="tabs no-print" role="tablist">${[['inventario', 'Inventario'], ['ventas', 'Ventas'], ['catalogo', 'Catálogo'], ['movimientos', 'Movimientos'], ['resumen', 'Resumen']].map(([k, l]) => `<button role="tab" class="${t === k ? 'on' : ''}" data-prtab="${k}">${l}</button>`).join('')}</div>
       ${this[t]()}`;
   },
   inventario() {
@@ -2251,7 +2266,7 @@ Views.productos = {
     return `<div class="filters no-print"><label class="field" style="max-width:none;flex:1 1 260px">Buscar<input type="search" data-pq value="${esc(S.prod.q)}" placeholder="Código o nombre"></label></div>
       ${table([{ label: 'Código' }, { label: 'Producto' }, { label: 'Bodega', r: 1, html: 1 }, { label: 'Salón', r: 1, html: 1 }, { label: 'Total', r: 1, html: 1 }, { label: 'Precio lashista', r: 1 }, { label: 'Precio salón', r: 1 }, { label: 'Costo', r: 1 }], rows, null,
         { click: 1, emptyTitle: 'Sin productos', empty: 'Agrega productos en Catálogo.' })}
-      <div class="pager"><span>${vb + vs ? `Valor a costo: bodega ${money(vb, 1)} · salón ${money(vs, 1)}. ` : ''}Las notas enviadas o pagadas descuentan del salón. Toca un producto para ver sus movimientos.</span>${exportButtons('inv')}</div>`;
+      <div class="pager"><span>${vb + vs ? `Valor a costo: bodega ${money(vb, 1)} · salón ${money(vs, 1)}. ` : ''}Las ventas, las entregas a lashistas y las notas enviadas descuentan del salón. Toca un producto para ver sus movimientos.</span><div class="chips"><button class="btn sm primary" data-count ${Store.writable() ? '' : 'disabled'}>Conteo de inventario</button>${exportButtons('inv')}</div></div>`;
   },
   catalogo() {
     const list = Store.config.products; this._cat = list;
@@ -2316,6 +2331,7 @@ Views.productos = {
       });
       bindExport(root, () => [['Fecha', 'Tipo', 'Código', 'Producto', 'De', 'A', 'Cantidad', 'Costo unitario', 'Precio unitario', 'Notas']].concat(this._moves.map(m => [m.date, m.type, m.code, m.name, m.type === 'Ajuste' ? m.location : (m.from || ''), m.to || '', m.qty, m.unitCost == null ? '' : m.unitCost, m.unitPrice == null ? '' : m.unitPrice, m.notes || m.client || ''])), 'Movimientos_inventario');
     }
+    if (f.tab === 'ventas') this.ventasMount(root);
     if (f.tab === 'resumen') $$('[data-rm]', root).forEach(b => b.onclick = () => { f.month = shiftMonth(f.month || Dates.ym(Dates.today()), +b.dataset.rm); UI.render(); });
   },
 };
@@ -3009,7 +3025,7 @@ Views.recepcion = {
     const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
     const kpi = (lab, val, sub) => `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
     return `<div class="head"><div><h1>Panel de hoy</h1><p>${esc(Dates.fmt(today, { weekday: 'long', day: 'numeric', month: 'long' }))}${Mode.operator ? ' · turno de ' + esc(Mode.operator.name) : ''}</p></div>
-      <div class="chips"><button class="btn" data-pdep>${ic('plus')}Depósito</button><button class="btn" data-preq>${ic('plus')}Solicitud de insumos</button><button class="btn primary" data-go="nueva">${ic('plus')}Cobrar</button></div></div>
+      <div class="chips"><button class="btn" data-pdep>${ic('plus')}Depósito</button><button class="btn" data-preq>${ic('plus')}Solicitud de insumos</button><button class="btn primary cta" data-go="nueva">${ic('plus')}Cobrar</button></div></div>
       <section class="kpis" style="grid-template-columns:repeat(4,1fr)">
         ${kpi('Servicios cobrados', intf(r.count), `${money(r.ventas)} en servicios`)}${kpi('Cobrado hoy', money(cobrado), `incluye ${money(r.tips)} de tips`)}
         ${kpi('Depósitos registrados hoy', money(r2(depHoy.reduce((t, d) => t + d.amount, 0))), `${depHoy.filter(d => d.status === 'Verificado').length} verificados · ${pend.length} por verificar`)}${kpi('Insumos por entregar', intf(cola.length), cola.length ? 'solicitudes en cola' : 'todo entregado')}</section>
@@ -3850,6 +3866,443 @@ Store.saveSale = async function (form, id) {
 };
 
 /* =========================================================
+   RESUMEN DE VENTAS — día, semana Fluffy, mes o rango: servicios, productos y pagos
+   de lashistas, con lo que entró por cada método de pago. Se descarga en PDF o Excel.
+   Los pagos de notas de insumos de las lashistas cuentan como dinero del día en que se pagan.
+   ========================================================= */
+Store.notePayments = [];
+Store.connectHooks.push(db => db.collection('notePayments').onSnapshot(s => { Store.notePayments = s.docs.map(d => ({ id: d.id, ...d.data(), day: Dates.fromISO(d.data().date) })); Store._notesCache = null; Store.invalidate(); }, () => {}));
+Store.saveNotePayment = async function (data) {
+  if (!this.writable()) throw new Error('No tienes permiso para guardar en esta vista.');
+  const doc = { ...data, createdAt: new Date().toISOString(), byName: Mode.who() }, ref = this.db.collection('notePayments').doc();
+  await ref.set(doc); this.notePayments = this.notePayments.filter(p => p.id !== ref.id).concat({ id: ref.id, ...doc, day: Dates.fromISO(doc.date) }); this._notesCache = null; this.invalidate();
+};
+const paidOf = n => r2(Store.notePayments.filter(p => p.noteId === n.id).reduce((t, p) => t + num(p.amount), 0));
+/* Una nota con pagos que cubren el total queda Pagada, aunque recepción no pueda editar la nota. */
+const _notesDesc = Object.getOwnPropertyDescriptor(Store, 'notes');
+Object.defineProperty(Store, 'notes', { configurable: true, get() {
+  return _notesDesc.get.call(this).map(n => { if (n.source !== 'app') return n; const paid = paidOf(n); return { ...n, paid, pending: r2(Math.max(0, n.total - paid)), status: n.status !== 'Cancelada' && paid >= n.total - 0.005 && paid > 0 ? 'Pagada' : n.status }; });
+} });
+
+function notePaymentForm(preNoteId) {
+  const open = Store.notes.filter(n => n.source === 'app' && n.status === 'Enviada' && n.pending > 0.005);
+  const methods = [...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito');
+  if (!open.length) { UI.toast('No hay notas de insumos pendientes de pago.'); return; }
+  UI.modal(`<h3>Pago de lashista</h3><p style="color:var(--muted);margin:0 0 14px">Cuando una lashista paga su nota de insumos. El monto cuenta como dinero del día.</p>
+    <div class="formgrid"><label class="field full">Nota<select data-np="note">${open.map(n => `<option value="${n.id}" ${n.id === preNoteId ? 'selected' : ''}>${esc(n.artistName)} · Invoice #${esc(n.invoice)} · ${esc(ymLabel(n.month))} · pendiente ${money(n.pending, 1)}</option>`).join('')}</select></label>
+      <label class="field">Monto<input type="number" min="0" step="0.01" data-np="amount"></label><label class="field">Fecha<input type="date" data-np="date" value="${Dates.toISO(Dates.today())}"></label>
+      <label class="field">Método de pago<select data-np="method">${methods.map(m => `<option>${esc(m)}</option>`).join('')}</select></label><label class="field">TXN:<input data-np="txn" placeholder="Número de transacción" autocomplete="off"></label></div>
+    <p class="err" data-nperr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar pago</button></div>`, m => {
+    const v = k => $(`[data-np="${k}"]`, m).value, sel = $('[data-np=note]', m), amt = $('[data-np=amount]', m);
+    const fill = () => { const n = open.find(x => x.id === sel.value); amt.value = n ? n.pending : ''; }; fill(); sel.onchange = fill;
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const n = open.find(x => x.id === v('note')), a = num(v('amount')), err = $('[data-nperr]', m);
+      if (!(a > 0)) return (err.textContent = 'Escribe el monto.');
+      if (a > n.pending + 0.005) return (err.textContent = `El pendiente de esta nota es ${money(n.pending, 1)}.`);
+      if (!Dates.fromISO(v('date'))) return (err.textContent = 'Escribe la fecha.');
+      try { await Store.saveNotePayment({ noteId: n.id, invoice: n.invoice, artistId: n.artistId, artistName: n.artistName, amount: r2(a), date: v('date'), method: v('method'), txn: v('txn').trim() }); UI.close(); UI.toast(a >= n.pending - 0.005 ? 'Nota pagada' : 'Pago parcial registrado'); }
+      catch (e) { err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+    };
+  });
+}
+
+/* ---------- cálculo del resumen ---------- */
+const Summary = {
+  build(from, to) {
+    const inR = d => d != null && d >= from && d <= to;
+    const sales = Store.sales.filter(s => inR(s.day)), t = Logic.totals(sales);
+    const prepaid = sales.filter(s => s.method === 'Paquete prepagado');
+    const bySvc = Logic.groupBy(sales, s => s.service, s => s.price).map(x => ({ ...x, netas: r2(sales.filter(s => s.service === x.key).reduce((a, s) => a + s.price - s.discount, 0)) })).sort((a, b) => b.count - a.count);
+    const byArt = Logic.calculatePayroll(sales, from, to);
+    const pkgs = (Store.packages || []).filter(p => inR(p.day)).map(p => ({ client: title(((p.first || '') + ' ' + (p.last || '')).trim()), what: `${p.serviceName} × ${p.sessions}`, amount: r2(num(p.total) + num(p.tipTotal)), method: p.method, txn: p.txn || '' }));
+    const prods = (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).map(m => ({ date: Dates.fromISO(m.date), name: m.name || m.code, qty: num(m.qty), amount: r2(num(m.qty) * num(m.unitPrice)), method: m.method || 'Sin registrar', txn: m.txn || '', client: m.client || '' }));
+    const pays = Store.notePayments.filter(p => inR(p.day)).map(p => ({ date: p.day, artist: p.artistName, invoice: p.invoice, amount: num(p.amount), method: p.method, txn: p.txn || '' }));
+    const parts = [];
+    sales.forEach(s => { if (s.method === 'Paquete prepagado') return; const tot = r2(s.price - s.discount + s.tip), dep = Math.min(s.depositAmount || 0, tot);
+      if (dep) parts.push({ m: (s.depositMethod || 'Sin registrar'), k: 'Depósitos aplicados', v: dep }); if (tot - dep) parts.push({ m: s.method || 'Sin registrar', k: 'Servicios', v: r2(tot - dep) }); });
+    pkgs.forEach(p => parts.push({ m: p.method, k: 'Paquetes', v: p.amount }));
+    prods.forEach(p => parts.push({ m: p.method, k: 'Productos', v: p.amount }));
+    pays.forEach(p => parts.push({ m: p.method, k: 'Pagos de lashistas', v: p.amount }));
+    const methods = Logic.groupBy(parts, x => x.m, x => x.v).map(x => ({ ...x, detail: Logic.groupBy(parts.filter(p => p.m === x.key), p => p.k, p => p.v).map(d => `${d.key} ${money(d.value)}`).join(' · ') }));
+    const svcCash = r2(parts.filter(p => p.k === 'Servicios' || p.k === 'Depósitos aplicados').reduce((a, p) => a + p.v, 0));
+    const tot = { servicios: t.netas, tips: t.tips, count: t.count, prepaid: r2(prepaid.reduce((a, s) => a + s.price - s.discount + s.tip, 0)), paquetes: r2(pkgs.reduce((a, p) => a + p.amount, 0)),
+      productos: r2(prods.reduce((a, p) => a + p.amount, 0)), lashistas: r2(pays.reduce((a, p) => a + p.amount, 0)), svcCash };
+    tot.recibido = r2(parts.reduce((a, p) => a + p.v, 0));
+    return { from, to, sales, t, tot, bySvc, byArt, pkgs, prods, pays, methods };
+  },
+  label(from, to) { return from === to ? Dates.fmt(from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : `${Dates.fmt(from)} – ${Dates.fmt(to)}`; },
+};
+
+/* ---------- vista ---------- */
+S.res = { kind: 'dia', day: Dates.today(), ws: Dates.fluffyWeekStart(Dates.today()), ym: Dates.ym(Dates.today()), from: Dates.today() - 6, to: Dates.today() };
+Views.resumen = {
+  range() {
+    const r = S.res;
+    if (r.kind === 'semana') return [r.ws, r.ws + 6];
+    if (r.kind === 'mes') { const [y, m] = r.ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; }
+    if (r.kind === 'rango') return [r.from, r.to];
+    return [r.day, r.day];
+  },
+  html() {
+    const r = S.res, [from, to] = this.range(), d = Summary.build(from, to), rec = Mode.reception; this._d = d;
+    const nav = r.kind === 'dia' ? `<button class="btn sm" data-rs="-1" aria-label="Anterior">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-rday value="${Dates.toISO(r.day)}"><button class="btn sm" data-rs="1" aria-label="Siguiente">${ic('right')}</button>`
+      : r.kind === 'semana' ? `<button class="btn sm" data-rs="-1" aria-label="Anterior">${ic('left')}</button><span class="w">${weekLabel(r.ws)}</span><button class="btn sm" data-rs="1" aria-label="Siguiente">${ic('right')}</button>`
+      : r.kind === 'mes' ? `<button class="btn sm" data-rs="-1" aria-label="Anterior">${ic('left')}</button><span class="w">${esc(ymLabel(r.ym))}</span><button class="btn sm" data-rs="1" aria-label="Siguiente">${ic('right')}</button>`
+      : `<input type="date" class="inp" style="width:auto" data-rfrom value="${Dates.toISO(r.from)}"><span>a</span><input type="date" class="inp" style="width:auto" data-rto value="${Dates.toISO(r.to)}">`;
+    const kpi = (l, v, s) => `<div class="kpi"><div class="lab">${l}</div><div class="val">${money(v)}</div><div class="sub">${s}</div></div>`;
+    return `<div class="head"><div><h1>Resumen de ventas</h1><p>${esc(Summary.label(from, to))}</p></div>
+        <div class="chips no-print"><button class="btn" data-rdl="xlsx">${ic('dl')}Excel</button><button class="btn pink" data-rdl="pdf">${ic('dl')}PDF</button></div></div>
+      <div class="filters no-print" style="align-items:center"><div class="chips">${[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes'], ['rango', 'Rango']].map(([k, l]) => `<button class="chip ${r.kind === k ? 'on' : ''}" data-rk="${k}">${l}</button>`).join('')}</div><div class="weeknav">${nav}</div></div>
+      <section class="kpis">${kpi('Servicios', d.tot.servicios, `${intf(d.tot.count)} servicios · ventas netas`)}${kpi('Tips', d.tot.tips, 'de los servicios')}${kpi('Productos en salón', d.tot.productos, `${intf(d.prods.length)} ventas`)}
+        ${kpi('Pagos de lashistas', d.tot.lashistas, 'notas de insumos')}${kpi('Paquetes vendidos', d.tot.paquetes, `${intf(d.pkgs.length)} paquetes`)}<div class="kpi lead"><div class="lab">Total recibido</div><div class="val">${money(d.tot.recibido)}</div><div class="sub">${d.tot.prepaid ? `sin ${money(d.tot.prepaid)} de sesiones ya pagadas` : 'todo el dinero que entró'}</div></div></section>
+      <div class="grid2b">
+        <section class="panel"><h2>Por método de pago</h2><p class="hint">Dinero que entró, separado por concepto.</p>
+          ${table([{ label: 'Método' }, { label: 'Monto', r: 1 }, { label: 'Detalle' }], d.methods.map(x => [x.key, money(x.value, 1), x.detail]), d.methods.length ? ['Total', money(d.tot.recibido, 1), ''] : null, { emptyTitle: 'Sin movimientos', empty: 'No entró dinero en este periodo.' })}</section>
+        <section class="panel"><h2>Por lashista</h2><p class="hint">Servicios que hizo cada una.</p>
+          ${table([{ label: 'Lashista' }, { label: 'Servicios', r: 1 }, { label: 'Ventas', r: 1 }, { label: 'Tips', r: 1 }, ...(rec ? [] : [{ label: 'Comisión', r: 1 }])],
+            d.byArt.map(a => [a.name, intf(a.count), money(a.ventas, 1), money(a.tips, 1), ...(rec ? [] : [money(a.comision, 1)])]), null, { emptyTitle: 'Sin servicios', empty: '' })}</section>
+      </div>
+      <section class="panel"><h2>Por servicio</h2>
+        ${table([{ label: 'Servicio' }, { label: 'Cantidad', r: 1 }, { label: 'Ventas', r: 1 }, { label: 'Ventas netas', r: 1 }], d.bySvc.map(x => [x.key, intf(x.count), money(x.value, 1), money(x.netas, 1)]),
+          d.bySvc.length ? ['Total', intf(d.t.count), money(d.t.ventas, 1), money(d.t.netas, 1)] : null, { emptyTitle: 'Sin servicios', empty: '' })}</section>
+      <div class="grid2b">
+        <section class="panel"><h2>Productos vendidos en salón</h2>
+          ${table([{ label: 'Fecha' }, { label: 'Producto' }, { label: 'Cant.', r: 1 }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }], d.prods.map(p => [Dates.fmt(p.date, { day: '2-digit', month: 'short' }), p.name, intf(p.qty), money(p.amount, 1), p.method, p.txn || '—']),
+            d.prods.length ? ['Total', '', intf(d.prods.reduce((a, p) => a + p.qty, 0)), money(d.tot.productos, 1), '', ''] : null, { emptyTitle: 'Sin ventas de producto', empty: 'Se registran con “Venta de producto”.' })}</section>
+        <section class="panel"><h2>Pagos de lashistas</h2>
+          ${table([{ label: 'Fecha' }, { label: 'Lashista' }, { label: 'Invoice' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }], d.pays.map(p => [Dates.fmt(p.date, { day: '2-digit', month: 'short' }), p.artist, '#' + p.invoice, money(p.amount, 1), p.method, p.txn || '—']),
+            d.pays.length ? ['Total', '', '', money(d.tot.lashistas, 1), '', ''] : null, { emptyTitle: 'Sin pagos de lashistas', empty: 'Se registran con “Pago de lashista”.' })}</section>
+      </div>
+      ${d.pkgs.length ? `<section class="panel"><h2>Paquetes vendidos</h2>${table([{ label: 'Clienta' }, { label: 'Paquete' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }], d.pkgs.map(p => [p.client, p.what, money(p.amount, 1), p.method, p.txn || '—']))}</section>` : ''}
+      <p class="formula">Servicios = precio − descuento. Total recibido = servicios + tips (sin las sesiones de paquetes ya pagadas) + productos + pagos de lashistas + paquetes vendidos. Los depósitos aplicados se cuentan el día del cobro, con su método.</p>`;
+  },
+  mount(root) {
+    const r = S.res;
+    $$('[data-rk]', root).forEach(b => b.onclick = () => { r.kind = b.dataset.rk; UI.render(); });
+    $$('[data-rs]', root).forEach(b => b.onclick = () => { const k = +b.dataset.rs; if (r.kind === 'dia') r.day += k; if (r.kind === 'semana') r.ws += 7 * k; if (r.kind === 'mes') r.ym = shiftMonth(r.ym, k); UI.render(); });
+    const dd = $('[data-rday]', root); if (dd) dd.onchange = () => { const x = Dates.fromISO(dd.value); if (x != null) { r.day = x; UI.render(); } };
+    const f = $('[data-rfrom]', root), t = $('[data-rto]', root);
+    if (f) f.onchange = () => { const x = Dates.fromISO(f.value); if (x != null) { r.from = x; if (r.to < x) r.to = x; UI.render(); } };
+    if (t) t.onchange = () => { const x = Dates.fromISO(t.value); if (x != null) { r.to = x; if (r.from > x) r.from = x; UI.render(); } };
+    $$('[data-rdl]', root).forEach(b => b.onclick = () => Summary.download(b.dataset.rdl, this._d));
+  },
+};
+
+Summary.download = function (kind, d) {
+  const label = Summary.label(d.from, d.to), file = `Resumen_ventas_${Dates.toISO(d.from)}${d.from === d.to ? '' : '_a_' + Dates.toISO(d.to)}`, rec = Mode.reception;
+  const resumen = [['Concepto', 'Monto'], ['Servicios (ventas netas)', d.tot.servicios], ['Tips', d.tot.tips], ['Productos en salón', d.tot.productos], ['Pagos de lashistas', d.tot.lashistas], ['Paquetes vendidos', d.tot.paquetes], ['Sesiones de paquetes ya pagadas (no suman)', d.tot.prepaid], ['Total recibido', d.tot.recibido]];
+  const metodos = [['Método', 'Monto', 'Detalle']].concat(d.methods.map(x => [x.key, x.value, x.detail]));
+  const lash = [['Lashista', 'Servicios', 'Ventas', 'Tips', ...(rec ? [] : ['Comisión'])]].concat(d.byArt.map(a => [a.name, a.count, a.ventas, a.tips, ...(rec ? [] : [a.comision])]));
+  const svc = [['Servicio', 'Cantidad', 'Ventas', 'Ventas netas']].concat(d.bySvc.map(x => [x.key, x.count, x.value, x.netas]));
+  const prod = [['Fecha', 'Producto', 'Cantidad', 'Monto', 'Método', 'TXN', 'Cliente']].concat(d.prods.map(p => [Dates.toISO(p.date), p.name, p.qty, p.amount, p.method, p.txn, p.client]));
+  const pays = [['Fecha', 'Lashista', 'Invoice', 'Monto', 'Método', 'TXN']].concat(d.pays.map(p => [Dates.toISO(p.date), p.artist, p.invoice, p.amount, p.method, p.txn]));
+  const pk = [['Clienta', 'Paquete', 'Monto', 'Método', 'TXN']].concat(d.pkgs.map(p => [p.client, p.what, p.amount, p.method, p.txn]));
+  const det = [['Fecha', 'Lashista', 'Servicio', 'Clienta', 'Precio', 'Descuento', 'Tip', 'Método', 'TXN', 'Depósito']].concat(d.sales.slice().sort((a, b) => a.day - b.day).map(s => [Dates.toISO(s.day), s.artistName, s.service, client(s), s.price, s.discount, s.tip, s.method || '', s.txn || '', s.depositAmount || 0]));
+  if (kind === 'xlsx') {
+    if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
+    const wb = XLSX.utils.book_new(), add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Resumen de ventas · ${label}`], []].concat(rows)), name);
+    add('Resumen', resumen); add('Métodos de pago', metodos); add('Por lashista', lash); add('Por servicio', svc); add('Productos', prod); add('Pagos lashistas', pays); add('Paquetes', pk); add('Detalle servicios', det);
+    return Exporter.save(file + '.xlsx', new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+  }
+  const doc = Pdf.doc(false); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+  Pdf.header(doc, 'Resumen de ventas', label);
+  let y = 104; const fm = v => typeof v === 'number' ? fmt2.format(v) : String(v == null ? '' : v);
+  const sec = (title, rows, moneyCols) => {
+    if (rows.length < 2) return;
+    if (y > doc.internal.pageSize.getHeight() - 120) { doc.addPage(); y = 50; }
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(58, 42, 46); doc.text(title, 40, y); y += 6;
+    const cs = {}; moneyCols.forEach(i => { cs[i] = { halign: 'right' }; });
+    doc.autoTable({ startY: y, head: [rows[0]], body: rows.slice(1).map(r => r.map((v, i) => moneyCols.includes(i) ? fm(v) : (v == null ? '' : String(v)))), theme: 'grid', margin: { left: 40, right: 40 },
+      styles: { font: 'helvetica', fontSize: 8.5, cellPadding: 4, textColor: [58, 42, 46], lineColor: [239, 228, 223], lineWidth: 0.5 }, headStyles: { fillColor: [244, 194, 194], textColor: [58, 42, 46] }, columnStyles: cs });
+    y = doc.lastAutoTable.finalY + 22;
+  };
+  sec('Resumen', resumen, [1]); sec('Por método de pago', metodos, [1]); sec('Por lashista', lash, rec ? [2, 3] : [2, 3, 4]); sec('Por servicio', svc, [2, 3]);
+  sec('Productos vendidos en salón', prod.map(r => r.slice(0, 6)), [3]); sec('Pagos de lashistas', pays, [3]); sec('Paquetes vendidos', pk, [2]);
+  Pdf.save(doc, file);
+};
+
+/* ---------- navegación y accesos ---------- */
+RECEP_ROUTES.push('resumen');
+NAV.splice(NAV.findIndex(n => n.id === 'nueva') + 1, 0, { id: 'resumen', label: 'Resumen de ventas', icon: 'rep', sub: true });
+const _rnRes = UI.renderNav;
+UI.renderNav = function () {
+  _rnRes();
+  if (!Mode.reception) return;
+  const d = $('#side .nav [data-go=dia]'); if (d) d.insertAdjacentHTML('afterend', `<a class="${UI.route === 'resumen' ? 'on' : ''}" data-go="resumen">${ic('rep')}Resumen de ventas</a>`);
+};
+
+/* Panel de hoy: venta de producto y pago de lashista. */
+const _recHtmlR = Views.recepcion.html, _recMountR = Views.recepcion.mount;
+Views.recepcion.html = function () {
+  return _recHtmlR.call(this).replace('<div class="chips"><button class="btn" data-pdep>', `<div class="chips"><button class="btn" data-psale>${ic('plus')}Venta de producto</button><button class="btn" data-ppay>${ic('plus')}Pago de lashista</button><button class="btn" data-pdep>`);
+};
+Views.recepcion.mount = function (root) {
+  _recMountR.call(this, root);
+  const s = $('[data-psale]', root); if (s) s.onclick = () => moveModal('Venta en salón');
+  const p = $('[data-ppay]', root); if (p) p.onclick = () => notePaymentForm();
+};
+
+/* Hoja del día: productos y pagos de lashistas suman al dinero del día. */
+const _diaHtmlR = Views.dia.html, _diaMountR = Views.dia.mount;
+Views.dia.html = function () {
+  let h = _diaHtmlR.call(this);
+  const d = Summary.build(S.dia.day, S.dia.day), prodTot = r2(d.tot.productos + d.tot.lashistas);
+  h = h.replace(/<div class="kpi"><div class="lab">Total<\/div><div class="val">[^<]*<\/div><div class="sub">Ventas \+ tips<\/div><\/div>/,
+    `<div class="kpi"><div class="lab">Total del día</div><div class="val">${money(r2(d.t.ventas + d.t.tips + prodTot))}</div><div class="sub">servicios + tips${prodTot ? ' + ' + money(prodTot) + ' de productos' : ''}</div></div>`);
+  const prodPanel = `<section class="panel"><h2>Productos e insumos del día</h2><p class="hint">Ventas de producto en salón y pagos de notas de las lashistas.</p>
+    ${table([{ label: 'Concepto' }, { label: 'Detalle' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }],
+      d.prods.map(p => ['Venta en salón', `${p.name} × ${intf(p.qty)}${p.client ? ' · ' + p.client : ''}`, money(p.amount, 1), p.method, p.txn || '—']).concat(d.pays.map(p => ['Pago de lashista', `${p.artist} · Invoice #${p.invoice}`, money(p.amount, 1), p.method, p.txn || '—'])),
+      prodTot ? ['Total', '', money(prodTot, 1), '', ''] : null, { emptyTitle: 'Sin productos hoy', empty: 'Usa “Venta de producto” o “Pago de lashista”.' })}
+    <div class="chips no-print" style="margin-top:10px"><button class="btn sm" data-dpsale>${ic('plus')}Venta de producto</button><button class="btn sm" data-dppay>${ic('plus')}Pago de lashista</button><button class="btn sm" data-dres>${ic('dl')}Resumen del día (PDF / Excel)</button></div></section>`;
+  return h.replace('<section class="panel"><h2>Servicios del día</h2>', prodPanel + '<section class="panel"><h2>Servicios del día</h2>');
+};
+Views.dia.mount = function (root) {
+  _diaMountR.call(this, root);
+  const on = (k, fn) => { const b = $(k, root); if (b) b.onclick = fn; };
+  on('[data-dpsale]', () => moveModal('Venta en salón')); on('[data-dppay]', () => notePaymentForm());
+  on('[data-dres]', () => { S.res.kind = 'dia'; S.res.day = S.dia.day; UI.go('resumen'); });
+};
+
+/* Notas: registrar pago desde el detalle (administración). */
+const _noteDetail = noteDetail;
+noteDetail = function (n) {
+  _noteDetail(n);
+  const m = $('.modal'); if (!m || n.source !== 'app' || !(n.pending > 0.005) || n.status !== 'Enviada' || !Store.writable()) return;
+  const acts = $('.acts', m); acts.insertAdjacentHTML('afterbegin', `<button class="btn" data-x="paynote">Registrar pago</button>`);
+  $('[data-x=paynote]', m).onclick = () => { UI.close(); notePaymentForm(n.id); };
+  const pays = Store.notePayments.filter(p => p.noteId === n.id);
+  if (pays.length) acts.insertAdjacentHTML('beforebegin', `<p class="formula">Pagos: ${pays.map(p => `${money(p.amount, 1)} · ${esc(p.method)}${p.txn ? ' · TXN ' + esc(p.txn) : ''} · ${Dates.fmt(p.day, { day: '2-digit', month: 'short' })}`).join(' | ')}. Pendiente ${money(n.pending, 1)}.</p>`);
+};
+
+/* =========================================================
+   COBRAR — una sola pantalla para cobrar un servicio, vender producto o recibir el
+   pago de una lashista. Disponible para administración y recepción.
+   ========================================================= */
+S.cobro = { tipo: 'servicio' };
+const COBRO_TIPOS = [['servicio', 'Servicio'], ['producto', 'Producto'], ['lashista', 'Pago de lashista']];
+const _nvHtmlC = Views.nueva.html, _nvMountC = Views.nueva.mount;
+const cobroTabs = () => `<div class="segmented no-print" role="tablist">${COBRO_TIPOS.map(([k, l]) => `<button role="tab" class="${S.cobro.tipo === k ? 'on' : ''}" data-ctipo="${k}">${l}</button>`).join('')}</div>`;
+const payMethods = () => [...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito');
+
+Views.nueva.html = function () {
+  if (UI.params.edit || this.form && (this.form._appt || this.form.packageId)) S.cobro.tipo = 'servicio';
+  if (S.cobro.tipo === 'servicio') return _nvHtmlC.call(this).replace(/<h1>(Nueva venta|Cobrar)<\/h1>/, '<h1>Cobrar</h1>').replace('<div class="sale-layout">', (UI.params.edit ? '' : cobroTabs()) + '<div class="sale-layout">');
+  return S.cobro.tipo === 'producto' ? ProdSale.html() : LashPay.html();
+};
+Views.nueva.mount = function (root) {
+  $$('[data-ctipo]', root).forEach(b => b.onclick = () => { if (UI.formDirty && !window.confirm('Tienes un cobro sin guardar. ¿Cambiar de todos modos?')) return; UI.formDirty = false; S.cobro.tipo = b.dataset.ctipo; UI.render(); });
+  if (S.cobro.tipo === 'servicio') return _nvMountC.call(this, root);
+  return S.cobro.tipo === 'producto' ? ProdSale.mount(root) : LashPay.mount(root);
+};
+
+/* ---------- venta de producto ---------- */
+const ProdSale = {
+  st: null,
+  blank() { return { date: Dates.toISO(Dates.today()), client: '', buyerType: 'Público', method: '', txn: '', lines: [{ code: '', qty: 1, price: '' }] }; },
+  html() {
+    const st = this.st || (this.st = this.blank()), stock = Store.stock(), prods = Store.config.products.filter(p => p.active !== false);
+    const line = (l, k) => { const s = stock.get(l.code) || { salon: 0 };
+      return `<div class="pline" data-pl="${k}"><select class="inp" data-p="code" aria-label="Producto"><option value="">Elige producto</option>${prods.map(p => `<option value="${esc(p.code)}" ${l.code === p.code ? 'selected' : ''}>${esc(p.code + ' · ' + p.name)}</option>`).join('')}</select>
+        <input class="inp num" type="number" min="1" step="1" data-p="qty" value="${esc(l.qty)}" aria-label="Cantidad"><input class="inp num" type="number" min="0" step="0.01" data-p="price" value="${esc(l.price)}" placeholder="Precio" aria-label="Precio unitario">
+        <span class="amt">${money(r2(num(l.qty) * num(l.price)), 1)}</span><button type="button" class="btn sm" data-p="rm" aria-label="Quitar">×</button>
+        ${l.code ? `<span class="pstock ${s.salon < num(l.qty) ? 'neg' : 'mutedc'}">En salón: ${intf(s.salon)}</span>` : ''}</div>`; };
+    return `<div class="head"><div><h1>Cobrar</h1><p>Venta de producto a clientas en el salón.</p></div></div>${cobroTabs()}
+      <div class="sale-layout"><form class="formgrid" novalidate data-pform>
+        <label class="field">Fecha<input type="date" name="date" value="${esc(st.date)}"></label><label class="field">Cliente (opcional)<input name="client" value="${esc(st.client)}" autocomplete="off"></label>
+        <label class="field full">Tipo de cliente<div class="segmented small" data-btype>${['Público', 'Estudiante'].map(t => `<button type="button" class="${(st.buyerType || 'Público') === t ? 'on' : ''}" data-bt="${t}">${t}</button>`).join('')}</div></label>
+        <div class="full"><div class="phead"><span>Producto</span><span>Cant.</span><span>Precio</span><span>Monto</span><span></span></div><div data-plines>${st.lines.map(line).join('')}</div>
+          <button type="button" class="btn sm" data-padd style="margin-top:8px">${ic('plus')}Agregar producto</button></div>
+        <label class="field">Método de pago<select name="method"><option value="">Elige método</option>${payMethods().map(m => `<option ${st.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+        <label class="field">TXN:<input name="txn" value="${esc(st.txn)}" placeholder="Número de transacción" autocomplete="off"></label>
+        <p class="err full" data-perr style="color:var(--bad);font-size:13px;font-weight:600;margin:0"></p>
+        <div class="full chips"><button class="btn primary" type="submit" ${Store.writable() ? '' : 'disabled'}>Guardar venta de producto</button><button class="btn" type="button" data-preset>Limpiar</button></div>
+      </form><aside class="receipt" data-preceipt>${this.receipt()}</aside></div>`;
+  },
+  receipt() {
+    const st = this.st, lines = st.lines.filter(l => l.code), name = c => (Store.product(c) || {}).name || c, tot = r2(lines.reduce((t, l) => t + num(l.qty) * num(l.price), 0));
+    return `<h3>Resumen</h3>${lines.length ? lines.map(l => `<div class="rline"><span>${esc(name(l.code))} × ${intf(num(l.qty))}</span><span>${money(r2(num(l.qty) * num(l.price)), 1)}</span></div>`).join('') : '<p class="mutedc">Elige los productos.</p>'}
+      <div class="rline total big"><span>Total a cobrar</span><span>${money(tot, 1)}</span></div><p class="formula">Sale del inventario del salón y suma a la venta del día.</p>`;
+  },
+  mount(root) {
+    const st = this.st, form = $('[data-pform]', root), err = $('[data-perr]', root);
+    const repaint = () => { $('[data-preceipt]', root).innerHTML = this.receipt(); $$('[data-pl]', root).forEach(el => { const l = st.lines[+el.dataset.pl]; $('.amt', el).textContent = money(r2(num(l.qty) * num(l.price)), 1); }); };
+    form.addEventListener('input', e => { const n = e.target.name; if (n && n in st) { st[n] = e.target.value; UI.formDirty = true; } });
+    const lines = $('[data-plines]', root);
+    lines.addEventListener('change', e => { const el = e.target.closest('[data-pl]'), k = e.target.dataset.p; if (!el || !k || k === 'rm') return; const l = st.lines[+el.dataset.pl]; l[k] = e.target.value; UI.formDirty = true;
+      if (k === 'code') { const p = Store.product(l.code); l.price = p ? (p.priceSalon != null ? p.priceSalon : '') : ''; UI.render(); return; } repaint(); });
+    lines.addEventListener('input', e => { const el = e.target.closest('[data-pl]'), k = e.target.dataset.p; if (!el || (k !== 'qty' && k !== 'price')) return; st.lines[+el.dataset.pl][k] = e.target.value; repaint(); });
+    lines.addEventListener('click', e => { if (e.target.closest('[data-p=rm]')) { st.lines.splice(+e.target.closest('[data-pl]').dataset.pl, 1); if (!st.lines.length) st.lines.push({ code: '', qty: 1, price: '' }); UI.render(); } });
+    $('[data-padd]', root).onclick = () => { st.lines.push({ code: '', qty: 1, price: '' }); UI.render(); };
+    $$('[data-bt]', root).forEach(b => b.onclick = () => { st.buyerType = b.dataset.bt; $$('[data-bt]', root).forEach(x => x.classList.toggle('on', x === b)); });
+    $('[data-preset]', root).onclick = () => { this.st = this.blank(); UI.formDirty = false; UI.render(); };
+    form.onsubmit = async e => {
+      e.preventDefault(); err.textContent = '';
+      const ls = st.lines.filter(l => l.code), stock = Store.stock();
+      if (!ls.length) return (err.textContent = 'Elige al menos un producto.');
+      if (ls.some(l => !(num(l.qty) > 0) || !Number.isInteger(num(l.qty)))) return (err.textContent = 'Las cantidades deben ser números enteros mayores a 0.');
+      if (ls.some(l => l.price === '' || num(l.price) < 0)) return (err.textContent = 'Escribe el precio de cada producto.');
+      if (!st.method) return (err.textContent = 'Elige el método de pago.');
+      if (!Dates.fromISO(st.date)) return (err.textContent = 'Escribe la fecha.');
+      const short = ls.filter(l => num(l.qty) > (stock.get(l.code) || { salon: 0 }).salon);
+      if (short.length && !form._ok) { form._ok = true; return (err.textContent = `En el sistema no alcanza la existencia de ${short.map(l => l.code).join(', ')} en el salón. Si sí lo tienes, toca Guardar otra vez; el inventario quedará en negativo hasta registrar la entrada o el conteo.`); }
+      const b = $('[type=submit]', form); b.disabled = true; b.textContent = 'Guardando…';
+      try {
+        for (const l of ls) { const p = Store.product(l.code); await Store.saveMove({ type: 'Venta en salón', code: l.code, name: p ? p.name : l.code, date: st.date, qty: num(l.qty), from: 'salon', to: null, unitPrice: r2(l.price), client: st.client.trim(), buyerType: st.buyerType || 'Público', method: st.method, txn: st.txn.trim(), byName: Mode.who(), notes: '' }); }
+        this.st = { ...this.blank(), date: st.date, buyerType: st.buyerType }; UI.formDirty = false; UI.toast('Venta de producto guardada'); UI.render();
+      } catch (er) { b.disabled = false; b.textContent = 'Guardar venta de producto'; err.textContent = 'No se pudo guardar: ' + (er.message || er.code); }
+    };
+  },
+};
+
+/* ---------- pago de lashista (nota de insumos) ---------- */
+const LashPay = {
+  st: { noteId: '', amount: '', date: Dates.toISO(Dates.today()), method: '', txn: '' },
+  open() { return Store.notes.filter(n => n.source === 'app' && n.status === 'Enviada' && n.pending > 0.005); },
+  html() {
+    const st = this.st, open = this.open(), n = open.find(x => x.id === st.noteId);
+    return `<div class="head"><div><h1>Cobrar</h1><p>Pago de una lashista por su nota de insumos. Suma a la venta del día.</p></div></div>${cobroTabs()}
+      ${!open.length ? '<div class="tablewrap"><div class="empty"><b>No hay notas pendientes de pago</b>Las notas aparecen aquí cuando administración las envía.</div></div>' : `
+      <div class="sale-layout"><form class="formgrid" novalidate data-lform>
+        <label class="field full">Nota<select name="noteId"><option value="">Elige la nota</option>${open.map(x => `<option value="${x.id}" ${st.noteId === x.id ? 'selected' : ''}>${esc(x.artistName)} · Invoice #${esc(x.invoice)} · ${esc(ymLabel(x.month))} · pendiente ${money(x.pending, 1)}</option>`).join('')}</select></label>
+        <label class="field">Monto<input type="number" min="0" step="0.01" name="amount" value="${esc(st.amount)}"></label><label class="field">Fecha<input type="date" name="date" value="${esc(st.date)}"></label>
+        <label class="field">Método de pago<select name="method"><option value="">Elige método</option>${payMethods().map(m => `<option ${st.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+        <label class="field">TXN:<input name="txn" value="${esc(st.txn)}" placeholder="Número de transacción" autocomplete="off"></label>
+        <p class="err full" data-lerr style="color:var(--bad);font-size:13px;font-weight:600;margin:0"></p>
+        <div class="full chips"><button class="btn primary" type="submit" ${Store.writable() ? '' : 'disabled'}>Registrar pago</button></div></form>
+      <aside class="receipt"><h3>Nota</h3>${n ? `${n.items.map(i => `<div class="rline"><span>${esc(i.desc)} × ${intf(num(i.qty))}</span><span>${money(i.amount, 1)}</span></div>`).join('')}<div class="rline total"><span>Total</span><span>${money(n.total, 1)}</span></div><div class="rline"><span>Ya pagado</span><span>${money(n.paid || 0, 1)}</span></div><div class="rline total big"><span>Pendiente</span><span>${money(n.pending, 1)}</span></div>` : '<p class="mutedc">Elige la nota de la lashista.</p>'}</aside></div>`}`;
+  },
+  mount(root) {
+    const form = $('[data-lform]', root); if (!form) return; const st = this.st, err = $('[data-lerr]', root);
+    form.addEventListener('input', e => { const k = e.target.name; if (!k) return; st[k] = e.target.value; if (k === 'noteId') { const n = this.open().find(x => x.id === st.noteId); st.amount = n ? n.pending : ''; UI.render(); } });
+    form.onsubmit = async e => {
+      e.preventDefault(); const n = this.open().find(x => x.id === st.noteId), a = num(st.amount);
+      if (!n) return (err.textContent = 'Elige la nota.');
+      if (!(a > 0)) return (err.textContent = 'Escribe el monto.');
+      if (a > n.pending + 0.005) return (err.textContent = `El pendiente de esta nota es ${money(n.pending, 1)}.`);
+      if (!st.method) return (err.textContent = 'Elige el método de pago.');
+      if (!Dates.fromISO(st.date)) return (err.textContent = 'Escribe la fecha.');
+      try { await Store.saveNotePayment({ noteId: n.id, invoice: n.invoice, artistId: n.artistId, artistName: n.artistName, amount: r2(a), date: st.date, method: st.method, txn: String(st.txn || '').trim() });
+        this.st = { noteId: '', amount: '', date: st.date, method: '', txn: '' }; UI.toast(a >= n.pending - 0.005 ? 'Nota pagada' : 'Pago parcial registrado'); UI.render(); }
+      catch (er) { err.textContent = 'No se pudo guardar: ' + (er.message || er.code); }
+    };
+  },
+};
+
+/* ---------- botón Cobrar destacado ---------- */
+NAV.forEach(n => { if (n.id === 'nueva') n.label = 'Cobrar'; });
+const _rnC = UI.renderNav;
+UI.renderNav = function () {
+  _rnC();
+  $$('#side .nav a[data-go=nueva]').forEach(a => { a.classList.add('cta'); if (!$('svg', a)) a.insertAdjacentHTML('afterbegin', ic('plus')); });
+  const b = $('#bottom a[data-go=nueva]'); if (b) b.classList.add('cta');
+};
+
+/* =========================================================
+   PRODUCTOS → VENTAS por rango de fechas y tipo de cliente:
+   Público y Estudiantes (venta en salón) y Salón (notas de insumos a lashistas).
+   PRODUCTOS → CONTEO DE INVENTARIO para cargar o corregir existencias de todos los productos a la vez.
+   ========================================================= */
+const BUYER_TYPES = ['Público', 'Estudiante', 'Salón (lashistas)'];
+S.pv = { kind: 'mes', day: Dates.today(), ws: Dates.fluffyWeekStart(Dates.today()), ym: Dates.ym(Dates.today()), from: Dates.today() - 29, to: Dates.today(), type: '' };
+const ProdSales = {
+  range() { const r = S.pv; if (r.kind === 'dia') return [r.day, r.day]; if (r.kind === 'semana') return [r.ws, r.ws + 6]; if (r.kind === 'rango') return [r.from, r.to]; const [y, m] = r.ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; },
+  rows(from, to) {
+    const inR = d => d != null && d >= from && d <= to, out = [];
+    (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).forEach(m => out.push({ day: Dates.fromISO(m.date), type: m.buyerType === 'Estudiante' ? 'Estudiante' : 'Público', code: m.code, name: m.name || m.code, qty: num(m.qty), amount: r2(num(m.qty) * num(m.unitPrice)), who: m.client || '', method: m.method || '', txn: m.txn || '' }));
+    Store.notes.filter(n => n.source === 'app' && (n.status === 'Enviada' || n.status === 'Pagada') && inR(Dates.fromISO(n.date || (n.month + '-01')))).forEach(n => {
+      const f = n.subtotal ? n.taxable / n.subtotal : 1; // reparte los descuentos de la nota entre sus artículos
+      n.items.forEach(i => out.push({ day: Dates.fromISO(n.date || (n.month + '-01')), type: 'Salón (lashistas)', code: i.code || '—', name: i.desc, qty: num(i.qty), amount: r2(num(i.amount) * f), who: `${n.artistName} · #${n.invoice}`, method: n.status === 'Pagada' ? 'Pagada' : 'Por cobrar', txn: '' }));
+    });
+    return out.sort((a, b) => a.day - b.day);
+  },
+  html() {
+    const r = S.pv, [from, to] = this.range(), all = this.rows(from, to), rows = all.filter(x => !r.type || x.type === r.type); this._rows = rows; this._label = from === to ? Dates.fmt(from) : `${Dates.fmt(from)} – ${Dates.fmt(to)}`;
+    const tot = t => r2(all.filter(x => x.type === t).reduce((a, x) => a + x.amount, 0)), units = r2(rows.reduce((a, x) => a + x.qty, 0));
+    const by = new Map(); rows.forEach(x => { const o = by.get(x.code + '|' + x.name) || { code: x.code, name: x.name, q: {}, a: {}, qty: 0, amount: 0 }; o.q[x.type] = (o.q[x.type] || 0) + x.qty; o.a[x.type] = r2((o.a[x.type] || 0) + x.amount); o.qty += x.qty; o.amount = r2(o.amount + x.amount); by.set(x.code + '|' + x.name, o); });
+    this._by = [...by.values()].sort((a, b) => b.amount - a.amount);
+    const nav = r.kind === 'dia' ? `<button class="btn sm" data-pvs="-1">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-pvday value="${Dates.toISO(r.day)}"><button class="btn sm" data-pvs="1">${ic('right')}</button>`
+      : r.kind === 'semana' ? `<button class="btn sm" data-pvs="-1">${ic('left')}</button><span class="w">${weekLabel(r.ws)}</span><button class="btn sm" data-pvs="1">${ic('right')}</button>`
+      : r.kind === 'mes' ? `<button class="btn sm" data-pvs="-1">${ic('left')}</button><span class="w">${esc(ymLabel(r.ym))}</span><button class="btn sm" data-pvs="1">${ic('right')}</button>`
+      : `<input type="date" class="inp" style="width:auto" data-pvfrom value="${Dates.toISO(r.from)}"><span>a</span><input type="date" class="inp" style="width:auto" data-pvto value="${Dates.toISO(r.to)}">`;
+    const kpi = (l, v, s, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+    const types = r.type ? [r.type] : BUYER_TYPES;
+    return `<div class="filters no-print" style="align-items:center;justify-content:space-between">
+        <div class="chips">${[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes'], ['rango', 'Rango']].map(([k, l]) => `<button class="chip ${r.kind === k ? 'on' : ''}" data-pvk="${k}">${l}</button>`).join('')}<div class="weeknav">${nav}</div></div>
+        <div class="chips"><button class="btn sm" data-pvdl="xlsx">${ic('dl')}Excel</button><button class="btn sm pink" data-pvdl="pdf">${ic('dl')}PDF</button></div></div>
+      <div class="chips no-print" style="margin:-6px 0 16px">${[['', 'Todos']].concat(BUYER_TYPES.map(t => [t, t])).map(([k, l]) => `<button class="chip ${r.type === k ? 'on' : ''}" data-pvt="${esc(k)}">${esc(l)}</button>`).join('')}</div>
+      <section class="kpis">${kpi('Público', money(tot('Público')), 'clientas del salón')}${kpi('Estudiantes', money(tot('Estudiante')), 'academia')}${kpi('Salón (lashistas)', money(tot('Salón (lashistas)')), 'notas de insumos, sin tax')}
+        ${kpi('Total', money(r2(tot('Público') + tot('Estudiante') + tot('Salón (lashistas)'))), esc(this._label), 1)}${kpi('Unidades', intf(units), r.type ? esc(r.type) : 'todos los tipos')}${kpi('Productos distintos', intf(this._by.length), '')}</section>
+      <section class="panel"><h2>Por producto</h2>
+        ${table([{ label: 'Código' }, { label: 'Producto' }, ...types.flatMap(t => [{ label: `${t} · cant.`, r: 1 }, { label: `${t} · $`, r: 1 }]), { label: 'Total', r: 1 }],
+          this._by.map(o => [o.code, o.name, ...types.flatMap(t => [o.q[t] ? intf(o.q[t]) : '—', o.a[t] ? money(o.a[t], 1) : '—']), money(o.amount, 1)]), null, { emptyTitle: 'Sin ventas de producto', empty: 'Cambia el periodo o el tipo.' })}</section>
+      <section class="panel"><h2>Detalle</h2>
+        ${table([{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Producto' }, { label: 'Cant.', r: 1 }, { label: 'Monto', r: 1 }, { label: 'Cliente / lashista' }, { label: 'Método' }, { label: 'TXN' }],
+          rows.slice(-300).reverse().map(x => [Dates.fmt(x.day, { day: '2-digit', month: 'short' }), x.type, x.name, intf(x.qty), money(x.amount, 1), x.who || '—', x.method || '—', x.txn || '—']), null, { emptyTitle: 'Sin movimientos', empty: '' })}</section>
+      <p class="formula">Público y Estudiantes salen de “Cobrar → Producto” (y “Venta en salón”). Salón (lashistas) son las notas de insumos enviadas o pagadas, por la fecha de la nota y ya con descuentos, sin tax. Todas descuentan del inventario del salón.</p>`;
+  },
+  mount(root) {
+    const r = S.pv;
+    $$('[data-pvk]', root).forEach(b => b.onclick = () => { r.kind = b.dataset.pvk; UI.render(); });
+    $$('[data-pvt]', root).forEach(b => b.onclick = () => { r.type = b.dataset.pvt; UI.render(); });
+    $$('[data-pvs]', root).forEach(b => b.onclick = () => { const k = +b.dataset.pvs; if (r.kind === 'dia') r.day += k; if (r.kind === 'semana') r.ws += 7 * k; if (r.kind === 'mes') r.ym = shiftMonth(r.ym, k); UI.render(); });
+    const d = $('[data-pvday]', root); if (d) d.onchange = () => { const x = Dates.fromISO(d.value); if (x != null) { r.day = x; UI.render(); } };
+    const f = $('[data-pvfrom]', root), t = $('[data-pvto]', root);
+    if (f) f.onchange = () => { const x = Dates.fromISO(f.value); if (x != null) { r.from = x; if (r.to < x) r.to = x; UI.render(); } };
+    if (t) t.onchange = () => { const x = Dates.fromISO(t.value); if (x != null) { r.to = x; if (r.from > x) r.from = x; UI.render(); } };
+    const types = r.type ? [r.type] : BUYER_TYPES, file = `Ventas_productos_${this._label.replace(/[^0-9a-z]+/gi, '_')}`;
+    const byRows = [['Código', 'Producto', ...types.flatMap(x => [`${x} cant.`, `${x} $`]), 'Total']].concat(this._by.map(o => [o.code, o.name, ...types.flatMap(x => [o.q[x] || 0, o.a[x] || 0]), o.amount]));
+    const detRows = [['Fecha', 'Tipo', 'Código', 'Producto', 'Cantidad', 'Monto', 'Cliente / lashista', 'Método', 'TXN']].concat(this._rows.map(x => [Dates.toISO(x.day), x.type, x.code, x.name, x.qty, x.amount, x.who, x.method, x.txn]));
+    $$('[data-pvdl]', root).forEach(b => b.onclick = () => {
+      if (b.dataset.pvdl === 'xlsx') {
+        if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
+        const wb = XLSX.utils.book_new(), add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Ventas de productos · ${this._label}`], []].concat(rows)), n);
+        add('Por producto', byRows); add('Detalle', detRows); return Exporter.save(file + '.xlsx', new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+      }
+      const doc = Pdf.doc(true); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+      Pdf.header(doc, 'Ventas de productos', this._label + (r.type ? ' · ' + r.type : ''));
+      const fm = v => typeof v === 'number' ? (Number.isInteger(v) ? intf(v) : fmt2.format(v)) : String(v || '');
+      doc.autoTable({ startY: 104, head: [byRows[0]], body: byRows.slice(1).map(x => x.map(fm)), theme: 'grid', margin: { left: 40, right: 40 }, styles: { font: 'helvetica', fontSize: 8.5, textColor: [58, 42, 46] }, headStyles: { fillColor: [244, 194, 194], textColor: [58, 42, 46] } });
+      doc.autoTable({ startY: doc.lastAutoTable.finalY + 24, head: [detRows[0]], body: detRows.slice(1).map(x => x.map(fm)), theme: 'grid', margin: { left: 40, right: 40 }, styles: { font: 'helvetica', fontSize: 8, textColor: [58, 42, 46] }, headStyles: { fillColor: [244, 194, 194], textColor: [58, 42, 46] } });
+      Pdf.save(doc, file);
+    });
+  },
+};
+Views.productos.ventas = function () { return ProdSales.html(); };
+Views.productos.ventasMount = function (root) { ProdSales.mount(root); };
+
+/* ---------- conteo de inventario (todos los productos a la vez) ---------- */
+function inventoryCount() {
+  const st = Store.stock(), list = Store.config.products.filter(p => p.active !== false);
+  UI.modal(`<h3>Conteo de inventario</h3><p style="color:var(--muted);margin:0 0 12px">Escribe lo que contaste. Deja vacío lo que no contaste; solo se ajustan los productos que cambian.</p>
+    <div class="tablewrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th>Código</th><th>Producto</th><th class="r">Bodega hoy</th><th class="r">Bodega contado</th><th class="r">Salón hoy</th><th class="r">Salón contado</th></tr></thead><tbody>
+    ${list.map(p => { const s = st.get(p.code) || { bodega: 0, salon: 0 }; return `<tr><td>${esc(p.code)}</td><td>${esc(p.name)}</td><td class="r ${s.bodega < 0 ? 'neg' : ''}">${intf(s.bodega)}</td><td class="r"><input class="inp num" type="number" min="0" step="1" data-cnt="${esc(p.code)}|bodega" style="width:80px"></td><td class="r ${s.salon < 0 ? 'neg' : ''}">${intf(s.salon)}</td><td class="r"><input class="inp num" type="number" min="0" step="1" data-cnt="${esc(p.code)}|salon" style="width:80px"></td></tr>`; }).join('')}
+    </tbody></table></div>
+    <label class="field" style="margin-top:10px">Nota (opcional)<input data-cntnote placeholder="Ej. conteo inicial, conteo mensual"></label>
+    <p class="err" data-cnterr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar conteo</button></div>`, m => {
+    m.classList.add('wide');
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const err = $('[data-cnterr]', m), note = $('[data-cntnote]', m).value.trim(), moves = [];
+      for (const el of $$('[data-cnt]', m)) {
+        if (el.value === '') continue; const v = num(el.value);
+        if (v < 0 || !Number.isInteger(v)) { err.textContent = 'Los conteos deben ser números enteros, 0 o más.'; return; }
+        const [code, loc] = el.dataset.cnt.split('|'), cur = (st.get(code) || { bodega: 0, salon: 0 })[loc];
+        if (v !== cur) { const p = Store.product(code); moves.push({ type: 'Ajuste', code, name: p.name, date: Dates.toISO(Dates.today()), location: loc, counted: v, qty: v - cur, notes: note || 'Conteo de inventario', byName: Mode.who() }); }
+      }
+      if (!moves.length) { err.textContent = 'No hay cambios: escribe al menos un conteo distinto al actual.'; return; }
+      const b = $('[data-x=ok]', m); b.disabled = true;
+      try { for (let i = 0; i < moves.length; i++) { b.textContent = `Guardando ${i + 1}/${moves.length}…`; await Store.saveMove(moves[i]); } UI.close(); UI.toast(`${moves.length} ajustes guardados`); }
+      catch (e) { b.disabled = false; b.textContent = 'Guardar conteo'; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+    };
+  });
+}
+const _prodMountC = Views.productos.mount;
+Views.productos.mount = function (root) { _prodMountC.call(this, root); const b = $('[data-count]', root); if (b) b.onclick = inventoryCount; };
+
+/* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
    Recepción queda siempre en modo recepción; la seguridad la aplica Supabase (RLS).
    ========================================================= */
@@ -3876,7 +4329,7 @@ Views.config.html = function () {
         m.email.toLowerCase() === FM.session.user.email.toLowerCase() ? '<span class="mutedc">Tú</span>' : `<button class="btn sm" data-mrole="${i}">Cambiar rol</button> <button class="btn sm" data-mtoggle="${i}">${m.active === false ? 'Dar acceso' : 'Quitar acceso'}</button>`]), null,
       { emptyTitle: 'Cargando usuarios…', empty: '' })}
     <div class="chips" style="margin-top:10px"><button class="btn sm primary" data-madd>${ic('plus')}Agregar usuario</button></div>
-    <p class="formula">Administración: todo. Edición: todo menos claves y usuarios. Recepción: cobrar, agenda, depósitos, paquetes, insumos y notas del día. Solo lectura: ver sin guardar.</p></section>` + _cfgHtmlW.call(this);
+    <p class="formula">Administración: todo. Edición: todo menos claves y usuarios. Recepción: cobrar, agenda, depósitos, paquetes, insumos, venta de producto, pagos de lashistas y notas del día. Solo lectura: ver sin guardar.</p></section>` + _cfgHtmlW.call(this);
 };
 Views.config.mount = function (root) {
   _cfgMountW.call(this, root);
