@@ -192,6 +192,12 @@ a.btn{text-decoration:none;color:inherit}
 @media (max-width:640px){.phead{display:none}.pline{grid-template-columns:1fr 1fr}}
 @media (max-width:640px){.kpis[style]{grid-template-columns:repeat(2,1fr)!important}}
 .segmented.small{margin:0;align-self:flex-start}.segmented.small button{padding:6px 16px;font-size:13.5px}
+tbody tr.st-pagada td{background:#E3F1E6}tbody tr.st-pagada.click:hover td{background:#D6EBDA}
+tbody tr.st-noshow td{background:#FBF4E3}tbody tr.st-cancelada td{color:var(--muted);background:#F6F3F2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.st-pagada td{background:#1F2E23}:root:not([data-theme="light"]) tbody tr.st-noshow td{background:#30291A}:root:not([data-theme="light"]) tbody tr.st-cancelada td{background:#262022}}
+:root[data-theme="dark"] tbody tr.st-pagada td{background:#1F2E23}:root[data-theme="dark"] tbody tr.st-noshow td{background:#30291A}:root[data-theme="dark"] tbody tr.st-cancelada td{background:#262022}
+.aglegend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin:10px 0 0;flex-wrap:wrap}.aglegend span{display:inline-flex;align-items:center;gap:6px}
+.aglegend .sw{width:14px;height:14px;border-radius:4px;border:1px solid var(--line)}.aglegend .sw.st-pagada{background:#E3F1E6}.aglegend .sw.st-noshow{background:#FBF4E3}.aglegend .sw.st-cancelada{background:#F6F3F2}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -3159,6 +3165,7 @@ function depCell(a) {
   if (d) return `<span class="dep ${d.status === 'Verificado' ? 'ok' : d.status === 'Rechazado' ? 'no' : 'q'}">${money(d.amount)} · ${esc(d.method)}</span><br><span class="mutedc" style="font-size:12px">${d.status === 'Verificado' ? 'verificado' : d.status === 'Rechazado' ? 'rechazado' : 'por verificar'}${d.outcome === 'Aplicado' ? ' · aplicado' : ''}</span>`;
   const s = suggestDeposit(a);
   if (s) return `<button class="btn sm" data-link="${a.id}|${s.id}">Vincular depósito ${money(s.amount)}</button>`;
+  if (a.status === 'Pagada' && a.saleId && Store.writable()) return `<span class="mutedc">Sin depósito</span><br><button class="linkbtn" style="font-size:12.5px" data-chdep="${a.id}">Agregar depósito</button>`;
   return a.status === 'Agendada' && Store.writable() ? `<span class="mutedc">Sin depósito</span><br><button class="linkbtn" style="font-size:12.5px" data-adddep="${a.id}">Registrar depósito</button>` : '<span class="mutedc">Sin depósito</span>';
 }
 function payCell(a) {
@@ -3237,9 +3244,9 @@ function apptDetail(a) {
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
     ${(a.history || []).length ? `<h4 style="margin:16px 0 6px">Historial</h4><ul class="audit">${a.history.slice().reverse().map(h => `<li><b>${esc(h.by || '')}</b> <span class="mutedc">${esc(new Date(h.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span><br>${esc(h.what)}</li>`).join('')}</ul>` : ''}
     <div class="acts">${a.email && a.status === 'Agendada' ? `<a class="btn" href="${apptMailto(a)}">Enviar confirmación</a>` : ''}${can && a.status === 'Agendada' ? '<button class="btn" data-x="resched">Reagendar</button><button class="btn" data-x="cancel">Cancelar cita</button><button class="btn" data-x="ns">No-show</button><button class="btn" data-x="ed">Editar</button><button class="btn primary" data-x="pay">Cobrar</button>' : ''}
-      ${s ? '<button class="btn" data-x="sale">Ver venta</button>' : ''}${can && a.status !== 'Agendada' && a.status !== 'Pagada' ? '<button class="btn" data-x="reopen">Volver a agendada</button>' : ''}<button class="btn ${can && a.status === 'Agendada' ? '' : 'primary'}" data-x="c">Cerrar</button></div>`, m => {
+      ${s && s.source === 'app' && can ? '<button class="btn" data-x="chdep">Cambiar depósito</button>' : ''}${s ? '<button class="btn" data-x="sale">Ver venta</button>' : ''}${can && a.status !== 'Agendada' && a.status !== 'Pagada' ? '<button class="btn" data-x="reopen">Volver a agendada</button>' : ''}<button class="btn ${can && a.status === 'Agendada' ? '' : 'primary'}" data-x="c">Cerrar</button></div>`, m => {
     const on = (k, fn) => { const b = $(`[data-x=${k}]`, m); if (b) b.onclick = fn; };
-    on('c', UI.close); on('ed', () => { UI.close(); apptForm(a); }); on('resched', () => { UI.close(); rescheduleForm(a); }); on('pay', () => { UI.close(); chargeAppt(a); }); on('sale', () => { UI.close(); saleDetail(s); });
+    on('c', UI.close); on('ed', () => { UI.close(); apptForm(a); }); on('resched', () => { UI.close(); rescheduleForm(a); }); on('pay', () => { UI.close(); chargeAppt(a); }); on('sale', () => { UI.close(); saleDetail(s); }); on('chdep', () => { UI.close(); changeSaleDeposit(s, a); });
     on('cancel', async () => { if (!await UI.confirm('Cancelar cita', `Se cancelará la cita de ${esc(apptClient(a))}.${d ? ' El depósito queda disponible para otra cita o para devolverlo.' : ''}`, 'Cancelar cita')) return;
       try { await Store.saveAppointment({ status: 'Cancelada', depositId: '' }, a.id); if (d) await Store.saveDeposit({ appointmentId: '', _event: 'La cita se canceló' }, d.id); UI.toast('Cita cancelada'); } catch (e) { UI.toast('No se pudo guardar', true); } });
     on('ns', async () => {
@@ -3319,7 +3326,10 @@ Views.agenda = {
           <input type="date" class="inp" style="width:auto" data-agdate value="${Dates.toISO(f.day)}" aria-label="Elegir fecha"><button class="chip ${f.range === 'prox' ? 'on' : ''}" data-agprox>Próximos 14 días</button></div>
         <label class="field" style="max-width:none;flex:1 1 200px">Buscar<input type="search" data-agq value="${esc(f.q)}" placeholder="Clienta, lashista o servicio"></label></div>
       ${!list.length ? `<div class="tablewrap"><div class="empty"><b>Sin citas ${f.range === 'dia' ? 'este día' : 'en los próximos días'}</b>Agrega las citas con “Nueva cita”.</div></div>`
-        : [...groups].map(([d, l]) => `${f.range === 'prox' ? `<h3 class="agday">${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>` : ''}${rows(l)}`).join('')}
+        : (() => { let off = 0; return [...groups].map(([d, l]) => { const base = off; off += l.length;
+            const html = rows(l).replace(/<tr class="click" tabindex="0" data-row="(\d+)">/g, (m0, n) => { const ap = l[+n]; return `<tr class="click st-${ap.status === 'Pagada' ? 'pagada' : ap.status === 'No-show' ? 'noshow' : ap.status === 'Cancelada' ? 'cancelada' : 'agendada'}" tabindex="0" data-row="${base + +n}">`; });
+            return `${f.range === 'prox' ? `<h3 class="agday">${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>` : ''}${html}`; }).join(''); })()}
+      <div class="aglegend"><span><i class="sw st-pagada"></i>Pagada</span><span><i class="sw st-noshow"></i>No-show</span><span><i class="sw st-cancelada"></i>Cancelada</span></div>
       <p class="formula">“Resta” es el precio del servicio menos el depósito; el tip se agrega al cobrar. Al guardar el cobro, la cita pasa a Pagada con su método de pago.</p>`;
   },
   mount(root) {
@@ -3332,6 +3342,7 @@ Views.agenda = {
     const byId = id => Store.appointments.find(a => a.id === id);
     $$('[data-pay]', root).forEach(b => b.onclick = e => { e.stopPropagation(); chargeAppt(byId(b.dataset.pay)); });
     $$('[data-adddep]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const a = byId(b.dataset.adddep); apptForm(a); setTimeout(() => { const s = $('.modal [data-a=depositId]'); if (s) { s.value = '__new'; s.onchange(); } }, 0); });
+    $$('[data-chdep]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const a = byId(b.dataset.chdep), sale = apptSale(a); if (sale) changeSaleDeposit(sale, a); });
     $$('[data-link]', root).forEach(b => b.onclick = async e => { e.stopPropagation(); const [aid, did] = b.dataset.link.split('|');
       try { await Store.saveAppointment({ depositId: did }, aid); await Store.saveDeposit({ appointmentId: aid, _event: 'Vinculado a la cita' }, did); UI.toast('Depósito vinculado'); } catch (er) { UI.toast('No se pudo guardar', true); } });
     $$('[data-row]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button')) return; apptDetail(this._list[+tr.dataset.row]); });
@@ -3404,6 +3415,57 @@ Views.nueva.mount = function (root) {
 };
 const _saveSaleN = Store.saveSale;
 Store.saveSale = async function (form, id) { const r = await _saveSaleN.call(this, form, id); if (!form._isExtra) Store._saleOk = true; return r; };
+
+/* ---------- cambiar el depósito de una venta ya cobrada ---------- */
+function changeSaleDeposit(s, a) {
+  if (!s || s.source !== 'app') { UI.toast('Solo se puede cambiar en ventas registradas en la app.', true); return; }
+  const cur = s.depositId ? Store.deposits.find(d => d.id === s.depositId) : null, ns = Store.config.services.find(x => x.name === 'DEPOSITO - NO SHOW');
+  const avail = Store.deposits.filter(d => d.status !== 'Rechazado' && (!d.outcome || d.id === s.depositId));
+  const tot = r2(s.price - s.discount + s.tip);
+  UI.modal(`<h3>Depósito de ${esc(client(s))}</h3><p style="color:var(--muted);margin:0 0 14px">${esc(s.service)} · ${Dates.fmt(s.day)} · total ${money(tot, 1)}. Ahora: ${cur ? `depósito de ${money(cur.amount, 1)} (${esc(cur.method)})` : 'sin depósito'}.</p>
+    <label class="field">¿Dejó depósito?<select data-cd="dep"><option value="">No dejó depósito</option><option value="__new">Sí, registrar depósito…</option>${avail.map(d => `<option value="${d.id}" ${d.id === s.depositId ? 'selected' : ''}>${esc(depClient(d))} · ${money(d.amount)} · ${esc(d.method)}${d.txn ? ' · TXN ' + esc(d.txn) : ''}${d.status === 'Pendiente' ? ' · por verificar' : ''}</option>`).join('')}</select></label>
+    <div class="newdep" data-cdnew style="display:none;margin-top:10px"><div class="formgrid">
+      <label class="field">Monto<input type="number" min="0" step="0.01" data-cd="amount" value="${ns ? ns.price : ''}"></label>
+      <label class="field">Método<select data-cd="method">${DEPOSIT_METHODS.map(m => `<option>${m}</option>`).join('')}</select></label>
+      <label class="field">TXN:<input data-cd="txn" placeholder="Número de transacción" autocomplete="off"></label>
+      <label class="field">Fecha en que lo dejó<input type="date" data-cd="date" value="${esc(a ? a.date : Dates.toISO(s.day))}"></label></div></div>
+    <p class="formula" data-cdinfo></p><p class="err" data-cderr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, m => {
+    const sel = $('[data-cd=dep]', m), info = () => {
+      $('[data-cdnew]', m).style.display = sel.value === '__new' ? '' : 'none';
+      const d = sel.value === '__new' ? { amount: num($('[data-cd=amount]', m).value) } : Store.deposits.find(x => x.id === sel.value);
+      $('[data-cdinfo]', m).textContent = d ? `La venta queda: depósito ${money(d.amount, 1)} + ${money(r2(Math.max(0, tot - d.amount)), 1)} cobrados con ${s.method || 'el método de la venta'}.` : `La venta queda: ${money(tot, 1)} cobrados con ${s.method || 'el método de la venta'}.${cur ? ' El depósito actual vuelve a quedar disponible en Depósitos (ahí lo puedes marcar como devuelto o rechazado).' : ''}`;
+    };
+    sel.onchange = info; $('[data-cd=amount]', m).oninput = info; info();
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const err = $('[data-cderr]', m), b = $('[data-x=ok]', m); let depId = sel.value;
+      if (depId === s.depositId) { UI.close(); return; }
+      b.disabled = true;
+      try {
+        if (depId === '__new') {
+          const amt = num($('[data-cd=amount]', m).value); if (!(amt > 0)) { b.disabled = false; err.textContent = 'Escribe el monto del depósito.'; return; }
+          const art = Store.config.artists.find(x => x.id === s.artistKey);
+          depId = await Store.saveDeposit({ first: s.first, last: s.last, phone: a ? a.phone || '' : '', date: $('[data-cd=date]', m).value || Dates.toISO(s.day), time: a ? a.time || '' : '', artistId: s.artistKey, artistName: art ? art.name : s.artistName, service: s.service,
+            amount: r2(amt), method: $('[data-cd=method]', m).value, txn: $('[data-cd=txn]', m).value.trim(), status: 'Verificado', verifiedAt: new Date().toISOString(), verifiedByName: Mode.who(), note: 'Registrado después del cobro', appointmentId: a ? a.id : '', _event: 'Registró el depósito después del cobro' });
+        }
+        const form = { date: Dates.toISO(s.day), artistId: s.artistKey, serviceId: s.serviceId, price: s.price, discount: s.discount || '', tip: s.tip || '', method: s.method || '', txn: s.txn || '', first: s.first, last: s.last, comments: s.comments || '',
+          manualOn: s.manual, manualCommission: s.manual ? s.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: depId || '' };
+        await Store.saveSale(form, s.id);
+        if (a) await Store.saveAppointment({ depositId: depId || '', history: (a.history || []).concat({ at: new Date().toISOString(), by: Mode.who(), what: depId ? 'Cambió el depósito después del cobro' : 'Quitó el depósito después del cobro' }) }, a.id);
+        UI.close(); UI.toast(depId ? 'Depósito actualizado' : 'Depósito quitado de la venta');
+      } catch (e) { b.disabled = false; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+    };
+  });
+}
+const _saleDetailD = saleDetail;
+saleDetail = function (s) {
+  _saleDetailD(s);
+  const m = $('.modal'); if (!m || s.source !== 'app' || !Store.writable() || s.method === 'Paquete prepagado' || (Mode.reception && s.day !== Dates.today())) return;
+  const acts = $('.acts', m); if (!acts) return;
+  acts.insertAdjacentHTML('afterbegin', '<button class="btn" data-x="chdep2">Cambiar depósito</button>');
+  $('[data-x=chdep2]', m).onclick = () => { UI.close(); changeSaleDeposit(s, Store.appointments.find(a => a.saleId === s.id)); };
+};
 
 /* =========================================================
    PAQUETES — sesiones pagadas por adelantado (combos).
