@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fluffy Master</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Fluffy Master">
+<meta name="theme-color" content="#FFFFFF">
 <script src="vendor/supabase-2.117.1.js"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js"></script>
 <script src="vendor/jspdf-2.5.1.umd.min.js"></script>
@@ -169,6 +175,10 @@ ul.audit{list-style:none;margin:0;padding:0;font-size:13.5px}ul.audit li{padding
 h3.agday{font-size:17px;font-weight:700;margin:22px 0 10px}
 .newdep{border:1px dashed var(--sand);border-radius:12px;padding:12px}
 .dots{display:inline-flex;gap:3px;vertical-align:middle}.dots i{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--pink-deep)}.dots i.on{background:var(--pink-deep)}
+.xbox{border:1px dashed var(--sand);border-radius:12px;padding:12px 14px}.xhead{display:flex;flex-direction:column;gap:2px;margin-bottom:6px;font-size:14px}.xhead .mutedc{font-size:12.5px}
+.xline{display:grid;grid-template-columns:1.6fr 1fr 90px 80px 34px;gap:8px;margin:6px 0}
+@media (max-width:640px){.xline{grid-template-columns:1fr 1fr}}
+a.btn{text-decoration:none;color:inherit}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -332,7 +342,7 @@ function listenRealtime() {
 }
 
 /* ---------- pantallas de acceso ---------- */
-const gate = html => { document.getElementById('gate').innerHTML = `<div class="gate"><div class="brand" style="font-size:30px;padding:0">Fluffy Master</div><p style="color:var(--muted);margin:6px 0 24px">Fluffy Lashes · gestión del salón</p>${html}</div>`; document.getElementById('gate').style.display = ''; };
+const gate = html => { document.getElementById('gate').innerHTML = `<div class="gate"><img src="icons/logo-160.png" alt="" width="72" height="72" style="display:block;margin:0 0 10px -6px"><div class="brand" style="font-size:30px;padding:0">Fluffy Master</div><p style="color:var(--muted);margin:6px 0 24px">Fluffy Lashes · gestión del salón</p>${html}</div>`; document.getElementById('gate').style.display = ''; };
 const gateOff = () => { document.getElementById('gate').style.display = 'none'; };
 const qs = s => document.querySelector(s);
 
@@ -3134,8 +3144,10 @@ function depCell(a) {
 }
 function payCell(a) {
   if (a.status === 'Pagada') {
-    const s = apptSale(a), tot = s ? r2(s.price - s.discount + s.tip) : num(a.paidTotal), dep = s ? s.depositAmount : num(a.paidDeposit);
-    return `<b>${money(r2(tot - dep), 1)}</b> · ${esc((s && s.method) || a.paidMethod || 'sin método')}${dep ? `<br><span class="mutedc" style="font-size:12px">+ depósito ${money(dep)}</span>` : ''}`;
+    const s = apptSale(a), xs = (a.extraSaleIds || []).map(id => Store.sales.find(x => x.id === id)).filter(Boolean);
+    const tot = r2((s ? s.price - s.discount + s.tip : num(a.paidTotal)) + xs.reduce((t, x) => t + x.price - x.discount + x.tip, 0)), dep = s ? s.depositAmount : num(a.paidDeposit);
+    const prepaid = s && s.method === 'Paquete prepagado' ? r2(s.price - s.discount + s.tip) : 0;
+    return `<b>${money(r2(tot - dep - prepaid), 1)}</b> · ${esc((s && s.method) || a.paidMethod || 'sin método')}${dep ? `<br><span class="mutedc" style="font-size:12px">+ depósito ${money(dep)}</span>` : ''}${xs.length ? `<br><span class="mutedc" style="font-size:12px">incluye ${xs.length} servicio${xs.length > 1 ? 's' : ''} adicional${xs.length > 1 ? 'es' : ''}</span>` : ''}`;
   }
   if (a.status === 'No-show') return '<span class="mutedc">No llegó</span>';
   if (a.status === 'Cancelada') return '<span class="mutedc">Cancelada</span>';
@@ -3151,8 +3163,10 @@ function apptForm(a, preset) {
   UI.modal(`<h3>${a ? 'Editar cita' : 'Nueva cita'}</h3>
     <div class="formgrid">
       <label class="field">Fecha<input type="date" data-a="date" value="${esc(st.date)}"></label><label class="field">Hora<input type="time" data-a="time" value="${esc(st.time || '')}"></label>
+      <div class="full chips" data-quick>${[1, 2, 3, 4].map(n => `<button type="button" class="chip" data-wk="${n}">En ${n} semana${n > 1 ? 's' : ''}</button>`).join('')}</div>
       <label class="field">Nombre<input data-a="first" value="${esc(st.first)}"></label><label class="field">Apellido<input data-a="last" value="${esc(st.last)}"></label>
-      <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono (opcional)<input data-a="phone" value="${esc(st.phone || '')}"></label>
+      <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono (opcional)<input type="tel" data-a="phone" value="${esc(st.phone || '')}"></label>
+      <label class="field full">Correo electrónico (opcional)<input type="email" data-a="email" value="${esc(st.email || '')}" placeholder="clienta@correo.com" autocomplete="off"></label>
       <label class="field full">Servicio<select data-a="serviceId">${serviceOptions(st.serviceId, 0, !!a)}</select></label>
       <label class="field full">Depósito<select data-a="depositId"><option value="">Sin depósito</option><option value="__new">Registrar depósito ahora…</option>${avail.map(d => `<option value="${d.id}" ${st.depositId === d.id ? 'selected' : ''}>${esc(depClient(d))} · ${money(d.amount)} · ${esc(d.method)}${d.status === 'Pendiente' ? ' · por verificar' : ''}</option>`).join('')}</select></label>
       <div class="full newdep" data-newdep style="display:none"><div class="formgrid">
@@ -3163,6 +3177,8 @@ function apptForm(a, preset) {
     <p class="err" data-aerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${a ? 'Guardar cambios' : 'Agendar'}</button></div>`, m => {
     const dsel = $('[data-a=depositId]', m); dsel.onchange = () => { $('[data-newdep]', m).style.display = dsel.value === '__new' ? '' : 'none'; };
+    $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-a=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
+    if (preset && preset._focusDate) setTimeout(() => $('[data-a=date]', m).focus(), 0);
     $('[data-x=no]', m).onclick = UI.close;
     $('[data-x=ok]', m).onclick = async () => {
       const v = k => $(`[data-a="${k}"]`, m).value.trim(), err = $('[data-aerr]', m);
@@ -3170,8 +3186,9 @@ function apptForm(a, preset) {
       if (!v('first')) { err.textContent = 'Escribe el nombre de la clienta.'; return; }
       if (!v('artistId')) { err.textContent = 'Elige la lashista.'; return; }
       if (!v('serviceId')) { err.textContent = 'Elige el servicio.'; return; }
+      if (v('email') && !/^\S+@\S+\.\S+$/.test(v('email'))) { err.textContent = 'Revisa el correo electrónico.'; return; }
       const art = Store.config.artists.find(x => x.id === v('artistId')), svc = Store.config.services.find(x => x.id === v('serviceId'));
-      const data = { date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
+      const data = { date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
       const b = $('[data-x=ok]', m); b.disabled = true;
       try {
         let depId = dsel.value === '__new' ? '' : dsel.value;
@@ -3194,14 +3211,15 @@ function apptForm(a, preset) {
 function apptDetail(a) {
   const d = apptDeposit(a), s = apptSale(a), can = Store.writable();
   UI.modal(`<h3>${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + esc(a.time) : ''} · ${APPT_STATUS[a.status] || ''}</p>
-    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(a.phone || '—')}</dd>
+    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(a.phone || '—')}</dd><dt>Correo</dt><dd>${a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '—'}</dd>
     <dt>Depósito</dt><dd>${d ? `${money(d.amount, 1)} · ${esc(d.method || '')} · ${d.status === 'Verificado' ? 'verificado' : String(d.status || '').toLowerCase()}` : 'Sin depósito'}</dd>
     <dt>Pago</dt><dd style="white-space:normal">${s ? `Pagó ${money(r2(s.price - s.discount + s.tip - s.depositAmount), 1)} con ${esc(s.method || 'sin método')}${s.depositAmount ? ` + depósito ${money(s.depositAmount, 1)}` : ''} · cobró ${esc(s.cashierName || a.paidByName || '—')}` : a.status === 'Pagada' ? 'Pagada' : 'Pendiente'}</dd>
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
-    <div class="acts">${can && a.status === 'Agendada' ? '<button class="btn" data-x="cancel">Cancelar cita</button><button class="btn" data-x="ns">No-show</button><button class="btn" data-x="ed">Editar</button><button class="btn primary" data-x="pay">Cobrar</button>' : ''}
+    ${(a.history || []).length ? `<h4 style="margin:16px 0 6px">Historial</h4><ul class="audit">${a.history.slice().reverse().map(h => `<li><b>${esc(h.by || '')}</b> <span class="mutedc">${esc(new Date(h.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span><br>${esc(h.what)}</li>`).join('')}</ul>` : ''}
+    <div class="acts">${a.email && a.status === 'Agendada' ? `<a class="btn" href="${apptMailto(a)}">Enviar confirmación</a>` : ''}${can && a.status === 'Agendada' ? '<button class="btn" data-x="resched">Reagendar</button><button class="btn" data-x="cancel">Cancelar cita</button><button class="btn" data-x="ns">No-show</button><button class="btn" data-x="ed">Editar</button><button class="btn primary" data-x="pay">Cobrar</button>' : ''}
       ${s ? '<button class="btn" data-x="sale">Ver venta</button>' : ''}${can && a.status !== 'Agendada' && a.status !== 'Pagada' ? '<button class="btn" data-x="reopen">Volver a agendada</button>' : ''}<button class="btn ${can && a.status === 'Agendada' ? '' : 'primary'}" data-x="c">Cerrar</button></div>`, m => {
     const on = (k, fn) => { const b = $(`[data-x=${k}]`, m); if (b) b.onclick = fn; };
-    on('c', UI.close); on('ed', () => { UI.close(); apptForm(a); }); on('pay', () => { UI.close(); chargeAppt(a); }); on('sale', () => { UI.close(); saleDetail(s); });
+    on('c', UI.close); on('ed', () => { UI.close(); apptForm(a); }); on('resched', () => { UI.close(); rescheduleForm(a); }); on('pay', () => { UI.close(); chargeAppt(a); }); on('sale', () => { UI.close(); saleDetail(s); });
     on('cancel', async () => { if (!await UI.confirm('Cancelar cita', `Se cancelará la cita de ${esc(apptClient(a))}.${d ? ' El depósito queda disponible para otra cita o para devolverlo.' : ''}`, 'Cancelar cita')) return;
       try { await Store.saveAppointment({ status: 'Cancelada', depositId: '' }, a.id); if (d) await Store.saveDeposit({ appointmentId: '', _event: 'La cita se canceló' }, d.id); UI.toast('Cita cancelada'); } catch (e) { UI.toast('No se pudo guardar', true); } });
     on('ns', async () => {
@@ -3242,6 +3260,8 @@ Store.deleteSale = async function (id) {
   await _deleteSale3.call(this, id);
   const ap = this.appointments.find(a => a.saleId === id && a.status === 'Pagada');
   if (ap) await this.saveAppointment({ status: 'Agendada', saleId: '', paidMethod: '', paidAt: '' }, ap.id);
+  const ax = this.appointments.find(a => (a.extraSaleIds || []).includes(id));
+  if (ax) await this.saveAppointment({ extraSaleIds: ax.extraSaleIds.filter(x => x !== id) }, ax.id);
 };
 const _nvHtml2 = Views.nueva.html, _nvMount2 = Views.nueva.mount;
 Views.nueva.html = function () {
@@ -3262,7 +3282,7 @@ S.ag = { day: Dates.today(), range: 'dia', q: '' };
 Views.agenda = {
   list() {
     const f = S.ag, q = f.q.trim().toLowerCase(), from = f.range === 'dia' ? f.day : Dates.today(), to = f.range === 'dia' ? f.day : Dates.today() + 13;
-    return Store.appointments.filter(a => a.day >= from && a.day <= to && (!q || (apptClient(a) + ' ' + a.artistName + ' ' + a.serviceName).toLowerCase().includes(q)))
+    return Store.appointments.filter(a => a.day >= from && a.day <= to && (!q || (apptClient(a) + ' ' + a.artistName + ' ' + a.serviceName + ' ' + (a.phone || '') + ' ' + (a.email || '')).toLowerCase().includes(q)))
       .sort((a, b) => a.day - b.day || (a.time || '99').localeCompare(b.time || '99'));
   },
   html() {
@@ -3271,7 +3291,7 @@ Views.agenda = {
     const sum = { tot: list.length, dep: list.filter(a => apptDeposit(a)).length, paid: list.filter(a => a.status === 'Pagada').length, pend: list.filter(a => a.status === 'Agendada').length };
     const groups = new Map(); list.forEach(a => { if (!groups.has(a.day)) groups.set(a.day, []); groups.get(a.day).push(a); });
     const rows = l => table([{ label: 'Hora' }, { label: 'Clienta', html: 1 }, { label: 'Lashista' }, { label: 'Servicio', html: 1 }, { label: 'Depósito', html: 1 }, { label: 'Pago', html: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
-      l.map(a => [a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone ? `<br><span class="mutedc" style="font-size:12px">${esc(a.phone)}</span>` : ''}`, a.artistName, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${money(a.price)}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
+      l.map(a => [a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, a.artistName, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
         a.status === 'Agendada' && Store.writable() ? `<button class="btn sm primary" data-pay="${a.id}">Cobrar</button>` : '']), null, { click: 1 });
     return `<div class="head"><div><h1>Agenda</h1><p>${intf(sum.tot)} citas · ${intf(sum.dep)} con depósito · ${intf(sum.paid)} pagadas · ${intf(sum.pend)} por cobrar</p></div><div class="chips"><button class="btn primary" data-newappt ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva cita</button></div></div>
       <div class="filters no-print" style="align-items:center">
@@ -3309,6 +3329,61 @@ Views.recepcion.mount = function (root) {
   _recMount.call(this, root);
   $$('[data-pay]', root).forEach(b => b.onclick = () => chargeAppt(Store.appointments.find(a => a.id === b.dataset.pay)));
 };
+
+/* ---------- confirmación por correo y reagendar ---------- */
+function apptMailto(a) {
+  const when = `${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + a.time : ''}`;
+  const d = apptDeposit(a);
+  const body = `Hi ${a.first || ''},\n\nYour appointment at Fluffy Lashes is confirmed:\n${a.serviceName} with ${title(a.artistName)}\n${when}\n${d ? `Deposit received: ${money(d.amount)} (${d.method})\n` : ''}\n2693 Biscayne Blvd, Miami, FL 33137\n\nHola ${a.first || ''}, tu cita en Fluffy Lashes está confirmada: ${a.serviceName} con ${title(a.artistName)}, ${when}.\n\nFluffy Lashes`;
+  return `mailto:${encodeURIComponent(a.email)}?subject=${encodeURIComponent('Fluffy Lashes · ' + when)}&body=${encodeURIComponent(body)}`;
+}
+function rescheduleForm(a) {
+  UI.modal(`<h3>Reagendar a ${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">Ahora: ${esc(Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' }))}${a.time ? ' · ' + esc(a.time) : ''} con ${esc(a.artistName)}. El depósito se queda con la cita.</p>
+    <div class="formgrid"><label class="field">Nueva fecha<input type="date" data-r2="date" value="${esc(a.date)}"></label><label class="field">Hora<input type="time" data-r2="time" value="${esc(a.time || '')}"></label>
+      <div class="full chips">${[1, 2, 3, 4].map(n => `<button type="button" class="chip" data-wk="${n}">En ${n} semana${n > 1 ? 's' : ''}</button>`).join('')}</div>
+      <label class="field full">Lashista<select data-r2="artistId">${artistOptions(a.artistId, 0, 1)}</select></label></div>
+    <p class="err" data-r2err style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Reagendar</button></div>`, m => {
+    $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-r2=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const v = k => $(`[data-r2="${k}"]`, m).value, art = Store.config.artists.find(x => x.id === v('artistId'));
+      if (!Dates.fromISO(v('date'))) return ($('[data-r2err]', m).textContent = 'Elige la nueva fecha.');
+      if (!art) return ($('[data-r2err]', m).textContent = 'Elige la lashista.');
+      const was = `${Dates.fmt(a.day, { day: '2-digit', month: 'short' })}${a.time ? ' ' + a.time : ''}`, now = `${Dates.fmt(Dates.fromISO(v('date')), { day: '2-digit', month: 'short' })}${v('time') ? ' ' + v('time') : ''}`;
+      try {
+        await Store.saveAppointment({ date: v('date'), time: v('time'), artistId: art.id, artistName: art.name, reschedules: (a.reschedules || 0) + 1,
+          history: (a.history || []).concat({ at: new Date().toISOString(), by: Mode.who(), what: `Reagendó de ${was} a ${now}${art.id !== a.artistId ? ' con ' + art.name : ''}` }) }, a.id);
+        const d = apptDeposit(a); if (d) await Store.saveDeposit({ date: v('date'), time: v('time'), _event: `La cita se reagendó a ${now}` }, d.id);
+        UI.close(); UI.toast('Cita reagendada'); S.ag.range = 'dia'; S.ag.day = Dates.fromISO(v('date')); if (UI.route === 'agenda') UI.render();
+      } catch (e) { $('[data-r2err]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+    };
+  });
+}
+
+/* ---------- agendar la próxima cita al cobrar ---------- */
+const _nvHtmlN = Views.nueva.html, _nvMountN = Views.nueva.mount;
+Views.nueva.html = function () {
+  const h = _nvHtmlN.call(this);
+  if (UI.params.edit) return h;
+  const on = this.form.nextAppt != null ? this.form.nextAppt : !!(this.form._appt || Mode.reception);
+  return h.replace('<div class="full chips"><button class="btn primary" type="submit"', `<label class="check full" style="margin-top:4px"><input type="checkbox" data-nextappt ${on ? 'checked' : ''}> Agendar su próxima cita al guardar</label><div class="full chips"><button class="btn primary" type="submit"`);
+};
+Views.nueva.mount = function (root) {
+  _nvMountN.call(this, root);
+  const form = $('[data-form]', root), cb = $('[data-nextappt]', root); if (!form || !cb) return;
+  cb.onchange = () => { this.form.nextAppt = cb.checked; };
+  const orig = form.onsubmit;
+  form.onsubmit = async e => {
+    const f = this.form, want = cb.checked, ap = f._appt ? Store.appointments.find(x => x.id === f._appt) : null;
+    const preset = { first: f.first || '', last: f.last || '', phone: ap ? ap.phone || '' : '', email: ap ? ap.email || '' : '', artistId: f.artistId, serviceId: f.serviceId, date: '', _focusDate: true };
+    Store._saleOk = false;
+    await orig(e);
+    if (want && Store._saleOk && (preset.first || preset.last)) setTimeout(() => apptForm(null, preset), 350);
+  };
+};
+const _saveSaleN = Store.saveSale;
+Store.saveSale = async function (form, id) { const r = await _saveSaleN.call(this, form, id); if (!form._isExtra) Store._saleOk = true; return r; };
 
 /* =========================================================
    PAQUETES — sesiones pagadas por adelantado (combos).
@@ -3540,6 +3615,236 @@ Views.recepcion.html = function () {
 };
 
 /* =========================================================
+   VENTAS — subir ventas desde Excel (formato de la HOJA PRINCIPAL o una hoja simple).
+   Se elige un rango de fechas; nada se guarda sin revisar la vista previa.
+   ========================================================= */
+const SALE_HEADERS = {
+  date: ['fecha', 'fecha mmddyyyy', 'date'],
+  artist: ['column', 'lashista', 'asociada', 'name', 'nombre lashista', 'artista'],
+  service: ['servicio', 'service'],
+  commission: ['comision', 'comision lashista', 'commission'],
+  price: ['precio', 'price', 'costo'],
+  tip: ['tip', 'tips', 'propina'],
+  discount: ['descuento', 'discount'],
+  first: ['clientenombre', 'cliente nombre', 'nombre cliente', 'nombre', 'cliente'],
+  last: ['clienteapellido', 'cliente apellido', 'apellido cliente', 'apellido'],
+  comments: ['comentarios', 'comentario', 'notas', 'comments'],
+  method: ['metodo de pago', 'metodo', 'pago', 'payment method'],
+};
+const normS = s => String(s == null ? '' : s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+
+const SaleImport = {
+  findSheet(wb) {
+    const named = wb.SheetNames.filter(n => /hoja principal/i.test(n)).sort().reverse();
+    return named[0] || wb.SheetNames[0];
+  },
+  analyze(wb, sheet, from, to) {
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, raw: true, defval: null });
+    let hr = -1, map = {};
+    for (let i = 0; i < Math.min(15, aoa.length) && hr < 0; i++) {
+      const m = {};
+      (aoa[i] || []).forEach((h, j) => { const n = normS(h); for (const [k, list] of Object.entries(SALE_HEADERS)) if (m[k] == null && list.some(x => n === x || (k === 'date' && n.startsWith('fecha')) || (k === 'artist' && /^column \d+$/.test(n) && j === 1))) m[k] = j; });
+      if (m.date != null && m.service != null && m.price != null) { hr = i; map = m; }
+    }
+    if (hr < 0) return { error: `No encontré las columnas Fecha, Servicio y Precio en la hoja "${sheet}".` };
+    if (map.artist == null) map.artist = 1;
+    const artists = Store.config.artists, services = Store.config.services;
+    const findA = n => { const k = String(n || '').trim().toLowerCase(); return k && artists.find(a => a.name.toLowerCase() === k || (a.code && a.code.toLowerCase() === k)); };
+    const findS = n => { const k = String(n || '').trim().toLowerCase(); return k && services.find(s => s.name.trim().toLowerCase() === k); };
+    const key = (day, aid, svc, price, tip, f, l) => [day, aid, String(svc).trim().toLowerCase(), r2(price), r2(tip), String(f || '').trim().toLowerCase(), String(l || '').trim().toLowerCase()].join('|');
+    const existing = new Set(Store.sales.map(s => key(s.day, s.artistKey, s.service, s.price, s.tip, s.first, s.last)));
+    const seen = new Set(), rows = []; let outside = 0;
+    aoa.slice(hr + 1).forEach((r, k) => {
+      const g = c => map[c] == null ? null : r[map[c]];
+      if (!r || [g('date'), g('artist'), g('service'), g('price')].every(v => v == null || String(v).trim() === '')) return;
+      const day = ExpenseImport.parseDate(g('date'));
+      if (day != null && (day < from || day > to)) { outside++; return; }
+      const o = { rowNo: hr + 2 + k, day, errors: [], warn: [] };
+      const a = findA(g('artist')), s = findS(g('service'));
+      o.artistName = String(g('artist') || '').trim(); o.serviceName = String(g('service') || '').trim();
+      o.price = ExpenseImport.parseAmount(g('price')); o.discount = ExpenseImport.parseAmount(g('discount')) || 0; o.tip = ExpenseImport.parseAmount(g('tip')) || 0;
+      o.first = String(g('first') == null ? '' : g('first')).trim(); o.last = String(g('last') == null ? '' : g('last')).trim();
+      o.comments = String(g('comments') == null ? '' : g('comments')).trim(); o.method = String(g('method') == null ? '' : g('method')).trim();
+      const exc = ExpenseImport.parseAmount(g('commission'));
+      if (day == null) o.errors.push('Fecha no válida');
+      if (!a) o.errors.push(o.artistName ? `Lashista "${o.artistName}" no existe` : 'Falta la lashista');
+      if (!s) o.errors.push(o.serviceName ? `Servicio "${o.serviceName}" no existe` : 'Falta el servicio');
+      if (o.price == null || isNaN(o.price) || o.price < 0) o.errors.push('Precio vacío o no válido');
+      if (isNaN(o.discount) || o.discount < 0 || o.discount > (o.price || 0)) o.errors.push('Descuento no válido');
+      if (isNaN(o.tip) || o.tip < 0) o.errors.push('Tip no válido');
+      if (a) { o.artistId = a.id; o.artistName = a.name; o.calc = r2(a.rate * ((o.price || 0) - (o.discount || 0))); }
+      if (s) { o.serviceId = s.id; o.serviceName = s.name; }
+      if (a && exc != null && !isNaN(exc) && Math.abs(r2(exc) - o.calc) > 0.005) { o.manual = r2(exc); o.warn.push(`Comisión del Excel ${money(exc, 1)} (la fórmula da ${money(o.calc, 1)})`); }
+      if (!o.errors.length) {
+        const kk = key(day, o.artistId, o.serviceName, o.price, o.tip, o.first, o.last);
+        if (existing.has(kk)) o.dup = 'Ya existe'; else if (seen.has(kk)) o.warn.push('Repetida en el archivo; revisa que sea real');
+        seen.add(kk);
+      }
+      o.status = o.errors.length ? 'error' : o.dup ? 'dup' : 'ok';
+      rows.push(o);
+    });
+    return { sheet, rows, outside };
+  },
+  open() {
+    let wb = null, fileName = '', res = null;
+    const t = Dates.today(), ws = Dates.fluffyWeekStart(t);
+    const st = { from: ws - 7, to: ws - 1 }; // por defecto, la semana Fluffy anterior (viernes a jueves)
+    UI.modal(`<h3>Subir ventas desde Excel</h3>
+      <p style="color:var(--muted);margin:0 0 14px">Acepta tu archivo FLUFFY MASTER (hoja HOJA PRINCIPAL) o una hoja con Fecha, Lashista, Servicio, Precio, Descuento, Tip, Cliente nombre, Cliente apellido y Comentarios. Solo se suben las ventas dentro de las fechas que elijas.</p>
+      <div class="chips" style="margin-bottom:12px;align-items:flex-end">
+        <label class="btn primary" style="cursor:pointer">${ic('dl')}Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" data-sfile hidden></label>
+        <label class="field">Desde<input type="date" data-sfrom value="${Dates.toISO(st.from)}"></label><label class="field">Hasta<input type="date" data-sto value="${Dates.toISO(st.to)}"></label>
+        <label class="field" data-ssheetwrap style="display:none">Hoja<select data-ssheet></select></label></div>
+      <div data-spreview></div>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok" disabled>Importar</button></div>`, m => {
+      m.classList.add('wide');
+      const prev = $('[data-spreview]', m), ok = $('[data-x=ok]', m), sel = $('[data-ssheet]', m);
+      const show = () => {
+        if (!wb) return;
+        const from = Dates.fromISO($('[data-sfrom]', m).value), to = Dates.fromISO($('[data-sto]', m).value);
+        if (from == null || to == null || from > to) { prev.innerHTML = '<div class="banner">Revisa las fechas.</div>'; ok.disabled = true; return; }
+        res = SaleImport.analyze(wb, sel.value, from, to);
+        if (res.error) { prev.innerHTML = `<div class="banner">${esc(res.error)}</div>`; ok.disabled = true; return; }
+        const c = k => res.rows.filter(r => r.status === k).length, good = res.rows.filter(r => r.status === 'ok');
+        prev.innerHTML = `<div class="kpis imp"><div class="kpi"><div class="lab">Filas en el rango</div><div class="val">${intf(res.rows.length)}</div></div><div class="kpi lead"><div class="lab">Listas</div><div class="val">${intf(good.length)}</div></div><div class="kpi"><div class="lab">Con error</div><div class="val ${c('error') ? 'neg' : ''}">${intf(c('error'))}</div></div><div class="kpi"><div class="lab">Ya existen</div><div class="val">${intf(c('dup'))}</div></div></div>
+          <p class="formula" style="margin-top:-20px">${esc(fileName)} · hoja "${esc(res.sheet)}" · ventas listas ${money(r2(good.reduce((t, r) => t + r.price, 0)), 1)} + tips ${money(r2(good.reduce((t, r) => t + r.tip, 0)), 1)} · ${intf(res.outside)} filas fuera de las fechas no se tocan.</p>
+          ${table([{ label: 'Fila', r: 1 }, { label: 'Fecha' }, { label: 'Lashista' }, { label: 'Servicio' }, { label: 'Clienta' }, { label: 'Precio', r: 1 }, { label: 'Tip', r: 1 }, { label: 'Estado', html: 1 }],
+            res.rows.slice(0, 200).map(r => [r.rowNo, r.day != null ? Dates.fmt(r.day, { day: '2-digit', month: 'short' }) : '—', r.artistName || '—', r.serviceName || '—', title((r.first + ' ' + r.last).trim()) || '—', r.price == null || isNaN(r.price) ? '—' : money(r.price, 1), money(r.tip || 0, 1),
+              r.status === 'error' ? `<span class="tag" style="color:var(--bad);border-color:var(--bad);white-space:normal">${esc(r.errors.join(' · '))}</span>` : r.status === 'dup' ? '<span class="tag warn">Ya existe</span>' : `<span class="tag app">Lista</span>${r.warn.length ? ` <span class="tag warn" style="white-space:normal">${esc(r.warn.join(' · '))}</span>` : ''}`]), null,
+            { emptyTitle: 'No hay ventas en esas fechas', empty: 'Cambia el rango o revisa el archivo.' })}
+          ${res.rows.length > 200 ? `<p class="formula">Mostrando 200 de ${intf(res.rows.length)}.</p>` : ''}
+          ${c('error') ? '<button class="btn sm" data-serrs style="margin-top:10px">Descargar filas con error (CSV)</button>' : ''}`;
+        ok.disabled = !good.length || !Store.writable(); ok.textContent = good.length ? `Importar ${intf(good.length)} ventas` : 'Importar';
+        const eb = $('[data-serrs]', prev); if (eb) eb.onclick = () => Exporter.run('csv', 'Ventas_con_error', [['Fila', 'Fecha', 'Lashista', 'Servicio', 'Precio', 'Motivo']].concat(res.rows.filter(r => r.status === 'error').map(r => [r.rowNo, r.day != null ? Dates.toISO(r.day) : '', r.artistName, r.serviceName, r.price, r.errors.join(' · ')])));
+      };
+      $('[data-sfile]', m).onchange = async e => {
+        const f = e.target.files[0]; if (!f) return; fileName = f.name; prev.innerHTML = '<div class="loading">Leyendo archivo…</div>';
+        try { wb = await ExpenseImport.read(f); sel.innerHTML = wb.SheetNames.map(n => `<option ${n === SaleImport.findSheet(wb) ? 'selected' : ''}>${esc(n)}</option>`).join(''); $('[data-ssheetwrap]', m).style.display = ''; show(); }
+        catch (er) { prev.innerHTML = `<div class="banner">${esc(er.message)}</div>`; }
+      };
+      $('[data-sfrom]', m).onchange = show; $('[data-sto]', m).onchange = show; sel.onchange = show;
+      $('[data-x=no]', m).onclick = UI.close;
+      ok.onclick = async () => {
+        const good = res.rows.filter(r => r.status === 'ok'); ok.disabled = true; let done = 0;
+        try {
+          for (const r of good) {
+            await Store.saveSale({ date: Dates.toISO(r.day), artistId: r.artistId, serviceId: r.serviceId, price: r.price, discount: r.discount, tip: r.tip, method: r.method, first: r.first, last: r.last,
+              comments: r.comments, manualOn: r.manual != null, manualCommission: r.manual != null ? r.manual : '' }, null);
+            done++; if (done % 10 === 0) ok.textContent = `Importando ${done}/${good.length}…`;
+          }
+          if (typeof Audit !== 'undefined') await Audit.log({ entity: 'SALE', entityId: 'import-' + Date.now(), entityLabel: fileName, action: 'IMPORT', detail: `Subió ${done} ventas desde Excel (${Dates.fmt(Dates.fromISO($('[data-sfrom]', m).value))} – ${Dates.fmt(Dates.fromISO($('[data-sto]', m).value))})`, byName: Mode.who() });
+          UI.close(); UI.toast(`${intf(done)} ventas importadas`);
+        } catch (e) { ok.disabled = false; ok.textContent = 'Reintentar'; UI.toast(`Se detuvo en ${done} de ${good.length}: ${e.message || e.code}. Si reintentas, las ya guardadas saldrán como "Ya existe".`, true); }
+      };
+    });
+  },
+};
+
+const _vHtml = Views.ventas.html, _vMount = Views.ventas.mount;
+Views.ventas.html = function () {
+  return _vHtml.call(this).replace('<div class="chips"><button class="btn primary" data-go="nueva">', `<div class="chips"><button class="btn" data-simport ${Store.writable() && !Mode.reception ? '' : 'disabled'}>${ic('dl')}Subir Excel</button><button class="btn primary" data-go="nueva">`);
+};
+Views.ventas.mount = function (root) { _vMount.call(this, root); const b = $('[data-simport]', root); if (b) b.onclick = () => SaleImport.open(); };
+
+/* Gastos: también por rango de fechas, para subir solo lo nuevo de tu hoja GASTOS. */
+ExpenseImport._analyze = ExpenseImport.analyze;
+ExpenseImport.analyze = function (wb, createCats) {
+  const r = ExpenseImport._analyze(wb, createCats), m = $('.modal');
+  const f = m && $('[data-efrom]', m) ? Dates.fromISO($('[data-efrom]', m).value) : null, t = m && $('[data-eto]', m) ? Dates.fromISO($('[data-eto]', m).value) : null;
+  if (r.error || f == null || t == null) return r;
+  const keep = r.rows.filter(x => x.day == null || (x.day >= f && x.day <= t));
+  r.outside = r.rows.length - keep.length; r.rows = keep;
+  return r;
+};
+ExpenseImport._open = ExpenseImport.open;
+ExpenseImport.open = function () {
+  ExpenseImport._open();
+  const m = $('.modal'); if (!m) return;
+  const t = Dates.today();
+  $('[data-newcats]', m).closest('label').insertAdjacentHTML('beforebegin', `<div class="chips" style="margin-bottom:10px"><label class="field">Desde<input type="date" data-efrom value="${Dates.toISO(Dates.monthStart(Dates.parts(t).y, Dates.parts(t).m))}"></label><label class="field">Hasta<input type="date" data-eto value="${Dates.toISO(t)}"></label></div>`);
+  ['[data-efrom]', '[data-eto]'].forEach(s => $(s, m).addEventListener('change', () => $('[data-newcats]', m).dispatchEvent(new Event('change'))));
+};
+
+/* =========================================================
+   VARIOS SERVICIOS EN UN MISMO COBRO — cuando a la clienta se le hizo algo extra
+   (o un servicio distinto al agendado). Cada servicio se guarda como su propia venta,
+   igual que en la HOJA PRINCIPAL (una fila por servicio), con su lashista y su comisión.
+   ========================================================= */
+const _nvHtmlX = Views.nueva.html, _nvMountX = Views.nueva.mount, _nvReceiptX = Views.nueva.receipt;
+const extraLine = (x, k) => `<div class="xline" data-xl="${k}">
+  <select class="inp" data-x2="serviceId" aria-label="Servicio adicional">${serviceOptions(x.serviceId, 0, 0)}</select>
+  <select class="inp" data-x2="artistId" aria-label="Lashista">${artistOptions(x.artistId, 0, 0)}</select>
+  <input class="inp num" type="number" min="0" step="0.01" data-x2="price" value="${esc(x.price)}" placeholder="Precio" aria-label="Precio">
+  <input class="inp num" type="number" min="0" step="0.01" data-x2="discount" value="${esc(x.discount)}" placeholder="Desc." aria-label="Descuento">
+  <button type="button" class="btn sm" data-x2="rm" aria-label="Quitar servicio">×</button></div>`;
+Views.nueva.html = function () {
+  const h = _nvHtmlX.call(this);
+  if (UI.params.edit) return h;
+  const f = this.form; f.extras = f.extras || [];
+  const block = `<div class="full xbox"><div class="xhead"><b>Otros servicios en este cobro</b><span class="mutedc">Si se agregó un servicio, o una lashista hizo una parte.</span></div>
+    <div data-xlines>${f.extras.map(extraLine).join('')}</div><button type="button" class="btn sm" data-xadd>${ic('plus')}Agregar otro servicio</button></div>`;
+  return h.replace('<label class="field full">Comentarios', block + '<label class="field full">Comentarios');
+};
+Views.nueva.receipt = function () {
+  let h = _nvReceiptX.call(this);
+  const f = this.form, xs = (f.extras || []).filter(x => x.serviceId);
+  if (!xs.length) return h;
+  const svc = id => Store.config.services.find(s => s.id === id) || {}, art = id => Store.config.artists.find(a => a.id === id) || {};
+  const net = x => r2(num(x.price) - num(x.discount)), extra = r2(xs.reduce((t, x) => t + net(x), 0));
+  const main = r2(num(f.price) - num(f.discount) + num(f.tip));
+  const lines = xs.map(x => `<div class="rline"><span>+ ${esc(svc(x.serviceId).name || '')}${x.artistId && x.artistId !== f.artistId ? ' · ' + esc(art(x.artistId).name || '') : ''}</span><span>${money(net(x), 1)}</span></div>`).join('');
+  h = h.replace(/<div class="rline total big"><span>Total cobrado<\/span><span>[^<]*<\/span><\/div>/, lines + `<div class="rline total big"><span>Total cobrado</span><span>${money(r2(main + extra), 1)}</span></div>`);
+  h = h.replace(/(<span>Por cobrar hoy<\/span><span>)([^<]*)/, (m0, a, v) => a + money(r2(num(String(v).replace(/[$,]/g, '')) + extra), 1));
+  if (!Mode.reception) { const com = r2(xs.reduce((t, x) => t + num(art(x.artistId).rate) * net(x), 0)); h = h.replace('<p class="formula">', `<div class="rline"><span>Comisión de los servicios adicionales</span><span>${money(com, 1)}</span></div><p class="formula">`); }
+  return h;
+};
+Views.nueva.mount = function (root) {
+  _nvMountX.call(this, root);
+  if (UI.params.edit) return;
+  const f = this.form, form = $('[data-form]', root); if (!form) return;
+  const repaint = () => { const rec = $('[data-receipt]', root); if (rec) rec.innerHTML = this.receipt(); };
+  const draw = () => { $('[data-xlines]', root).innerHTML = f.extras.map(extraLine).join(''); repaint(); };
+  $('[data-xadd]', root).onclick = () => { f.extras.push({ serviceId: '', artistId: f.artistId || '', price: '', discount: '' }); UI.formDirty = true; draw(); };
+  const lines = $('[data-xlines]', root);
+  const onX = e => {
+    const l = e.target.closest('[data-xl]'), k = e.target.dataset.x2; if (!l || !k || k === 'rm') return;
+    const x = f.extras[+l.dataset.xl]; x[k] = e.target.value; UI.formDirty = true;
+    if (k === 'serviceId') { const s = Store.config.services.find(y => y.id === x.serviceId); if (s) { x.price = s.price; $('[data-x2=price]', l).value = s.price; } }
+    repaint();
+  };
+  lines.addEventListener('input', onX); lines.addEventListener('change', onX);
+  lines.addEventListener('click', e => { if (e.target.closest('[data-x2=rm]')) { f.extras.splice(+e.target.closest('[data-xl]').dataset.xl, 1); draw(); } });
+  // The extras go through the same validation before the main save.
+  const orig = form.onsubmit;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const bad = (f.extras || []).find(x => x.serviceId && (!x.artistId || x.price === '' || num(x.price) < 0 || num(x.discount) < 0 || num(x.discount) > num(x.price)));
+    if (bad) { UI.toast('Revisa los servicios adicionales: lashista, precio y descuento.', true); return; }
+    f.extras = (f.extras || []).filter(x => x.serviceId);
+    return orig(e);
+  };
+};
+
+const _saveSaleX = Store.saveSale;
+Store.saveSale = async function (form, id) {
+  const extras = !id && !form._isExtra ? (form.extras || []).filter(x => x.serviceId) : [];
+  const saleId = await _saveSaleX.call(this, { ...form, extras: undefined }, id);
+  if (extras.length) {
+    const ids = [];
+    for (const x of extras) {
+      ids.push(await _saveSaleX.call(this, { date: form.date, artistId: x.artistId, serviceId: x.serviceId, price: x.price, discount: x.discount || 0, tip: 0, method: form.method === 'Paquete prepagado' ? '' : form.method,
+        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', manualOn: false, manualCommission: '', _isExtra: true }, null));
+    }
+    if (form._appt) { const ap = this.appointments.find(a => a.id === form._appt); if (ap) await this.saveAppointment({ extraSaleIds: (ap.extraSaleIds || []).concat(ids) }, ap.id); }
+  }
+  if (form._appt && !id) {
+    const ap = this.appointments.find(a => a.id === form._appt);
+    if (ap && form.serviceId && form.serviceId !== ap.serviceId) { const s = this.config.services.find(x => x.id === form.serviceId); if (s) await this.saveAppointment({ scheduledServiceName: ap.scheduledServiceName || ap.serviceName, serviceId: s.id, serviceName: s.name, price: s.price }, ap.id); }
+  }
+  return saleId;
+};
+
+/* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
    Recepción queda siempre en modo recepción; la seguridad la aplica Supabase (RLS).
    ========================================================= */
@@ -3603,6 +3908,31 @@ UI.render = function () {
   _renderWeb();
 };
 document.addEventListener('click', e => { if (e.target.closest('[data-rec-shift]')) FM._askShift = true; }, true);
+
+/* Respaldo completo descargable (los proyectos gratuitos de Supabase no tienen respaldos automáticos). */
+const _cfgHtmlB = Views.config.html, _cfgMountB = Views.config.mount;
+Views.config.html = function () {
+  const h = _cfgHtmlB.call(this);
+  if (FM.member.role !== 'admin') return h;
+  return h + `<section class="panel"><h2>Respaldo</h2><p class="hint">Descarga todo lo registrado en la app. Guárdalo en un lugar seguro (por ejemplo, Google Drive) al menos una vez por semana. Con este archivo y el histórico se puede volver a cargar todo en otro proyecto.</p>
+    <div class="chips"><button class="btn primary" data-bk="datos">${ic('dl')}Respaldo de datos (JSON)</button><button class="btn" data-bk="excel">${ic('dl')}Ventas y gastos (Excel)</button><button class="btn" data-bk="hist">${ic('dl')}Histórico del Excel (JSON)</button></div></section>`;
+};
+Views.config.mount = function (root) {
+  _cfgMountB.call(this, root);
+  const stamp = Dates.toISO(Dates.today()), dl = async (name, data) => (await window.claude.use('downloads')).save({ filename: name, data });
+  $$('[data-bk]', root).forEach(b => b.onclick = () => {
+    const k = b.dataset.bk;
+    if (k === 'datos') { const out = []; FM.cache.forEach((m, col) => { if (col !== 'historico') m.forEach((data, id) => out.push({ collection: col, id, data })); }); dl(`fluffy-master-respaldo-${stamp}.json`, JSON.stringify(out)); }
+    if (k === 'hist') dl(`historico-${stamp}.json`, JSON.stringify({ DATA, PERF }));
+    if (k === 'excel') {
+      if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(salesRows(Store.sales.slice().sort((a, b) => a.day - b.day))), 'Ventas');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['Fecha', 'Detalle', 'Monto', 'Categoría', 'Comentarios', 'Origen']].concat(Store.expenses.slice().sort((a, b) => a.day - b.day).map(e => [Dates.toISO(e.day), e.description, e.amount, e.category, e.comments, e.source === 'excel' ? e.id : 'App']))), 'Gastos');
+      dl(`fluffy-master-ventas-gastos-${stamp}.xlsx`, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+    }
+  });
+};
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
