@@ -4641,6 +4641,119 @@ Views.agenda.mount = function (root) {
 };
 
 /* =========================================================
+   VENTAS → Subir Excel ahora COMPARA el Excel con lo que ya está en la app para las fechas
+   elegidas: qué coincide, qué está distinto (y lo corrige), qué falta (y lo agrega) y qué
+   está solo en la app (para revisar o borrar). El Excel se toma como el dato correcto.
+   ========================================================= */
+const nameKey2 = (f, l) => String((f || '') + (l || '')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
+const firstTok = f => String(f || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/[\s.]+/)[0] || '';
+const SaleCompare = {
+  run(res, from, to) {
+    const app = Store.sales.filter(s => s.day >= from && s.day <= to), used = new Set(), out = [];
+    const ex = res.rows.filter(r => r.status !== 'error');
+    const pass = (r, cond) => { const s = app.find(x => !used.has(x.id) && cond(x)); if (s) used.add(s.id); return s; };
+    const svcEq = (s, r) => String(s.service).trim().toLowerCase() === String(r.serviceName).trim().toLowerCase();
+    const rows = ex.map(r => ({ r, nk: nameKey2(r.first, r.last), ft: firstTok(r.first) }));
+    const tries = [
+      ['Coincide', (s, x) => s.day === x.r.day && s.artistKey === x.r.artistId && svcEq(s, x.r) && Math.abs(s.price - x.r.price) < .01 && Math.abs(s.tip - x.r.tip) < .01 && Math.abs(s.discount - x.r.discount) < .01 && nameKey2(s.first, s.last) === x.nk],
+      ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk && (svcEq(s, x.r) || s.artistKey === x.r.artistId)],
+      ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk],
+      ['Diferente', (s, x) => s.day === x.r.day && x.ft && firstTok(s.first) === x.ft && (s.artistKey === x.r.artistId || svcEq(s, x.r))],
+      ['Diferente', (s, x) => s.day === x.r.day && !nameKey2(s.first, s.last) && s.artistKey === x.r.artistId && svcEq(s, x.r)],
+      ['Diferente', (s, x) => s.day === x.r.day && s.artistKey === x.r.artistId && svcEq(s, x.r) && Math.abs(s.price - x.r.price) < .01],
+    ];
+    const match = new Map();
+    for (const [st, cond] of tries) rows.forEach(x => { if (match.has(x)) return; const s = pass(x.r, s2 => cond(s2, x)); if (s) match.set(x, [st, s]); });
+    rows.forEach(x => {
+      const m = match.get(x), r = x.r;
+      if (!m) { out.push({ status: 'Falta', r, act: true }); return; }
+      const [st, s] = m, d = [];
+      if (s.artistKey !== r.artistId) d.push(`Lashista: ${s.artistName} → ${r.artistName}`);
+      if (!svcEq(s, r)) d.push(`Servicio: ${s.service} → ${r.serviceName}`);
+      if (Math.abs(s.price - r.price) > .005) d.push(`Precio: ${money(s.price, 1)} → ${money(r.price, 1)}`);
+      if (Math.abs(s.discount - r.discount) > .005) d.push(`Descuento: ${money(s.discount, 1)} → ${money(r.discount, 1)}`);
+      if (Math.abs(s.tip - r.tip) > .005) d.push(`Tip: ${money(s.tip, 1)} → ${money(r.tip, 1)}`);
+      if (nameKey2(s.first, s.last) !== x.nk) d.push(`Clienta: ${client(s)} → ${title((r.first + ' ' + r.last).trim()) || '—'}`);
+      const comX = r.manual != null ? r.manual : r.calc;
+      if (comX != null && Math.abs(s.commission - comX) > .005) d.push(`Comisión: ${money(s.commission, 1)} → ${money(comX, 1)}`);
+      const status = st === 'Coincide' || !d.length ? 'Coincide' : 'Diferente';
+      out.push({ status, r, s, diffs: d, act: status === 'Diferente' && s.source === 'app', locked: s.source !== 'app' });
+    });
+    app.filter(s => !used.has(s.id)).forEach(s => out.push({ status: 'Solo en la app', s, act: false, locked: s.source !== 'app' }));
+    res.rows.filter(r => r.status === 'error').forEach(r => out.push({ status: 'Con error', r, act: false }));
+    const ord = ['Diferente', 'Falta', 'Solo en la app', 'Con error', 'Coincide'];
+    return out.sort((a, b) => ord.indexOf(a.status) - ord.indexOf(b.status) || ((a.r || a.s).day - (b.r || b.s).day));
+  },
+  formFrom(r, s) {
+    return { date: Dates.toISO(r.day), artistId: r.artistId, serviceId: r.serviceId, price: r.price, discount: r.discount || '', tip: r.tip || '', method: s ? s.method || '' : r.method, txn: s ? s.txn || '' : '',
+      first: r.first, last: r.last, comments: r.comments || (s ? s.comments || '' : ''), manualOn: r.manual != null, manualCommission: r.manual != null ? r.manual : '',
+      packageId: s ? s.packageId || '' : '', packageSession: s ? s.packageSession || 0 : 0, depositId: s ? s.depositId || '' : '' };
+  },
+};
+
+SaleImport.open = function () {
+  let wb = null, fileName = '', items = [];
+  const t = Dates.today(), ws = Dates.fluffyWeekStart(t);
+  UI.modal(`<h3>Subir y comparar ventas desde Excel</h3>
+    <p style="color:var(--muted);margin:0 0 14px">Compara tu archivo FLUFFY MASTER (hoja HOJA PRINCIPAL) con lo que está en la app en las fechas que elijas. El Excel se toma como correcto: puedes agregar lo que falta y corregir lo que está distinto.</p>
+    <div class="chips" style="margin-bottom:12px;align-items:flex-end">
+      <label class="btn primary" style="cursor:pointer">${ic('dl')}Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" data-sfile hidden></label>
+      <label class="field">Desde<input type="date" data-sfrom value="${Dates.toISO(ws - 7)}"></label><label class="field">Hasta<input type="date" data-sto value="${Dates.toISO(t)}"></label>
+      <label class="field" data-ssheetwrap style="display:none">Hoja<select data-ssheet></select></label></div>
+    <div data-spreview></div>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok" disabled>Aplicar cambios</button></div>`, m => {
+    m.classList.add('wide');
+    const prev = $('[data-spreview]', m), ok = $('[data-x=ok]', m), sel = $('[data-ssheet]', m);
+    const label = i => i.r ? `${i.r.artistName} · ${i.r.serviceName} · ${title((i.r.first + ' ' + i.r.last).trim()) || '—'} · ${money(i.r.price, 1)}${i.r.tip ? ' + tip ' + money(i.r.tip, 1) : ''}` : '';
+    const appLabel = s => s ? `${s.artistName} · ${s.service} · ${client(s)} · ${money(s.price, 1)}${s.tip ? ' + tip ' + money(s.tip, 1) : ''}` : '';
+    const count = () => { const n = items.filter(i => i.act).length; ok.disabled = !n || !Store.writable(); ok.textContent = n ? `Aplicar ${intf(n)} cambios` : 'Aplicar cambios'; };
+    const show = () => {
+      if (!wb) return;
+      const from = Dates.fromISO($('[data-sfrom]', m).value), to = Dates.fromISO($('[data-sto]', m).value);
+      if (from == null || to == null || from > to) { prev.innerHTML = '<div class="banner">Revisa las fechas.</div>'; ok.disabled = true; return; }
+      const res = SaleImport.analyze(wb, sel.value, from, to);
+      if (res.error) { prev.innerHTML = `<div class="banner">${esc(res.error)}</div>`; ok.disabled = true; return; }
+      items = SaleCompare.run(res, from, to);
+      const c = k => items.filter(i => i.status === k).length;
+      const tag = i => ({ 'Coincide': '<span class="tag app">Coincide</span>', 'Diferente': '<span class="tag warn">Distinto</span>', 'Falta': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Falta en la app</span>', 'Solo en la app': '<span class="tag">Solo en la app</span>', 'Con error': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Con error</span>' })[i.status];
+      const action = (i, k) => i.status === 'Coincide' ? '' : i.status === 'Con error' ? `<span class="mutedc" style="font-size:12px">${esc(i.r.errors.join(' · '))}</span>` : i.locked ? '<span class="mutedc" style="font-size:12px">histórico, no se edita</span>'
+        : `<label class="check" style="font-size:13px"><input type="checkbox" data-act="${k}" ${i.act ? 'checked' : ''}> ${i.status === 'Falta' ? 'Agregar' : i.status === 'Diferente' ? 'Corregir como el Excel' : 'Borrar de la app'}</label>`;
+      prev.innerHTML = `<div class="kpis imp" style="grid-template-columns:repeat(5,1fr)"><div class="kpi"><div class="lab">Coinciden</div><div class="val">${intf(c('Coincide'))}</div></div><div class="kpi"><div class="lab">Distintos</div><div class="val">${intf(c('Diferente'))}</div></div><div class="kpi lead"><div class="lab">Faltan en la app</div><div class="val">${intf(c('Falta'))}</div></div><div class="kpi"><div class="lab">Solo en la app</div><div class="val">${intf(c('Solo en la app'))}</div></div><div class="kpi"><div class="lab">Con error</div><div class="val ${c('Con error') ? 'neg' : ''}">${intf(c('Con error'))}</div></div></div>
+        <p class="formula" style="margin-top:-20px">${esc(fileName)} · ${Dates.fmt(from)} – ${Dates.fmt(to)}. “Solo en la app” no se borra salvo que lo marques. Los cobros corregidos conservan su método de pago, TXN, depósito, paquete y cita.</p>
+        <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Fecha</th><th>Resultado</th><th>Excel</th><th>App</th><th>Diferencias</th><th>Acción</th></tr></thead><tbody>
+        ${items.slice(0, 400).map((i, k) => `<tr><td>${Dates.fmt((i.r || i.s).day, { day: '2-digit', month: 'short' })}</td><td>${tag(i)}</td><td style="white-space:normal;min-width:180px">${esc(label(i))}</td><td style="white-space:normal;min-width:180px">${esc(appLabel(i.s))}</td><td style="white-space:normal;min-width:180px;font-size:12.5px">${esc((i.diffs || []).join(' · '))}</td><td>${action(i, k)}</td></tr>`).join('')}
+        </tbody></table></div>${items.length > 400 ? `<p class="formula">Mostrando 400 de ${intf(items.length)}.</p>` : ''}
+        <div class="chips" style="margin-top:10px"><button class="btn sm" data-cmpdl>${ic('dl')}Descargar comparación (Excel)</button></div>`;
+      $$('[data-act]', prev).forEach(cb => cb.onchange = () => { items[+cb.dataset.act].act = cb.checked; count(); });
+      $('[data-cmpdl]', prev).onclick = () => Exporter.run('xlsx', 'Comparacion_Excel_vs_app', [['Fecha', 'Resultado', 'Excel', 'App', 'Diferencias']].concat(items.map(i => [Dates.toISO((i.r || i.s).day), i.status, label(i), appLabel(i.s), (i.diffs || []).join(' · ') || (i.r && i.r.errors ? i.r.errors.join(' · ') : '')])));
+      count();
+    };
+    $('[data-sfile]', m).onchange = async e => {
+      const f = e.target.files[0]; if (!f) return; fileName = f.name; prev.innerHTML = '<div class="loading">Leyendo y comparando…</div>';
+      try { wb = await ExpenseImport.read(f); sel.innerHTML = wb.SheetNames.map(n => `<option ${n === SaleImport.findSheet(wb) ? 'selected' : ''}>${esc(n)}</option>`).join(''); $('[data-ssheetwrap]', m).style.display = ''; show(); }
+      catch (er) { prev.innerHTML = `<div class="banner">${esc(er.message)}</div>`; }
+    };
+    $('[data-sfrom]', m).onchange = show; $('[data-sto]', m).onchange = show; sel.onchange = show;
+    $('[data-x=no]', m).onclick = UI.close;
+    ok.onclick = async () => {
+      const todo = items.filter(i => i.act && !i.locked), dels = todo.filter(i => i.status === 'Solo en la app');
+      if (dels.length && !await new Promise(res => { const c = window.confirm(`Se borrarán ${dels.length} cobros que no están en el Excel. ¿Continuar?`); res(c); })) return;
+      ok.disabled = true; let done = 0, add = 0, upd = 0, del = 0;
+      try {
+        for (const i of todo) {
+          if (i.status === 'Falta') { await Store.saveSale(SaleCompare.formFrom(i.r, null), null); add++; }
+          else if (i.status === 'Diferente') { await Store.saveSale(SaleCompare.formFrom(i.r, i.s), i.s.id); upd++; }
+          else if (i.status === 'Solo en la app') { await Store.deleteSale(i.s.id); del++; }
+          done++; if (done % 5 === 0) ok.textContent = `Aplicando ${done}/${todo.length}…`;
+        }
+        if (typeof Audit !== 'undefined') try { await Audit.log({ entity: 'SALE', entityId: 'cmp-' + Date.now(), entityLabel: fileName, action: 'IMPORT', detail: `Comparó con Excel: ${add} agregados, ${upd} corregidos, ${del} borrados`, byName: Mode.who() }); } catch (e) {}
+        UI.close(); UI.toast(`Listo: ${add} agregados, ${upd} corregidos${del ? ', ' + del + ' borrados' : ''}`);
+      } catch (e) { ok.disabled = false; ok.textContent = 'Reintentar'; UI.toast(`Se detuvo en ${done} de ${todo.length}: ${e.message || e.code}. Si vuelves a comparar, lo ya aplicado saldrá como “Coincide”.`, true); }
+    };
+  });
+};
+
+/* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
    Recepción queda siempre en modo recepción; la seguridad la aplica Supabase (RLS).
    ========================================================= */
