@@ -201,6 +201,8 @@ tbody tr.st-noshow td{background:#FBF4E3}tbody tr.st-cancelada td{color:var(--mu
 .depq{gap:8px}.depq>span:first-child{font-size:12.5px;color:var(--muted);font-weight:600}.dep-opts{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px}.dep-new{margin-top:6px}
 tbody tr.st-sincita td{background:#EEF3FB}.aglegend .sw.st-sincita{background:#EEF3FB}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.st-sincita td{background:#1E2633}}:root[data-theme="dark"] tbody tr.st-sincita td{background:#1E2633}
+.rlist .ra .tag{flex:0 0 auto;height:auto;align-self:flex-end}
+.depsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:0 0 6px;color:var(--muted)}.depsum b{color:var(--ink)}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -4825,6 +4827,68 @@ Views.revision = {
   },
 };
 NAV.splice(NAV.findIndex(n => n.id === 'resumen') + 1, 0, { id: 'revision', label: 'Revisión de captura', icon: 'rep', sub: true });
+
+/* =========================================================
+   PANEL DE HOY (recepción) — servicios del día, total cobrado, propinas y
+   depósitos de las citas del siguiente día de trabajo (si hoy es sábado, el lunes).
+   ========================================================= */
+const nextWorkDay = d => { let n = d + 1; if (Dates.parts(n).dow === 0) n += 1; return n; }; // domingo cerrado
+Views.recepcion.html = function () {
+  const today = Dates.today(), nd = nextWorkDay(today), sum = Summary.build(today, today);
+  const svc = Store.sales.filter(s => s.day === today).sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  const ndLabel = nd === today + 1 ? `mañana ${Dates.fmt(nd, { weekday: 'long', day: 'numeric' })}` : `el ${Dates.fmt(nd, { weekday: 'long', day: 'numeric', month: 'short' })}`;
+  const appts = Store.appointments.filter(a => a.day === nd && a.status === 'Agendada').sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const linkedDep = new Set(appts.map(a => a.depositId).filter(Boolean));
+  const looseDeps = Store.deposits.filter(d => d.day === nd && d.status !== 'Rechazado' && !d.outcome && !linkedDep.has(d.id) && !(d.appointmentId && appts.some(a => a.id === d.appointmentId)));
+  const depOf = a => a.depositId ? Store.deposits.find(d => d.id === a.depositId) : null;
+  const rowsN = appts.map(a => ({ a, d: depOf(a) })).concat(looseDeps.map(d => ({ a: null, d })));
+  const conf = rowsN.filter(x => x.d && x.d.status === 'Verificado'), pend = rowsN.filter(x => x.d && x.d.status === 'Pendiente'), none = rowsN.filter(x => !x.d);
+  const sumD = l => r2(l.reduce((t, x) => t + num(x.d.amount), 0));
+  const pendHoy = Store.appointments.filter(a => a.day === today && a.status === 'Agendada').sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const cola = Store.requests.filter(x => x.status === 'Pendiente').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
+  const kpi = (lab, val, sub, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const depTag = d => !d ? '<span class="tag">Sin depósito</span>' : d.status === 'Verificado' ? '<span class="tag app">Confirmado</span>' : '<span class="tag warn">Por confirmar</span>';
+  return `<div class="head"><div><h1>Panel de hoy</h1><p>${esc(Dates.fmt(today, { weekday: 'long', day: 'numeric', month: 'long' }))}${Mode.operator ? ' · turno de ' + esc(Mode.operator.name) : ''}</p></div>
+      <div class="chips"><button class="btn" data-psale>${ic('plus')}Venta de producto</button><button class="btn" data-ppay>${ic('plus')}Pago de lashista</button><button class="btn" data-pdep>${ic('plus')}Depósito</button><button class="btn" data-preq>${ic('plus')}Insumos</button><button class="btn primary cta" data-go="nueva">${ic('plus')}Cobrar</button></div></div>
+    <section class="kpis" style="grid-template-columns:repeat(4,1fr)">
+      ${kpi('Servicios hoy', intf(sum.t.count), `${money(sum.t.ventas)} en servicios`)}
+      ${kpi('Total cobrado', money(sum.tot.totalDia), `recibido hoy ${money(sum.tot.recibido)}`, 1)}
+      ${kpi('Propinas', money(sum.t.tips), `${intf(svc.filter(s => s.tip > 0).length)} servicios con tip`)}
+      ${kpi(`Depósitos para ${nd === today + 1 ? 'mañana' : esc(Dates.fmt(nd, { weekday: 'long' }))}`, money(r2(sumD(conf) + sumD(pend))), `${intf(conf.length)} confirmados · ${intf(pend.length)} por confirmar`)}</section>
+    <div class="grid2">
+      <section class="panel"><h2>Servicios de hoy</h2><p class="hint">Todo lo cobrado hoy. Toca uno para ver el detalle o corregirlo.</p>
+        ${svc.length ? `<div class="tablewrap"><table><thead><tr><th>Hora</th><th>Clienta</th><th>Lashista</th><th>Servicio</th><th class="r">Total</th><th class="r">Tip</th><th>Pago</th></tr></thead><tbody>
+          ${svc.map(s => `<tr class="click" tabindex="0" data-psv="${s.id}"><td>${hhmm(s.createdAt)}</td><td><b>${esc(client(s))}</b></td><td>${esc(s.artistName)}</td><td>${esc(s.service)}</td><td class="r">${money(r2(s.price - s.discount + s.tip), 1)}</td><td class="r">${s.tip ? money(s.tip, 1) : '—'}</td><td>${esc(s.method || '—')}${s.depositAmount ? `<br><span class="mutedc" style="font-size:12px">+ depósito ${money(s.depositAmount)}</span>` : ''}</td></tr>`).join('')}
+          </tbody><tfoot><tr><td>Total</td><td>${intf(svc.length)} servicios</td><td></td><td></td><td class="r">${money(r2(sum.t.netas + sum.t.tips), 1)}</td><td class="r">${money(sum.t.tips, 1)}</td><td></td></tr></tfoot></table></div>` : '<div class="tablewrap"><div class="empty"><b>Aún no hay servicios cobrados hoy</b>Usa “Cobrar” al terminar cada cita.</div></div>'}</section>
+      <section class="panel"><h2>Depósitos para ${esc(ndLabel)}</h2><p class="hint">Citas de ese día y si ya dejaron depósito.</p>
+        <div class="depsum"><span><b>${intf(conf.length)}</b> confirmados · ${money(sumD(conf))}</span><span><b>${intf(pend.length)}</b> por confirmar · ${money(sumD(pend))}</span><span><b>${intf(none.length)}</b> sin depósito</span></div>
+        ${rowsN.length ? `<ul class="rlist">${rowsN.map(({ a, d }) => `<li><div><b>${a ? esc((a.time ? a.time + ' · ' : '') + apptClient(a)) : esc(depClient(d))}</b><br><span class="mutedc">${a ? esc(a.artistName + ' · ' + a.serviceName) : 'Depósito sin cita en la agenda'}${d ? ' · ' + money(d.amount) + ' ' + esc(d.method) + (d.txn ? ' · TXN ' + esc(d.txn) : '') : ''}</span></div>
+          <div class="ra">${depTag(d)}${d && d.status === 'Pendiente' && Store.writable() ? `<button class="btn sm" data-pver="${d.id}">Confirmar</button>` : ''}${!d && a && Store.writable() ? `<button class="btn sm" data-pnodep="${a.id}">Registrar</button>` : ''}</div></li>`).join('')}</ul>` : `<p class="mutedc">No hay citas agendadas para ${esc(ndLabel)}.</p>`}
+        <button class="btn sm" data-go2="${nd}" style="margin-top:8px">Ver agenda de ese día</button></section>
+    </div>
+    <div class="grid2b">
+      <section class="panel"><h2>Citas de hoy por cobrar</h2>
+        ${pendHoy.length ? `<ul class="rlist">${pendHoy.map(a => { const d = depOf(a); return `<li><div><b>${esc((a.time ? a.time + ' · ' : '') + apptClient(a))}</b><br><span class="mutedc">${esc(a.artistName)} · ${esc(a.serviceName)}${d ? ` · depósito ${money(d.amount)}` : ''}</span></div><div class="ra">${Store.writable() ? `<button class="btn sm primary" data-pay="${a.id}">Cobrar</button>` : ''}</div></li>`; }).join('')}</ul>` : '<p class="mutedc">No quedan citas por cobrar hoy.</p>'}
+        <h4 style="margin:18px 0 6px">Insumos por entregar</h4>${cola.length ? `<div class="reqgrid one">${cola.slice(0, 3).map(requestCard).join('')}</div>` : '<p class="mutedc">Todo entregado.</p>'}</section>
+      <section class="panel"><h2>Notas del día</h2>
+        ${notes.length ? `<ul class="audit">${notes.map(n => `<li><b>${esc(n.client || 'General')}</b>${n.time ? ' — ' + esc(n.time) : ''} <span class="mutedc">· ${esc(n.byName || '')}</span><br>${esc(n.text)}</li>`).join('')}</ul>` : '<p class="mutedc">Sin notas hoy.</p>'}
+        <button class="btn sm" data-pnote style="margin-top:10px" ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Agregar nota</button></section>
+    </div>`;
+};
+Views.recepcion.mount = function (root) {
+  const on = (sel, fn) => { const b = $(sel, root); if (b) b.onclick = fn; };
+  on('[data-psale]', () => { S.cobro.tipo = 'producto'; UI.go('nueva'); });
+  on('[data-ppay]', () => { S.cobro.tipo = 'lashista'; UI.go('nueva'); });
+  on('[data-pdep]', () => depositForm(null)); on('[data-preq]', requestForm); on('[data-pnote]', dayNoteForm);
+  $$('[data-go=nueva]', root).forEach(b => b.addEventListener('click', () => { S.cobro.tipo = 'servicio'; }, true));
+  $$('[data-psv]', root).forEach(tr => tr.onclick = () => { const s = Store.sales.find(x => x.id === tr.dataset.psv); if (s) saleDetail(s); });
+  $$('[data-pver]', root).forEach(b => b.onclick = async () => { try { await Store.saveDeposit({ status: 'Verificado', verifiedAt: new Date().toISOString(), verifiedByName: Mode.who(), _event: 'Confirmó el depósito' }, b.dataset.pver); UI.toast('Depósito confirmado'); } catch (e) { UI.toast('No se pudo guardar', true); } });
+  $$('[data-pnodep]', root).forEach(b => b.onclick = () => { const a = Store.appointments.find(x => x.id === b.dataset.pnodep); apptForm(a); setTimeout(() => { const s = $('.modal [data-a=depositId]'); if (s) { s.value = '__new'; s.onchange(); } }, 0); });
+  $$('[data-pay]', root).forEach(b => b.onclick = () => chargeAppt(Store.appointments.find(a => a.id === b.dataset.pay)));
+  $$('[data-deliver]', root).forEach(b => b.onclick = () => deliverModal(Store.requests.find(r => r.id === b.dataset.deliver)));
+  on('[data-go2]', () => { S.ag.range = 'dia'; S.ag.day = +$('[data-go2]', root).dataset.go2; UI.go('agenda'); });
+};
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
