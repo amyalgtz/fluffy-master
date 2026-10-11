@@ -199,6 +199,8 @@ tbody tr.st-noshow td{background:#FBF4E3}tbody tr.st-cancelada td{color:var(--mu
 .aglegend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin:10px 0 0;flex-wrap:wrap}.aglegend span{display:inline-flex;align-items:center;gap:6px}
 .aglegend .sw{width:14px;height:14px;border-radius:4px;border:1px solid var(--line)}.aglegend .sw.st-pagada{background:#E3F1E6}.aglegend .sw.st-noshow{background:#FBF4E3}.aglegend .sw.st-cancelada{background:#F6F3F2}
 .depq{gap:8px}.depq>span:first-child{font-size:12.5px;color:var(--muted);font-weight:600}.dep-opts{display:flex;flex-direction:column;gap:8px;margin:4px 0 6px}.dep-new{margin-top:6px}
+tbody tr.st-sincita td{background:#EEF3FB}.aglegend .sw.st-sincita{background:#EEF3FB}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.st-sincita td{background:#1E2633}}:root[data-theme="dark"] tbody tr.st-sincita td{background:#1E2633}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -4604,6 +4606,38 @@ Store.saveSale = async function (form, id) {
     }
   }
   return sid;
+};
+
+/* =========================================================
+   AGENDA → también muestra los cobros del día que no salieron de una cita
+   (clientas que llegaron sin agendar en la app, o que se cobraron directo en "Cobrar").
+   ========================================================= */
+const _agHtmlC = Views.agenda.html, _agMountC = Views.agenda.mount;
+function unlinkedSales(from, to) {
+  const linked = new Set(Store.appointments.flatMap(a => [a.saleId].concat(a.extraSaleIds || [])).filter(Boolean));
+  return Store.sales.filter(s => s.source === 'app' && s.day >= from && s.day <= to && !linked.has(s.id) && s.service !== 'DEPOSITO - NO SHOW')
+    .sort((a, b) => a.day - b.day || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+}
+const hhmm = iso => { if (!iso) return '—'; const d = new Date(iso); return isNaN(d) ? '—' : d.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }); };
+Views.agenda.html = function () {
+  let h = _agHtmlC.call(this);
+  const f = S.ag, t = Dates.today(), from = f.range === 'dia' ? f.day : t, to = f.range === 'dia' ? f.day : t + 13;
+  const list = unlinkedSales(from, Math.min(to, t)); this._walk = list;
+  h = h.replace(/<p>(\d+) citas · /, (m0, n) => `<p>${n} citas · ${intf(list.length)} cobros sin cita · `);
+  if (!list.length) return h;
+  const rows = list.map(s => { const tot = r2(s.price - s.discount + s.tip), dep = s.depositAmount || 0;
+    return `<tr class="click st-sincita" tabindex="0" data-walk="${s.id}"><td>${f.range === 'dia' ? hhmm(s.createdAt) : Dates.fmt(s.day, { weekday: 'short', day: 'numeric' }) + ' · ' + hhmm(s.createdAt)}</td><td><b>${esc(client(s))}</b></td><td>${esc(s.artistName)}</td><td>${esc(s.service)}<br><span class="mutedc" style="font-size:12px">${money(s.price)}</span></td>
+      <td>${dep ? `<span class="dep ok">${money(dep)} · ${esc(s.depositMethod || '')}</span>` : '<span class="mutedc">Sin depósito</span>'}</td><td><b>${money(r2(tot - dep), 1)}</b> · ${esc(s.method || 'sin método')}${dep ? `<br><span class="mutedc" style="font-size:12px">+ depósito ${money(dep)}</span>` : ''}</td>
+      <td><span class="tag app">Cobrado sin cita</span></td><td class="mutedc" style="font-size:12px">${esc(s.cashierName || '')}</td></tr>`; }).join('');
+  const block = `<section class="panel" style="margin-top:22px"><h2>Cobros sin cita${f.range === 'dia' ? '' : ' (hoy y días anteriores del rango)'}</h2>
+    <p class="hint">Se cobraron en “Cobrar” sin entrar por una cita. Si la clienta sí tenía cita en la agenda, ábrela y usa “Ya se cobró” para ligarla.</p>
+    <div class="tablewrap"><table><thead><tr><th>Hora del cobro</th><th>Clienta</th><th>Lashista</th><th>Servicio</th><th>Depósito</th><th>Pago</th><th>Estado</th><th>Cobró</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  h = h.replace(/<div class="tablewrap"><div class="empty"><b>Sin citas[^]*?<\/div><\/div>/, `<div class="tablewrap"><div class="empty"><b>Sin citas agendadas en la app</b>Abajo están los cobros de ${f.range === 'dia' ? 'este día' : 'estos días'}.</div></div>`);
+  return h.replace('<div class="aglegend">', block + '<div class="aglegend">').replace('<span><i class="sw st-cancelada"></i>Cancelada</span>', '<span><i class="sw st-cancelada"></i>Cancelada</span><span><i class="sw st-sincita"></i>Cobrado sin cita</span>');
+};
+Views.agenda.mount = function (root) {
+  _agMountC.call(this, root);
+  $$('[data-walk]', root).forEach(tr => tr.onclick = () => { const s = Store.sales.find(x => x.id === tr.dataset.walk); if (s) saleDetail(s); });
 };
 
 /* =========================================================
