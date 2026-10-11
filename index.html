@@ -718,7 +718,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '' };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '' };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -749,10 +749,10 @@ const Store = {
       depositId: form.depositId || '', depositAmount: form.depositId ? r2(form.depositAmount) : 0, depositMethod: form.depositId ? form.depositMethod || '' : '',
       cashierName: prev ? (prev.cashierName || '') : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
-      txn: String(form.txn || '').trim(),
+      txn: String(form.txn || '').trim(), origin: prev ? (prev.origin || '') : (form.origin || ''),
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
-    if (!prev) doc.createdBy = uid;
+    doc.createdBy = prev ? prev.createdBy || '' : uid;
     const ref = existingId ? this.db.doc('sales/' + existingId) : this.db.collection('sales').doc();
     await ref.set(doc);
     return ref.id;
@@ -4493,7 +4493,7 @@ Store.saveSale = async function (form, id) {
   if (id && before && typeof Audit !== 'undefined') {
     const after = saleSnap(this.appSales.find(s => s.id === sid)) || before;
     const ch = Audit.diff(before, after, SALE_FIELDS).map(c => ({ ...c, from: String(c.from), to: String(c.to) }));
-    if (ch.length) try { await Audit.log({ entity: 'SALE', entityId: sid, entityLabel: `${after.client} · ${after.service}`, action: 'UPDATE', before, after, changes: ch, byName: Mode.who() }); } catch (e) {}
+    if (ch.length) try { await Audit.log({ entity: 'SALE', entityId: sid, entityLabel: `${after.client} · ${after.service}`, action: 'UPDATE', before, after, changes: ch, byName: Mode.who(), reason: Store._auditReason || '', cashierName: (this.appSales.find(s => s.id === sid) || {}).cashierName || '' }); } catch (e) {}
   }
   return sid;
 };
@@ -4738,20 +4738,93 @@ SaleImport.open = function () {
     ok.onclick = async () => {
       const todo = items.filter(i => i.act && !i.locked), dels = todo.filter(i => i.status === 'Solo en la app');
       if (dels.length && !await new Promise(res => { const c = window.confirm(`Se borrarán ${dels.length} cobros que no están en el Excel. ¿Continuar?`); res(c); })) return;
-      ok.disabled = true; let done = 0, add = 0, upd = 0, del = 0;
+      ok.disabled = true; let done = 0, add = 0, upd = 0, del = 0; Store._auditReason = 'Corregido con Excel';
       try {
         for (const i of todo) {
-          if (i.status === 'Falta') { await Store.saveSale(SaleCompare.formFrom(i.r, null), null); add++; }
+          if (i.status === 'Falta') { await Store.saveSale({ ...SaleCompare.formFrom(i.r, null), origin: 'excel' }, null); add++; }
           else if (i.status === 'Diferente') { await Store.saveSale(SaleCompare.formFrom(i.r, i.s), i.s.id); upd++; }
           else if (i.status === 'Solo en la app') { await Store.deleteSale(i.s.id); del++; }
           done++; if (done % 5 === 0) ok.textContent = `Aplicando ${done}/${todo.length}…`;
         }
         if (typeof Audit !== 'undefined') try { await Audit.log({ entity: 'SALE', entityId: 'cmp-' + Date.now(), entityLabel: fileName, action: 'IMPORT', detail: `Comparó con Excel: ${add} agregados, ${upd} corregidos, ${del} borrados`, byName: Mode.who() }); } catch (e) {}
-        UI.close(); UI.toast(`Listo: ${add} agregados, ${upd} corregidos${del ? ', ' + del + ' borrados' : ''}`);
-      } catch (e) { ok.disabled = false; ok.textContent = 'Reintentar'; UI.toast(`Se detuvo en ${done} de ${todo.length}: ${e.message || e.code}. Si vuelves a comparar, lo ya aplicado saldrá como “Coincide”.`, true); }
+        Store._auditReason = ''; UI.close(); UI.toast(`Listo: ${add} agregados, ${upd} corregidos${del ? ', ' + del + ' borrados' : ''}`);
+      } catch (e) { Store._auditReason = ''; ok.disabled = false; ok.textContent = 'Reintentar'; UI.toast(`Se detuvo en ${done} de ${todo.length}: ${e.message || e.code}. Si vuelves a comparar, lo ya aplicado saldrá como “Coincide”.`, true); }
     };
   });
 };
+
+/* =========================================================
+   REVISIÓN DE CAPTURA — qué tan bien capturó recepción comparado con el Excel:
+   cobros correctos, corregidos (y qué se corrigió) y los que faltaron.
+   Sale de la bitácora: cada corrección hecha al comparar con el Excel queda con el “antes”.
+   ========================================================= */
+const Revision = {
+  windows() { // cada comparación con Excel aplicada: sus cambios se guardaron en los ~30 min anteriores
+    return (Store.auditLogs || []).filter(a => a.entity === 'SALE' && a.action === 'IMPORT' && /Comparó con Excel/.test(a.detail || ''))
+      .map(a => ({ end: new Date(a.at).getTime() + 60000, start: new Date(a.at).getTime() - 30 * 60000, user: a.byUserId, name: a.byName, at: a.at }));
+  },
+  inWin(iso, user, wins) { const t = new Date(iso).getTime(); return !!user && wins.some(w => t >= w.start && t <= w.end && user === w.user); },
+  build(from, to) {
+    const wins = this.windows();
+    const sales = Store.sales.filter(s => s.source === 'app' && s.day >= from && s.day <= to);
+    const added = new Set(sales.filter(s => s.origin === 'excel' || (s.createdAt && this.inWin(s.createdAt, s.createdBy, wins))).map(s => s.id));
+    const fixes = new Map();
+    (Store.auditLogs || []).filter(a => a.entity === 'SALE' && a.action === 'UPDATE' && (a.reason === 'Corregido con Excel' || this.inWin(a.at, a.byUserId, wins)))
+      .forEach(a => { const l = fixes.get(a.entityId) || []; l.push(a); fixes.set(a.entityId, l); });
+    const deleted = (Store.auditLogs || []).filter(a => a.entity === 'SALE' && a.action === 'DELETE' && this.inWin(a.at, a.byUserId, wins) && a.before && (() => { const d = Dates.fromISO(a.before.date); return d >= from && d <= to; })());
+    const captured = sales.filter(s => !added.has(s.id));
+    const per = new Map(), types = new Map();
+    captured.forEach(s => { const k = s.cashierName || 'Sin registrar', o = per.get(k) || { name: k, n: 0, fixed: 0 }; o.n++; if (fixes.has(s.id)) o.fixed++; per.set(k, o); });
+    captured.forEach(s => (fixes.get(s.id) || []).forEach(a => (a.changes || []).forEach(c => types.set(c.field, (types.get(c.field) || 0) + 1))));
+    const corr = captured.filter(s => fixes.has(s.id)).map(s => ({ s, changes: fixes.get(s.id).flatMap(a => a.changes || []) }));
+    return { sales, captured, added: sales.filter(s => added.has(s.id)), corr, deleted, per: [...per.values()].sort((a, b) => b.n - a.n), types: [...types].sort((a, b) => b[1] - a[1]), wins };
+  },
+};
+S.rev = { kind: 'semana', ws: Dates.fluffyWeekStart(Dates.today()) - 7, ym: Dates.ym(Dates.today()), from: Dates.today() - 13, to: Dates.today() };
+Views.revision = {
+  range() { const r = S.rev; if (r.kind === 'semana') return [r.ws, r.ws + 6]; if (r.kind === 'rango') return [r.from, r.to]; const [y, m] = r.ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; },
+  html() {
+    const r = S.rev, [from, to] = this.range(), d = Revision.build(from, to); this._d = d; this._label = `${Dates.fmt(from)} – ${Dates.fmt(to)}`;
+    const ok = d.captured.length - d.corr.length, acc = d.captured.length ? ok / d.captured.length : 0, total = d.captured.length + d.added.length;
+    const nav = r.kind === 'semana' ? `<button class="btn sm" data-rvs="-1">${ic('left')}</button><span class="w">${weekLabel(r.ws)}</span><button class="btn sm" data-rvs="1">${ic('right')}</button>`
+      : r.kind === 'mes' ? `<button class="btn sm" data-rvs="-1">${ic('left')}</button><span class="w">${esc(ymLabel(r.ym))}</span><button class="btn sm" data-rvs="1">${ic('right')}</button>`
+      : `<input type="date" class="inp" style="width:auto" data-rvfrom value="${Dates.toISO(r.from)}"><span>a</span><input type="date" class="inp" style="width:auto" data-rvto value="${Dates.toISO(r.to)}">`;
+    const kpi = (l, v, s, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+    return `<div class="head"><div><h1>Revisión de captura</h1><p>Lo que capturó recepción comparado con el Excel. ${d.wins.length ? `Comparaciones aplicadas: ${d.wins.length}.` : 'Todavía no se ha aplicado ninguna comparación con Excel.'}</p></div>
+        <div class="chips no-print"><button class="btn sm" data-rvdl>${ic('dl')}Excel</button></div></div>
+      <div class="filters no-print" style="align-items:center"><div class="chips">${[['semana', 'Semana'], ['mes', 'Mes'], ['rango', 'Rango']].map(([k, l]) => `<button class="chip ${r.kind === k ? 'on' : ''}" data-rvk="${k}">${l}</button>`).join('')}</div><div class="weeknav">${nav}</div></div>
+      <section class="kpis">${kpi('Cobros del periodo', intf(total), 'en la app, ya comparada')}${kpi('Capturados por recepción', intf(d.captured.length), total ? pct(d.captured.length / total) + ' del total' : '')}
+        ${kpi('Capturados sin error', intf(ok), '', 1)}${kpi('Corregidos con el Excel', intf(d.corr.length), 'tenían algún dato distinto')}${kpi('Faltaron', intf(d.added.length), 'no se capturaron en la app')}${kpi('Precisión', d.captured.length ? pct(acc) : '—', 'capturados sin error')}</section>
+      <div class="grid2b">
+        <section class="panel"><h2>Por quién cobró</h2><p class="hint">Según “Cobró” en cada venta.</p>
+          ${table([{ label: 'Persona' }, { label: 'Capturados', r: 1 }, { label: 'Sin error', r: 1 }, { label: 'Corregidos', r: 1 }, { label: 'Precisión', r: 1 }], d.per.map(p => [p.name, intf(p.n), intf(p.n - p.fixed), intf(p.fixed), pct(p.n ? (p.n - p.fixed) / p.n : 0)]), null, { emptyTitle: 'Sin cobros capturados', empty: '' })}</section>
+        <section class="panel"><h2>Qué se corrigió más</h2><p class="hint">Cuántas veces se corrigió cada dato.</p>
+          ${table([{ label: 'Dato' }, { label: 'Veces', r: 1 }], d.types.map(([k, v]) => [k, intf(v)]), null, { emptyTitle: 'Sin correcciones', empty: 'Todo lo capturado coincidió con el Excel.' })}</section></div>
+      <section class="panel"><h2>Cobros corregidos</h2><p class="hint">Lo que había capturado recepción y cómo quedó según el Excel.</p>
+        ${table([{ label: 'Fecha' }, { label: 'Clienta' }, { label: 'Servicio' }, { label: 'Cobró' }, { label: 'Qué cambió' }], d.corr.map(x => [Dates.fmt(x.s.day, { day: '2-digit', month: 'short' }), client(x.s), x.s.service, x.s.cashierName || '—', x.changes.map(c => `${c.field}: ${c.from} → ${c.to}`).join(' · ')]), null, { emptyTitle: 'Sin correcciones', empty: '' })}</section>
+      <section class="panel"><h2>Cobros que faltaron</h2><p class="hint">Estaban en el Excel pero no se habían capturado en la app.</p>
+        ${table([{ label: 'Fecha' }, { label: 'Lashista' }, { label: 'Servicio' }, { label: 'Clienta' }, { label: 'Precio', r: 1 }, { label: 'Tip', r: 1 }], d.added.map(s => [Dates.fmt(s.day, { day: '2-digit', month: 'short' }), s.artistName, s.service, client(s), money(s.price, 1), money(s.tip, 1)]), null, { emptyTitle: 'No faltó ninguno', empty: '' })}</section>
+      ${d.deleted.length ? `<section class="panel"><h2>Cobros borrados al comparar</h2>${table([{ label: 'Fecha' }, { label: 'Clienta' }, { label: 'Servicio' }, { label: 'Precio', r: 1 }], d.deleted.map(a => [a.before.date, a.before.client, a.before.service, money(a.before.price, 1)]))}</section>` : ''}
+      <p class="formula">Las correcciones se identifican con la bitácora de cambios de cada comparación con Excel. Los cobros que agregó el Excel cuentan como “faltaron”. Cuando dejes de usar el Excel, esta misma revisión se puede hacer contra el reporte de Booksy.</p>`;
+  },
+  mount(root) {
+    const r = S.rev;
+    $$('[data-rvk]', root).forEach(b => b.onclick = () => { r.kind = b.dataset.rvk; UI.render(); });
+    $$('[data-rvs]', root).forEach(b => b.onclick = () => { const k = +b.dataset.rvs; if (r.kind === 'semana') r.ws += 7 * k; if (r.kind === 'mes') r.ym = shiftMonth(r.ym, k); UI.render(); });
+    const f = $('[data-rvfrom]', root), t = $('[data-rvto]', root);
+    if (f) f.onchange = () => { const x = Dates.fromISO(f.value); if (x != null) { r.from = x; UI.render(); } };
+    if (t) t.onchange = () => { const x = Dates.fromISO(t.value); if (x != null) { r.to = x; UI.render(); } };
+    $('[data-rvdl]', root).onclick = () => {
+      const d = this._d; if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
+      const wb = XLSX.utils.book_new(), add = (n, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Revisión de captura · ${this._label}`], []].concat(rows)), n);
+      add('Por persona', [['Persona', 'Capturados', 'Sin error', 'Corregidos', 'Precisión']].concat(d.per.map(p => [p.name, p.n, p.n - p.fixed, p.fixed, p.n ? (p.n - p.fixed) / p.n : 0])));
+      add('Corregidos', [['Fecha', 'Clienta', 'Servicio', 'Cobró', 'Dato', 'Antes', 'Después']].concat(d.corr.flatMap(x => x.changes.map(c => [Dates.toISO(x.s.day), client(x.s), x.s.service, x.s.cashierName || '', c.field, c.from, c.to]))));
+      add('Faltaron', [['Fecha', 'Lashista', 'Servicio', 'Clienta', 'Precio', 'Tip']].concat(d.added.map(s => [Dates.toISO(s.day), s.artistName, s.service, client(s), s.price, s.tip])));
+      Exporter.save(`Revision_captura_${this._label.replace(/[^0-9a-z]+/gi, '_')}.xlsx`, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+    };
+  },
+};
+NAV.splice(NAV.findIndex(n => n.id === 'resumen') + 1, 0, { id: 'revision', label: 'Revisión de captura', icon: 'rep', sub: true });
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
