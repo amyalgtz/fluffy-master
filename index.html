@@ -203,6 +203,7 @@ tbody tr.st-sincita td{background:#EEF3FB}.aglegend .sw.st-sincita{background:#E
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.st-sincita td{background:#1E2633}}:root[data-theme="dark"] tbody tr.st-sincita td{background:#1E2633}
 .rlist .ra .tag{flex:0 0 auto;height:auto;align-self:flex-end}
 .xline.adline{grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 84px 34px}@media (max-width:640px){.xline.adline{grid-template-columns:1fr 1fr}}
+.syncinfo{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
 .depsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:0 0 6px;color:var(--muted)}.depsum b{color:var(--ink)}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
@@ -277,6 +278,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
+window.FM_VERSION = '2026-10-12 15:33';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -349,12 +351,14 @@ window.claude = {
 async function loadAll() {
   const parts = [];
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await FM.sb.from('docs').select('collection,id,data').range(from, from + 999).order('collection').order('id');
+    const { data, error } = await FM.sb.from('docs').select('collection,id,data,updated_at').range(from, from + 999).order('collection').order('id');
     if (error) throw sbError(error);
     parts.push(...data); if (data.length < 1000) break;
   }
   FM.cache.clear();
   parts.forEach(r => colMap(r.collection).set(r.id, r.data));
+  FM.mark = parts.reduce((m, r) => r.updated_at && r.updated_at > m ? r.updated_at : m, FM.mark || '');
+  FM.syncedAt = new Date(); FM.online = true;
   const h = [...colMap('historico')].sort((a, b) => a[0].localeCompare(b[0])).map(([, d]) => d.text || '').join('');
   if (h) { const x = JSON.parse(h); DATA = x.DATA; PERF = x.PERF; }
 }
@@ -365,10 +369,13 @@ async function pullChanges(full) {
   if (!FM.session || !FM.member) return;
   try {
     if (full) { await loadAll(); FM.lastSync = new Date(Date.now() - 2000).toISOString(); UI.render(); return; }
-    const since = FM.lastSync || new Date(Date.now() - 120000).toISOString(); FM.lastSync = new Date(Date.now() - 2000).toISOString();
-    const { data, error } = await FM.sb.from('docs').select('collection,id,data,updated_at').gt('updated_at', since).neq('collection', 'historico').limit(1000);
-    if (error || !data) return;
-    data.forEach(r => { colMap(r.collection).set(r.id, r.data); emit(r.collection, r.id); });
+    // Marca de agua del servidor (no del reloj del dispositivo): se piden los cambios posteriores al último visto, con 2 min de margen.
+    const since = FM.mark ? new Date(new Date(FM.mark).getTime() - 120000).toISOString() : new Date(Date.now() - 600000).toISOString();
+    const { data, error } = await FM.sb.from('docs').select('collection,id,data,updated_at').gt('updated_at', since).neq('collection', 'historico').order('updated_at').limit(1000);
+    if (error || !data) { FM.online = false; UI.renderNav(); return; }
+    let changed = 0;
+    data.forEach(r => { const cur = colMap(r.collection).get(r.id); if (JSON.stringify(cur) !== JSON.stringify(r.data)) { colMap(r.collection).set(r.id, r.data); emit(r.collection, r.id); changed++; } if (r.updated_at > (FM.mark || '')) FM.mark = r.updated_at; });
+    FM.syncedAt = new Date(); FM.online = true; if (!changed) UI.renderNav();
     if (Date.now() - (FM.lastIdCheck || 0) > 180000) {          // cada 3 min: quita lo que otra pantalla borró
       FM.lastIdCheck = Date.now(); const ids = new Set();
       for (let from = 0; ; from += 1000) { const { data: d2 } = await FM.sb.from('docs').select('collection,id').neq('collection', 'historico').range(from, from + 999); if (!d2) return; d2.forEach(r => ids.add(r.collection + '/' + r.id)); if (d2.length < 1000) break; }
@@ -376,7 +383,7 @@ async function pullChanges(full) {
     }
   } catch (e) {}
 }
-setInterval(() => { if (document.visibilityState === 'visible') pullChanges(false); }, 30000);
+setInterval(() => { if (document.visibilityState === 'visible') pullChanges(false); }, 20000);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pullChanges(false); });
 window.addEventListener('focus', () => pullChanges(false));
 document.addEventListener('click', e => { if (e.target.closest('[data-sync]')) { UI.toast('Actualizando…'); pullChanges(true).then(() => UI.toast('Datos al día')); } });
@@ -384,9 +391,10 @@ document.addEventListener('click', e => { if (e.target.closest('[data-sync]')) {
 function listenRealtime() {
   FM.sb.channel('fm-docs').on('postgres_changes', { event: '*', schema: 'public', table: 'docs' }, p => {
     const r = p.eventType === 'DELETE' ? p.old : p.new; if (!r || !r.collection || r.collection === 'historico') return;
+    if (r.updated_at && r.updated_at > (FM.mark || '')) FM.mark = r.updated_at; FM.syncedAt = new Date(); FM.live = true;
     if (p.eventType === 'DELETE') colMap(r.collection).delete(r.id); else colMap(r.collection).set(r.id, r.data);
     emit(r.collection, r.id);
-  }).subscribe();
+  }).subscribe(st => { FM.live = st === 'SUBSCRIBED'; });
 }
 
 /* ---------- pantallas de acceso ---------- */
@@ -5003,7 +5011,7 @@ UI.renderNav = function () {
   _rnWeb();
   const foot = $('#side .side-foot'); if (!foot || !FM.member) return;
   if (FM.member.role === 'recepcion') { const off = $('[data-rec-off]', foot); if (off) off.remove(); }
-  foot.insertAdjacentHTML('afterbegin', `<div style="margin-bottom:8px"><b>${esc(FM.member.name)}</b> · ${esc(ROLE_LABEL[FM.member.role] || FM.member.role)}<br><span class="mutedc">${esc(FM.session.user.email)}</span><br><button data-logout>Cerrar sesión</button> <button data-sync>Actualizar datos</button></div>`);
+  foot.insertAdjacentHTML('afterbegin', `<div style="margin-bottom:8px"><b>${esc(FM.member.name)}</b> · ${esc(ROLE_LABEL[FM.member.role] || FM.member.role)}<br><span class="mutedc">${esc(FM.session.user.email)}</span><br><button data-logout>Cerrar sesión</button> <button data-sync>Actualizar datos</button><div class="syncinfo">${FM.online === false ? '⚠︎ Sin conexión' : FM.live ? '● En vivo' : '● Conectado'} · actualizado ${FM.syncedAt ? FM.syncedAt.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '—'}<br>Versión ${esc(window.FM_VERSION || '')}</div></div>`);
   const rec = $('[data-rec-on]', foot); if (rec && FM.member.role === 'lectura') rec.remove();
 };
 document.addEventListener('click', e => { if (e.target.closest('[data-logout]')) FM.sb.auth.signOut(); });
@@ -5080,6 +5088,29 @@ Views.config.mount = function (root) {
       dl(`fluffy-master-ventas-gastos-${stamp}.xlsx`, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
     }
   });
+};
+
+/* Configuración → Diagnóstico: compara lo que hay en el servidor con lo que ve este dispositivo. */
+const _cfgHtmlD = Views.config.html, _cfgMountD = Views.config.mount;
+Views.config.html = function () {
+  return _cfgHtmlD.call(this) + `<section class="panel"><h2>Diagnóstico de sincronización</h2><p class="hint">Si algo que capturaron en otro dispositivo no aparece aquí, revisa esto. Versión de la app en este dispositivo: <b>${esc(window.FM_VERSION || '')}</b>.</p>
+    <div class="chips"><button class="btn sm primary" data-diag>Revisar ahora</button></div><div data-diagout style="margin-top:12px"></div></section>`;
+};
+Views.config.mount = function (root) {
+  _cfgMountD.call(this, root);
+  const b = $('[data-diag]', root); if (!b) return;
+  b.onclick = async () => {
+    const out = $('[data-diagout]', root); out.innerHTML = '<div class="loading">Revisando…</div>';
+    try {
+      const cols = ['sales', 'appointments', 'deposits', 'expenses', 'packages', 'supplyRequests', 'dayNotes', 'notePayments', 'inventoryMoves'], rows = [];
+      for (const c of cols) { const { count } = await FM.sb.from('docs').select('id', { count: 'exact', head: true }).eq('collection', c); rows.push([c, count == null ? '—' : count, colMap(c).size]); }
+      const { data: last } = await FM.sb.from('docs').select('collection,id,updated_at,updated_by').neq('collection', 'historico').order('updated_at', { ascending: false }).limit(12);
+      const nm = { sales: 'Ventas', appointments: 'Citas', deposits: 'Depósitos', expenses: 'Gastos', packages: 'Paquetes', supplyRequests: 'Insumos', dayNotes: 'Notas del día', notePayments: 'Pagos de lashistas', inventoryMoves: 'Inventario' };
+      out.innerHTML = table([{ label: 'Registro' }, { label: 'En el servidor', r: 1 }, { label: 'En este dispositivo', r: 1 }, { label: '', html: 1 }], rows.map(([c, s, l]) => [nm[c], s, l, s !== '—' && s !== l ? '<span class="tag warn">Diferente: toca Actualizar datos</span>' : '<span class="tag app">Igual</span>']))
+        + `<h4 style="margin:16px 0 6px">Últimos cambios guardados en el servidor</h4>` + table([{ label: 'Cuándo' }, { label: 'Qué' }, { label: 'Quién' }, { label: '¿Se ve aquí?', html: 1 }],
+          (last || []).map(x => [new Date(x.updated_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit', second: '2-digit' }), nm[x.collection] || x.collection, x.updated_by || '—', colMap(x.collection).has(x.id) ? '<span class="tag app">Sí</span>' : '<span class="tag warn">No</span>']));
+    } catch (e) { out.innerHTML = `<div class="banner">No se pudo revisar: ${esc(e.message || '')}</div>`; }
+  };
 };
 
 window.FM_BOOT = function () {
