@@ -202,6 +202,7 @@ tbody tr.st-noshow td{background:#FBF4E3}tbody tr.st-cancelada td{color:var(--mu
 tbody tr.st-sincita td{background:#EEF3FB}.aglegend .sw.st-sincita{background:#EEF3FB}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.st-sincita td{background:#1E2633}}:root[data-theme="dark"] tbody tr.st-sincita td{background:#1E2633}
 .rlist .ra .tag{flex:0 0 auto;height:auto;align-self:flex-end}
+.xline.adline{grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 84px 34px}@media (max-width:640px){.xline.adline{grid-template-columns:1fr 1fr}}
 .depsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:0 0 6px;color:var(--muted)}.depsum b{color:var(--ink)}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
@@ -3233,6 +3234,7 @@ function apptForm(a, preset) {
       <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono (opcional)<input type="tel" data-a="phone" value="${esc(st.phone || '')}"></label>
       <label class="field full">Correo electrónico (opcional)<input type="email" data-a="email" value="${esc(st.email || '')}" placeholder="clienta@correo.com" autocomplete="off"></label>
       <label class="field full">Servicio<select data-a="serviceId">${serviceOptions(st.serviceId, 0, !!a)}</select></label>
+      <div class="full xbox"><div class="xhead"><b>Complementos</b><span class="mutedc">Bottom lashes, wax, brow lamination, lash removal… lo que la clienta agregue.</span></div><div data-addons></div><button type="button" class="btn sm" data-addaddon>${ic('plus')}Agregar complemento</button></div>
       <label class="field full">Depósito<select data-a="depositId"><option value="">Sin depósito</option><option value="__new">Registrar depósito ahora…</option>${avail.map(d => `<option value="${d.id}" ${st.depositId === d.id ? 'selected' : ''}>${esc(depClient(d))} · ${money(d.amount)} · ${esc(d.method)}${d.status === 'Pendiente' ? ' · por verificar' : ''}</option>`).join('')}</select></label>
       <div class="full newdep" data-newdep style="display:none"><div class="formgrid">
         <label class="field">Monto<input type="number" min="0" step="0.01" data-nd="amount" value="${ns ? ns.price : ''}"></label>
@@ -3242,6 +3244,7 @@ function apptForm(a, preset) {
       <label class="field full">Notas (opcional)<input data-a="notes" value="${esc(st.notes || '')}"></label></div>
     <p class="err" data-aerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${a ? 'Guardar cambios' : 'Agendar'}</button></div>`, m => {
+    const addons = (st.addons || []).map(x => ({ ...x })); AddOns.mountForm(m, addons, () => $('[data-a=artistId]', m).value);
     const dsel = $('[data-a=depositId]', m); dsel.onchange = () => { $('[data-newdep]', m).style.display = dsel.value === '__new' ? '' : 'none'; };
     $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-a=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
     if (preset && preset._focusDate) setTimeout(() => $('[data-a=date]', m).focus(), 0);
@@ -3254,7 +3257,8 @@ function apptForm(a, preset) {
       if (!v('serviceId')) { err.textContent = 'Elige el servicio.'; return; }
       if (v('email') && !/^\S+@\S+\.\S+$/.test(v('email'))) { err.textContent = 'Revisa el correo electrónico.'; return; }
       const art = Store.config.artists.find(x => x.id === v('artistId')), svc = Store.config.services.find(x => x.id === v('serviceId'));
-      const data = { date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
+      const adErr = AddOns.validate(addons); if (adErr) { err.textContent = adErr; return; }
+      const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
       const b = $('[data-x=ok]', m); b.disabled = true;
       try {
         let depId = dsel.value === '__new' ? '' : dsel.value;
@@ -4888,6 +4892,104 @@ Views.recepcion.mount = function (root) {
   $$('[data-pay]', root).forEach(b => b.onclick = () => chargeAppt(Store.appointments.find(a => a.id === b.dataset.pay)));
   $$('[data-deliver]', root).forEach(b => b.onclick = () => deliverModal(Store.requests.find(r => r.id === b.dataset.deliver)));
   on('[data-go2]', () => { S.ag.range = 'dia'; S.ag.day = +$('[data-go2]', root).dataset.go2; UI.go('agenda'); });
+};
+
+/* =========================================================
+   COMPLEMENTOS EN LA CITA — servicios que la clienta agrega a su cita (bottom lashes,
+   wax, brow lamination, lash removal…). Al cobrar la cita se cargan como "otros servicios
+   en este cobro": cada uno queda como su propia venta, con la comisión de quien lo hizo.
+   ========================================================= */
+const ADDON_HINTS = ['bottom', 'removal', 'lamination', 'wax', 'threading', 'lip', 'tint', 'henna', 'sideburn', 'chin', 'cheek', 'nose'];
+const isAddonSvc = s => ADDON_HINTS.some(k => s.name.toLowerCase().includes(k));
+const AddOns = {
+  options(sel) {
+    const act = Store.config.services.filter(s => s.active !== false), top = act.filter(isAddonSvc), rest = act.filter(s => !isAddonSvc(s));
+    const o = s => `<option value="${s.id}" ${sel === s.id ? 'selected' : ''}>${esc(s.name)} · ${money(s.price)}</option>`;
+    return `<option value="">Elige complemento</option><optgroup label="Complementos frecuentes">${top.map(o).join('')}</optgroup><optgroup label="Otros servicios">${rest.map(o).join('')}</optgroup>`;
+  },
+  line(x, k) {
+    return `<div class="xline adline" data-ad="${k}"><select class="inp" data-adk="serviceId" aria-label="Complemento">${AddOns.options(x.serviceId)}</select>
+      <select class="inp" data-adk="artistId" aria-label="Lashista">${artistOptions(x.artistId, 0, 0).replace('Elige lashista', 'Misma lashista')}</select>
+      <input class="inp num" type="number" min="0" step="0.01" data-adk="price" value="${esc(x.price != null ? x.price : '')}" placeholder="Precio" aria-label="Precio">
+      <button type="button" class="btn sm" data-adk="rm" aria-label="Quitar">×</button></div>`;
+  },
+  mountForm(m, list, mainArtist) {
+    const box = $('[data-addons]', m); if (!box) return;
+    const draw = () => { box.innerHTML = list.map(AddOns.line).join(''); };
+    draw();
+    $('[data-addaddon]', m).onclick = () => { list.push({ serviceId: '', artistId: '', price: '' }); draw(); };
+    box.addEventListener('change', e => { const l = e.target.closest('[data-ad]'), k = e.target.dataset.adk; if (!l || !k || k === 'rm') return; const x = list[+l.dataset.ad]; x[k] = e.target.value;
+      if (k === 'serviceId') { const s = Store.config.services.find(y => y.id === x.serviceId); if (s) { x.price = s.price; $('[data-adk=price]', l).value = s.price; } } });
+    box.addEventListener('input', e => { const l = e.target.closest('[data-ad]'); if (l && e.target.dataset.adk === 'price') list[+l.dataset.ad].price = e.target.value; });
+    box.addEventListener('click', e => { if (e.target.closest('[data-adk=rm]')) { list.splice(+e.target.closest('[data-ad]').dataset.ad, 1); draw(); } });
+  },
+  validate(list) { return list.some(x => x.serviceId && (x.price === '' || num(x.price) < 0)) ? 'Revisa el precio de los complementos.' : ''; },
+  clean(list) {
+    return list.filter(x => x.serviceId).map(x => { const s = Store.config.services.find(y => y.id === x.serviceId) || {}, a = Store.config.artists.find(y => y.id === x.artistId);
+      return { serviceId: x.serviceId, serviceName: s.name || '', price: r2(x.price), artistId: a ? a.id : '', artistName: a ? a.name : '' }; });
+  },
+  total: a => r2((a.addons || []).reduce((t, x) => t + num(x.price), 0)),
+  text: a => (a.addons || []).map(x => x.serviceName + (x.artistName && x.artistName !== a.artistName ? ` (${x.artistName})` : '')).join(', '),
+};
+
+/* Agenda: mostrar complementos y sumarlos a lo que resta por cobrar. */
+const _agHtmlAd = Views.agenda.html;
+Views.agenda.html = function () {
+  let h = _agHtmlAd.call(this);
+  (this._list || []).forEach(a => {
+    if (!(a.addons || []).length) return;
+    const re = new RegExp(`(data-row="\\d+">(?:(?!</tr>)[\\s\\S])*?${esc(a.serviceName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<br><span class="mutedc" style="font-size:12px">)\\$`);
+    h = h.replace(re, `$1+ ${esc(AddOns.text(a))} · $`);
+  });
+  return h;
+};
+const _payCellAd = payCell;
+payCell = function (a) {
+  const h = _payCellAd(a);
+  if (a.status !== 'Agendada' || !(a.addons || []).length) return h;
+  const d = apptDeposit(a), due = r2(num(a.price) + AddOns.total(a) - (d && d.status !== 'Rechazado' ? d.amount : 0));
+  return `<span class="mutedc">Pendiente</span><br><span style="font-size:12.5px">resta ${money(Math.max(0, due))} + tip</span><br><span class="mutedc" style="font-size:12px">incluye ${money(AddOns.total(a))} de complementos</span>`;
+};
+
+/* Detalle de la cita: complementos y botón rápido para agregar uno. */
+const _apptDetailAd = apptDetail;
+apptDetail = function (a) {
+  _apptDetailAd(a);
+  const m = $('.modal'); if (!m) return;
+  const dl = $('.dl', m);
+  if (dl) dl.insertAdjacentHTML('beforeend', `<dt>Complementos</dt><dd style="white-space:normal">${(a.addons || []).length ? a.addons.map(x => `${esc(x.serviceName)} · ${money(x.price)}${x.artistName ? ' · ' + esc(x.artistName) : ''}`).join('<br>') : '—'}</dd>`);
+  const acts = $('.acts', m);
+  if (acts && a.status === 'Agendada' && Store.writable()) {
+    acts.insertAdjacentHTML('afterbegin', `<button class="btn" data-x="addon">${ic('plus')}Complemento</button>`);
+    $('[data-x=addon]', m).onclick = () => { UI.close(); quickAddon(a); };
+  }
+};
+function quickAddon(a) {
+  const list = [{ serviceId: '', artistId: '', price: '' }];
+  UI.modal(`<h3>Agregar complemento</h3><p style="color:var(--muted);margin:0 0 12px">A la cita de ${esc(apptClient(a))} · ${esc(a.artistName)} · ${esc(a.serviceName)}</p>
+    <div data-addons></div><button type="button" class="btn sm" data-addaddon>${ic('plus')}Otro complemento</button>
+    <p class="err" data-aderr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Agregar</button></div>`, m => {
+    m.classList.add('wide'); AddOns.mountForm(m, list);
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const e = AddOns.validate(list); if (e) return ($('[data-aderr]', m).textContent = e);
+      const add = AddOns.clean(list); if (!add.length) return ($('[data-aderr]', m).textContent = 'Elige el complemento.');
+      try { await Store.saveAppointment({ addons: (a.addons || []).concat(add), history: (a.history || []).concat({ at: new Date().toISOString(), by: Mode.who(), what: 'Agregó ' + add.map(x => x.serviceName).join(', ') }) }, a.id); UI.close(); UI.toast('Complemento agregado'); }
+      catch (er) { $('[data-aderr]', m).textContent = 'No se pudo guardar: ' + (er.message || er.code); }
+    };
+  });
+}
+
+/* Al cobrar la cita, los complementos entran como "otros servicios en este cobro". */
+const _chargeApptAd = chargeAppt;
+chargeAppt = function (a) {
+  _chargeApptAd(a);
+  const f = Views.nueva.form;
+  if (f && (a.addons || []).length && !(f.extras || []).length) {
+    f.extras = a.addons.map(x => ({ serviceId: x.serviceId, artistId: x.artistId || a.artistId, price: x.price, discount: '' }));
+    UI.render();
+  }
 };
 
 /* =========================================================
