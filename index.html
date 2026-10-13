@@ -205,6 +205,12 @@ tbody tr.st-sincita td{background:#EEF3FB}.aglegend .sw.st-sincita{background:#E
 .xline.adline{grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) 84px 34px}@media (max-width:640px){.xline.adline{grid-template-columns:1fr 1fr}}
 .syncinfo{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
 .depsum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:0 0 6px;color:var(--muted)}.depsum b{color:var(--ink)}
+.invtable tr.invcat td{background:var(--blush);font-weight:700;font-size:12.5px;letter-spacing:.02em;color:var(--ink)}
+.stockbar{height:8px;border-radius:99px;background:var(--line);display:flex;overflow:hidden}.stockbar i{display:block;height:100%}.stockbar i.s{background:var(--pink-deep)}.stockbar i.b{background:var(--sand)}
+tbody tr.inv-cero td{background:#FBECEE}tbody tr.inv-pedir td{background:#FBF4E3}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.inv-cero td{background:#33202A}:root:not([data-theme="light"]) tbody tr.inv-pedir td{background:#30291A}}:root[data-theme="dark"] tbody tr.inv-cero td{background:#33202A}:root[data-theme="dark"] tbody tr.inv-pedir td{background:#30291A}
+.fstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.fbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}.fbox span{font-size:12px;color:var(--muted);font-weight:600}.fbox b{font-size:24px}.fbox.neg b{color:var(--bad)}
+@media (max-width:640px){.fstats{grid-template-columns:repeat(2,1fr)}}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -278,7 +284,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-13 14:45';
+window.FM_VERSION = '2026-10-13 23:07';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2966,7 +2972,7 @@ function requestForm() {
   const row = (it, k) => `<div class="reqline" data-rl="${k}"><select class="inp" data-r="code" aria-label="Producto"><option value="">Elige producto</option>${cat.map(p => `<option value="${esc(p.code)}" ${it.code === p.code ? 'selected' : ''}>${esc(p.code + ' · ' + p.name)}</option>`).join('')}</select>
     <input class="inp num" type="number" min="1" step="1" data-r="qty" value="${esc(it.qty)}" aria-label="Cantidad"><button class="btn sm" data-r="rm" aria-label="Quitar">×</button></div>`;
   UI.modal(`<h3>Nueva solicitud de insumos</h3><p style="color:var(--muted);margin:0 0 14px">Lo que la lashista pide. Se cobra a fin de mes en su nota, solo lo que se entregó.</p>
-    <label class="field">Lashista<select data-ra>${artistOptions('', 0, 0)}</select></label>
+    <div class="formgrid"><label class="field">Lashista<select data-ra>${artistOptions('', 0, 0)}</select></label><label class="field">Fecha de solicitud<input type="date" data-rdate value="${Dates.toISO(Dates.today())}"></label></div>
     <div data-rlines style="margin-top:12px"></div><button class="btn sm" data-radd style="margin-top:8px">${ic('plus')}Agregar producto</button>
     <p class="err" data-rerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar solicitud</button></div>`, m => {
@@ -2981,7 +2987,7 @@ function requestForm() {
       if (!aid) { err.textContent = 'Elige la lashista.'; return; } if (!items.length) { err.textContent = 'Agrega al menos un producto.'; return; }
       if (items.some(i => !(num(i.qty) > 0))) { err.textContent = 'Las cantidades deben ser mayores a 0.'; return; }
       const a = Store.config.artists.find(x => x.id === aid);
-      try { await Store.saveRequest({ artistId: aid, artistName: a.name, items: items.map(i => ({ code: i.code, name: Store.product(i.code).name, qty: num(i.qty), state: 'Pendiente' })) }); UI.close(); UI.toast('Solicitud guardada'); }
+      try { await Store.saveRequest({ artistId: aid, artistName: a.name, requestDate: $('[data-rdate]', m).value || Dates.toISO(Dates.today()), items: items.map(i => ({ code: i.code, name: Store.product(i.code).name, qty: num(i.qty), state: 'Pendiente' })) }); UI.close(); UI.toast('Solicitud guardada'); }
       catch (e) { err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
     };
   });
@@ -3002,7 +3008,8 @@ function deliverModal(r) {
   });
 }
 function requestCard(r) {
-  return `<div class="reqcard"><div class="reqhead"><b>${esc(r.artistName)}</b><span class="mutedc">${esc(ago(r.createdAt))}</span></div>
+  const rd = r.requestDate ? Dates.fmt(Dates.fromISO(r.requestDate), { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+  return `<div class="reqcard"><div class="reqhead"><b>${esc(r.artistName)}</b><span class="mutedc">${r.source === 'link' ? '<span class="tag" style="margin-right:6px">Por link</span>' : ''}${esc(ago(r.createdAt))}</span></div>${rd ? `<div class="mutedc" style="font-size:12.5px;margin:-2px 0 6px">Solicitó: ${esc(rd)}${r.note ? ' · “' + esc(r.note) + '”' : ''}</div>` : ''}
     <ul>${r.items.map(i => `<li>${esc(i.name)} <span class="mutedc">× ${intf(i.qty)}</span>${i.state === 'Sin stock' ? ' <span class="tag warn">Sin stock</span>' : ''}</li>`).join('')}</ul>
     ${Store.writable() ? `<button class="btn sm primary" data-deliver="${r.id}">Entregar</button>` : ''}</div>`;
 }
@@ -3013,8 +3020,8 @@ Views.insumos = {
     const tabs = [['cola', `Por entregar · ${cola.length}`], ['hechas', 'Entregadas'], ...(admin ? [['sinstock', 'Sin stock'], ['cobro', 'Cobro del mes']] : [])];
     let body = '';
     if (t === 'cola') body = cola.length ? `<div class="reqgrid">${cola.map(requestCard).join('')}</div>` : '<div class="tablewrap"><div class="empty"><b>No hay insumos por entregar</b>Registra lo que pida cada lashista con “Nueva solicitud”.</div></div>';
-    if (t === 'hechas') { this._done = hechas; body = table([{ label: 'Fecha' }, { label: 'Lashista' }, { label: 'Artículos' }, { label: 'Estado', html: 1 }, { label: 'Entregó' }, ...(admin ? [{ label: 'Cobro', html: 1 }] : [])],
-      hechas.slice(0, 200).map(r => [new Date(r.deliveredAt || r.cancelledAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }), r.artistName, r.items.map(i => `${i.name} ×${i.qty}${i.state === 'Sin stock' ? ' (sin stock)' : ''}`).join(', '),
+    if (t === 'hechas') { this._done = hechas; body = table([{ label: 'Solicitó' }, { label: 'Entregado' }, { label: 'Lashista' }, { label: 'Artículos' }, { label: 'Estado', html: 1 }, { label: 'Entregó' }, ...(admin ? [{ label: 'Cobro', html: 1 }] : [])],
+      hechas.slice(0, 200).map(r => [r.requestDate ? Dates.fmt(Dates.fromISO(r.requestDate), { day: '2-digit', month: 'short' }) : new Date(r.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }), new Date(r.deliveredAt || r.cancelledAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }), r.artistName, r.items.map(i => `${i.name} ×${i.qty}${i.state === 'Sin stock' ? ' (sin stock)' : ''}`).join(', '),
         r.status === 'Entregada' ? '<span class="tag app">Entregada</span>' : r.status === 'Parcial' ? '<span class="tag warn">Parcial</span>' : r.status === 'Cancelada' ? '<span class="tag off">Cancelada</span>' : '<span class="tag warn">Sin stock</span>',
         r.deliveredByName || r.cancelledByName || '', ...(admin ? [r.billedNoteId ? '<span class="tag">En nota</span>' : r.items.some(i => i.state === 'Entregado') ? '<span class="tag warn">Por cobrar</span>' : '—'] : [])]), null, { emptyTitle: 'Sin entregas', empty: 'Las entregas aparecerán aquí.' }); }
     if (t === 'sinstock') {
@@ -3044,7 +3051,7 @@ Views.insumos = {
       try {
         for (const [aid, reqs] of byA) {
           const items = new Map(); reqs.forEach(r => r.items.filter(i => i.state === 'Entregado').forEach(i => { const p = Store.product(i.code) || { name: i.name, priceArtist: 0 }; const o = items.get(i.code) || { code: i.code, desc: p.name, qty: 0, unit: p.priceArtist }; o.qty += num(i.qty); items.set(i.code, o); }));
-          const nid = await Store.saveNote({ artistId: aid, month: ym, date: Dates.toISO(Dates.today()), status: 'Borrador', comments: 'Generada desde las entregas del mes', items: [...items.values()], discounts: [], fromDeliveries: true });
+          const nid = await Store.saveNote({ artistId: aid, month: ym, date: Dates.toISO(Dates.today()), status: 'Borrador', comments: 'Generada desde las entregas del mes. Solicitudes: ' + reqs.map(r => (r.requestDate || (r.createdAt || '').slice(0, 10)).slice(5).split('-').reverse().join('/')).join(', '), items: [...items.values()], discounts: [], fromDeliveries: true });
           for (const r of reqs) await Store.saveRequest({ billedNoteId: nid }, r.id);
         }
         UI.toast('Notas generadas en Borrador');
@@ -5123,6 +5130,186 @@ Views.productos.mount = function (root) {
 };
 
 /* =========================================================
+   INVENTARIO (menú principal) — vista clara de existencias por producto.
+   Un clic en la fila abre la ficha del producto: existencias, agregar stock,
+   pasar a salón, ajustar conteo, editar datos y precios, y su historial.
+   Todo cambio pide clave de administración y queda a su nombre.
+   ========================================================= */
+S.inv = { q: '', cat: '', only: '' };
+const invStatus = (p, s) => { const t = s.bodega + s.salon; return t <= 0 ? 'cero' : p.min != null && t <= p.min ? 'pedir' : s.salon <= 0 ? 'bodega' : 'ok'; };
+const INV_TAG = { cero: '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Sin existencia</span>', pedir: '<span class="tag warn">Pedir</span>', bodega: '<span class="tag">Solo en bodega</span>', ok: '<span class="tag app">OK</span>' };
+Views.inventario = {
+  html() {
+    const st = Store.stock(), f = S.inv, q = f.q.trim().toLowerCase();
+    const act = Store.config.products.filter(p => p.active !== false);
+    const cats = [...new Set(act.map(p => p.category || 'Sin categoría'))].sort();
+    const all = act.map(p => { const s = st.get(p.code) || { bodega: 0, salon: 0 }; return { p, s, t: s.bodega + s.salon, st: invStatus(p, s) }; });
+    const list = all.filter(x => (!f.cat || (x.p.category || 'Sin categoría') === f.cat) && (!q || (x.p.code + ' ' + x.p.name + ' ' + (x.p.category || '')).toLowerCase().includes(q)) && (!f.only || (f.only === 'pedir' ? x.st === 'pedir' || x.st === 'cero' : x.st === f.only)))
+      .sort((a, b) => (a.p.category || 'zz').localeCompare(b.p.category || 'zz') || a.p.code.localeCompare(b.p.code, 'es', { numeric: true }));
+    this._list = list;
+    const sum = (k, l = all) => l.reduce((t, x) => t + x.s[k], 0), val = all.reduce((t, x) => t + x.t * num(x.p.priceSalon), 0);
+    const pedir = all.filter(x => x.st === 'pedir' || x.st === 'cero').length;
+    const maxT = Math.max(1, ...list.map(x => x.t));
+    const kpi = (l, v, s, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+    let lastCat = null;
+    const rows = list.map((x, i) => {
+      const cat = x.p.category || 'Sin categoría', head = !f.cat && cat !== lastCat ? `<tr class="invcat"><td colspan="8">${esc(cat)}</td></tr>` : ''; lastCat = cat;
+      const pctS = Math.min(100, x.s.salon / maxT * 100), pctB = Math.min(100 - pctS, x.s.bodega / maxT * 100);
+      return head + `<tr class="click inv-${x.st}" tabindex="0" data-inv="${i}"><td><b>${esc(x.p.name)}</b><br><span class="mutedc" style="font-size:12px">${esc(x.p.code)}</span></td>
+        <td class="r"><b class="${x.s.salon < 0 ? 'neg' : ''}">${intf(x.s.salon)}</b></td><td class="r ${x.s.bodega < 0 ? 'neg' : ''}">${intf(x.s.bodega)}</td><td class="r"><b>${intf(x.t)}</b>${x.p.min != null ? `<br><span class="mutedc" style="font-size:12px">mín. ${intf(x.p.min)}</span>` : ''}</td>
+        <td style="min-width:120px"><div class="stockbar" title="Salón ${x.s.salon} · Bodega ${x.s.bodega}"><i class="s" style="width:${Math.max(0, pctS)}%"></i><i class="b" style="width:${Math.max(0, pctB)}%"></i></div></td>
+        <td class="r">${x.p.priceSalon == null ? '—' : money(x.p.priceSalon, 1)}</td><td class="r">${x.p.priceArtist == null ? '—' : money(x.p.priceArtist, 1)}</td><td>${INV_TAG[x.st]}</td></tr>`;
+    }).join('');
+    return `<div class="head"><div><h1>Inventario</h1><p>Existencias de salón y bodega. Toca un producto para ver su ficha, agregar stock o editarlo.</p></div>
+        <div class="chips no-print"><button class="btn" data-invcount ${Store.writable() ? '' : 'disabled'}>Conteo de inventario</button><button class="btn" data-invimport ${Store.writable() && !Mode.reception ? '' : 'disabled'}>${ic('dl')}Subir Excel</button><button class="btn" data-invdl>${ic('dl')}Descargar</button></div></div>
+      <section class="kpis">${kpi('Productos', intf(all.length), `${intf(cats.length)} categorías`)}${kpi('En salón', intf(sum('salon')), 'piezas')}${kpi('En bodega', intf(sum('bodega')), 'piezas')}
+        ${kpi('Por pedir', intf(pedir), 'sin existencia o en el mínimo', pedir > 0)}${kpi('Valor a precio público', money(val), 'salón + bodega')}${kpi('Mostrando', intf(list.length), f.cat || 'todas las categorías')}</section>
+      <div class="filters no-print" style="align-items:center"><label class="field" style="max-width:none;flex:1 1 240px">Buscar<input type="search" data-invq value="${esc(f.q)}" placeholder="Producto, código o categoría"></label>
+        <div class="chips">${[['', 'Todos'], ['pedir', 'Por pedir'], ['bodega', 'Solo en bodega']].map(([k, l]) => `<button class="chip ${f.only === k ? 'on' : ''}" data-invonly="${k}">${l}</button>`).join('')}</div></div>
+      <div class="chips no-print" style="margin:-6px 0 14px"><button class="chip ${!f.cat ? 'on' : ''}" data-invcat="">Todas</button>${cats.map(c => `<button class="chip ${f.cat === c ? 'on' : ''}" data-invcat="${esc(c)}">${esc(c)} · ${all.filter(x => (x.p.category || 'Sin categoría') === c).length}</button>`).join('')}</div>
+      ${list.length ? `<div class="tablewrap"><table class="invtable"><thead><tr><th>Producto</th><th class="r">Salón</th><th class="r">Bodega</th><th class="r">Total</th><th>Existencia</th><th class="r">Precio público</th><th class="r">Precio lashista</th><th>Estado</th></tr></thead><tbody>${rows}</tbody></table></div>`
+        : '<div class="tablewrap"><div class="empty"><b>Sin productos aquí</b>Cambia el filtro o agrega productos.</div></div>'}
+      <div class="aglegend"><span><i class="sw" style="background:var(--pink-deep)"></i>Salón</span><span><i class="sw" style="background:var(--sand)"></i>Bodega</span><span>Las ventas, las entregas de insumos a lashistas y las notas enviadas descuentan del salón.</span></div>`;
+  },
+  mount(root) {
+    const f = S.inv;
+    const q = $('[data-invq]', root); let tm; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = q.value; UI.render(); const n = $('[data-invq]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
+    $$('[data-invcat]', root).forEach(b => b.onclick = () => { f.cat = b.dataset.invcat; UI.render(); });
+    $$('[data-invonly]', root).forEach(b => b.onclick = () => { f.only = b.dataset.invonly; UI.render(); });
+    $$('[data-inv]', root).forEach(tr => tr.onclick = () => productFicha(this._list[+tr.dataset.inv].p));
+    const c = $('[data-invcount]', root); if (c) c.onclick = inventoryCount;
+    const im = $('[data-invimport]', root); if (im) im.onclick = () => ProdImport.open();
+    $('[data-invdl]', root).onclick = () => { const st = Store.stock(); Exporter.run('xlsx', 'Inventario', [['Código', 'Producto', 'Categoría', 'Salón', 'Bodega', 'Total', 'Mínimo', 'Precio público', 'Precio lashista', 'Costo']].concat(Store.config.products.filter(p => p.active !== false).map(p => { const s = st.get(p.code) || { bodega: 0, salon: 0 }; return [p.code, p.name, p.category || '', s.salon, s.bodega, s.salon + s.bodega, p.min == null ? '' : p.min, p.priceSalon == null ? '' : p.priceSalon, p.priceArtist == null ? '' : p.priceArtist, p.cost == null ? '' : p.cost]; }))); };
+  },
+};
+
+/* ---------- ficha del producto ---------- */
+function productFicha(p, tab) {
+  tab = tab || 'stock';
+  const st = Store.stock().get(p.code) || { bodega: 0, salon: 0 }, moves = Store.allMoves().filter(m => m.code === p.code).slice(0, 30);
+  const canData = Store.writable() && !(typeof FM !== 'undefined' && FM.member && FM.member.role === 'recepcion');
+  const tabs = [['stock', 'Existencias'], ['data', 'Datos y precios'], ['hist', 'Historial']];
+  const statBox = (l, v, cls) => `<div class="fbox ${cls || ''}"><span>${l}</span><b>${v}</b></div>`;
+  const body = {
+    stock: `<div class="fstats">${statBox('Salón', intf(st.salon), st.salon < 0 ? 'neg' : '')}${statBox('Bodega', intf(st.bodega), st.bodega < 0 ? 'neg' : '')}${statBox('Total', intf(st.salon + st.bodega))}${statBox('Mínimo', p.min == null ? '—' : intf(p.min))}</div>
+      <div class="segmented small" data-fact style="margin:14px 0 10px">${[['add', '+ Agregar stock'], ['move', 'Pasar entre bodega y salón'], ['count', 'Ajustar conteo']].map(([k, l], i) => `<button type="button" class="${i ? '' : 'on'}" data-fa="${k}">${l}</button>`).join('')}</div>
+      <div class="formgrid" data-fform></div><p class="err" data-ferr style="color:var(--bad);font-size:13px;font-weight:600"></p>`,
+    data: `<div class="formgrid">
+      <label class="field full">Nombre<input data-fd="name" value="${esc(p.name)}" ${canData ? '' : 'disabled'}></label>
+      <label class="field">Código<input value="${esc(p.code)}" disabled></label><label class="field">Categoría<input data-fd="category" list="fcats" value="${esc(p.category || '')}" ${canData ? '' : 'disabled'}><datalist id="fcats">${[...new Set(Store.config.products.map(x => x.category).filter(Boolean))].map(c => `<option value="${esc(c)}">`).join('')}</datalist></label>
+      <label class="field">Precio público<input type="number" min="0" step="0.01" data-fd="priceSalon" value="${p.priceSalon == null ? '' : p.priceSalon}" ${canData ? '' : 'disabled'}></label><label class="field">Precio lashista<input type="number" min="0" step="0.01" data-fd="priceArtist" value="${p.priceArtist == null ? '' : p.priceArtist}" ${canData ? '' : 'disabled'}></label>
+      <label class="field">Costo<input type="number" min="0" step="0.01" data-fd="cost" value="${p.cost == null ? '' : p.cost}" ${canData ? '' : 'disabled'}></label><label class="field">Mínimo (alerta para pedir)<input type="number" min="0" step="1" data-fd="min" value="${p.min == null ? '' : p.min}" ${canData ? '' : 'disabled'}></label>
+      <label class="check full"><input type="checkbox" data-fd="active" ${p.active !== false ? 'checked' : ''} ${canData ? '' : 'disabled'}> Producto activo (se puede vender y pedir)</label></div>
+      ${canData ? '' : '<p class="formula">Para cambiar precios y datos entra con un usuario de administración.</p>'}<p class="err" data-ferr style="color:var(--bad);font-size:13px;font-weight:600"></p>`,
+    hist: moves.length ? `<div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Fecha</th><th>Movimiento</th><th class="r">Cant.</th><th>Detalle</th></tr></thead><tbody>${moves.map(m => `<tr><td>${esc(Dates.fmt(Dates.fromISO(m.date), { day: '2-digit', month: 'short', year: '2-digit' }))}</td><td>${esc(m.type)}</td><td class="r">${m.type === 'Ajuste' ? (m.qty > 0 ? '+' : '') + intf(m.qty) : (m.to && !m.from ? '+' : m.from && !m.to ? '−' : '') + intf(m.qty)}</td><td style="white-space:normal;font-size:12.5px">${esc([m.type === 'Transferencia' ? `${m.from} → ${m.to}` : m.to ? 'a ' + m.to : m.from ? 'de ' + m.from : m.location ? m.location + ' · contado ' + m.counted : '', m.client, m.notes, m.byName].filter(Boolean).join(' · '))}</td></tr>`).join('')}</tbody></table></div>` : '<p class="mutedc">Sin movimientos todavía.</p>',
+  };
+  UI.modal(`<div class="fhead"><div><h3 style="margin:0">${esc(p.name)}</h3><p class="mutedc" style="margin:4px 0 0">${esc(p.code)} · ${esc(p.category || 'Sin categoría')}${p.active === false ? ' · inactivo' : ''}</p></div></div>
+    <div class="tabs" role="tablist" style="margin:14px 0 16px">${tabs.map(([k, l]) => `<button role="tab" class="${tab === k ? 'on' : ''}" data-ftab="${k}">${l}</button>`).join('')}</div>
+    ${body[tab]}
+    <div class="acts"><button class="btn" data-x="c">Cerrar</button>${tab === 'stock' && Store.writable() ? '<button class="btn primary" data-x="ok">Guardar</button>' : ''}${tab === 'data' && canData ? '<button class="btn primary" data-x="ok">Guardar cambios</button>' : ''}</div>`, m => {
+    m.classList.add('wide');
+    $('[data-x=c]', m).onclick = UI.close;
+    $$('[data-ftab]', m).forEach(b => b.onclick = () => { UI.close(); productFicha(p, b.dataset.ftab); });
+    const err = t => { const e = $('[data-ferr]', m); if (e) e.textContent = t; };
+    const admin = async what => { const e = await Claves.ask('Clave de administración', { admin: true, hint: what + ' Escribe tu clave de administración.' }); return e; };
+    if (tab === 'stock') {
+      let act = 'add';
+      const form = $('[data-fform]', m);
+      const draw = () => {
+        form.innerHTML = act === 'add' ? `<label class="field">Cantidad que llegó<input type="number" min="1" step="1" data-ff="qty" value="1"></label><label class="field">¿A dónde entra?<select data-ff="to"><option value="bodega">Bodega</option><option value="salon">Salón</option></select></label>
+            <label class="field">Costo por pieza (opcional)<input type="number" min="0" step="0.01" data-ff="unitCost" value="${p.cost == null ? '' : p.cost}"></label><label class="field">Proveedor / nota (opcional)<input data-ff="notes"></label>`
+          : act === 'move' ? `<label class="field">Cantidad<input type="number" min="1" step="1" data-ff="qty" value="1"></label><label class="field">Dirección<select data-ff="dir"><option value="bs">De bodega a salón</option><option value="sb">De salón a bodega</option></select></label><label class="field full">Nota (opcional)<input data-ff="notes"></label>`
+          : `<label class="field">¿Dónde contaste?<select data-ff="location"><option value="salon">Salón (hay ${intf(st.salon)})</option><option value="bodega">Bodega (hay ${intf(st.bodega)})</option></select></label><label class="field">Lo que contaste<input type="number" min="0" step="1" data-ff="counted"></label><label class="field full">Nota (opcional)<input data-ff="notes" placeholder="Ej. conteo mensual"></label>`;
+      };
+      draw();
+      $$('[data-fa]', m).forEach(b => b.onclick = () => { act = b.dataset.fa; $$('[data-fa]', m).forEach(x => x.classList.toggle('on', x === b)); err(''); draw(); });
+      const ok = $('[data-x=ok]', m); if (ok) ok.onclick = async () => {
+        const v = k => { const el = $(`[data-ff="${k}"]`, m); return el ? el.value.trim() : ''; }, today = Dates.toISO(Dates.today());
+        let move;
+        if (act === 'count') { const c = num(v('counted')); if (v('counted') === '' || c < 0 || !Number.isInteger(c)) return err('Escribe lo que contaste (número entero).'); const loc = v('location'); if (c === st[loc]) return err('Es igual a lo que ya hay; no hay nada que ajustar.'); move = { type: 'Ajuste', code: p.code, name: p.name, date: today, location: loc, counted: c, qty: c - st[loc], notes: v('notes') || 'Ajuste desde la ficha' }; }
+        else { const q = num(v('qty')); if (!(q > 0) || !Number.isInteger(q)) return err('La cantidad debe ser un número entero mayor a 0.');
+          if (act === 'add') move = { type: 'Compra', code: p.code, name: p.name, date: today, qty: q, from: null, to: v('to'), unitCost: v('unitCost') === '' ? null : r2(v('unitCost')), notes: v('notes') };
+          else { const [from, to] = v('dir') === 'bs' ? ['bodega', 'salon'] : ['salon', 'bodega']; if (q > st[from] && !m._ok) { m._ok = true; return err(`En ${from === 'bodega' ? 'bodega' : 'salón'} solo hay ${st[from]}. Toca Guardar otra vez si de todos modos quieres moverlo.`); } move = { type: 'Transferencia', code: p.code, name: p.name, date: today, qty: q, from, to, notes: v('notes') }; } }
+        const e = await admin(act === 'add' ? 'Vas a agregar stock.' : act === 'move' ? 'Vas a mover stock.' : 'Vas a ajustar la existencia.'); if (!e) return;
+        try { await Store.saveMove({ ...move, byName: e.name }); UI.toast('Inventario actualizado'); UI.close(); productFicha(Store.config.products.find(x => x.id === p.id) || p, 'stock'); }
+        catch (er) { err('No se pudo guardar: ' + (er.message || er.code)); }
+      };
+    }
+    if (tab === 'data' && canData) $('[data-x=ok]', m).onclick = async () => {
+      const v = k => $(`[data-fd="${k}"]`, m), val = k => v(k).value.trim(), nOrNull = k => val(k) === '' ? null : r2(val(k));
+      if (!val('name')) return err('Escribe el nombre.');
+      for (const k of ['priceSalon', 'priceArtist', 'cost', 'min']) if (val(k) !== '' && (isNaN(Number(val(k))) || Number(val(k)) < 0)) return err('Revisa los números: no pueden ser negativos.');
+      const rec = { ...p, name: val('name'), category: val('category'), priceSalon: nOrNull('priceSalon'), priceArtist: nOrNull('priceArtist'), cost: nOrNull('cost'), min: val('min') === '' ? null : Math.round(num(val('min'))), active: v('active').checked };
+      const diffs = [['name', 'Nombre'], ['category', 'Categoría'], ['priceSalon', 'Precio público'], ['priceArtist', 'Precio lashista'], ['cost', 'Costo'], ['min', 'Mínimo'], ['active', 'Activo']].filter(([k]) => String(p[k] == null ? '' : p[k]) !== String(rec[k] == null ? '' : rec[k]));
+      if (!diffs.length) return err('No hay cambios.');
+      const e = await admin('Vas a cambiar datos del producto.'); if (!e) return;
+      try {
+        await Store.saveConfig({ products: Store.config.products.map(x => x.id === p.id ? rec : x) });
+        if (typeof Audit !== 'undefined') try { await Audit.log({ entity: 'PRODUCT', entityId: p.id, entityLabel: p.code + ' · ' + rec.name, action: 'UPDATE', changes: diffs.map(([k, l]) => ({ field: l, from: String(p[k] == null ? '—' : p[k]), to: String(rec[k] == null ? '—' : rec[k]) })), byName: e.name }); } catch (x) {}
+        UI.toast('Producto actualizado'); UI.close(); productFicha(rec, 'data');
+      } catch (er) { err('No se pudo guardar: ' + (er.message || er.code)); }
+    };
+  });
+}
+
+/* Menú: Inventario como opción principal (administración y recepción). */
+NAV.splice(NAV.findIndex(n => n.id === 'productos'), 0, { id: 'inventario', label: 'Inventario', icon: 'box' });
+RECEP_ROUTES.push('inventario');
+if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(RECEP_MENU.findIndex(x => x[0] === 'insumos') + 1, 0, ['inventario', 'Inventario', 'box']);
+const _rnInv = UI.renderNav;
+UI.renderNav = function () {
+  _rnInv();
+  if (!Mode.reception) return;
+  const ins = $('#side .nav [data-go=insumos]'); if (ins && !$('#side .nav [data-go=inventario]')) ins.insertAdjacentHTML('afterend', `<a class="${UI.route === 'inventario' ? 'on' : ''}" data-go="inventario">${ic('box')}Inventario</a>`);
+};
+/* Productos → Inventario también abre la ficha. */
+const _prodMountF = Views.productos.mount;
+Views.productos.mount = function (root) {
+  _prodMountF.call(this, root);
+  if (S.prod.tab === 'inventario') $$('[data-row]', root).forEach(tr => tr.onclick = () => productFicha(this._inv[+tr.dataset.row]));
+};
+
+/* =========================================================
+   Administración puede ELIMINAR una cita (y, si quiere, su cobro), no solo cancelarla.
+   Queda registrado en la bitácora.
+   ========================================================= */
+const isAdminUser = () => typeof FM !== 'undefined' && FM.member ? FM.member.role === 'admin' : !Mode.reception;
+Store.deleteAppointment = async function (id) {
+  if (!this.writable()) throw new Error('No tienes permiso para borrar.');
+  await this.db.doc('appointments/' + id).delete();
+  this.appointments = this.appointments.filter(a => a.id !== id); this.invalidate();
+};
+const _apptDetailDel = apptDetail;
+apptDetail = function (a) {
+  _apptDetailDel(a);
+  const m = $('.modal'); if (!m || !isAdminUser() || !Store.writable()) return;
+  const acts = $('.acts', m); if (!acts) return;
+  acts.insertAdjacentHTML('afterbegin', `<button class="btn danger" data-x="delappt">Eliminar</button>`);
+  $('[data-x=delappt]', m).onclick = () => { UI.close(); deleteApptModal(a); };
+};
+function deleteApptModal(a) {
+  const sales = [a.saleId].concat(a.extraSaleIds || []).map(id => Store.sales.find(s => s.id === id)).filter(s => s && s.source === 'app');
+  const d = a.depositId ? Store.deposits.find(x => x.id === a.depositId) : null;
+  UI.modal(`<h3>Eliminar la cita de ${esc(apptClient(a))}</h3>
+    <p style="color:var(--muted);margin:0 0 12px">${esc(Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' }))}${a.time ? ' · ' + esc(a.time) : ''} · ${esc(a.artistName)} · ${esc(a.serviceName)}. Se borra de la agenda; no se puede deshacer.</p>
+    ${sales.length ? `<label class="check"><input type="checkbox" data-delsales> También eliminar su cobro (${sales.map(s => `${esc(s.service)} ${money(r2(s.price - s.discount + s.tip), 1)}`).join(' + ')})</label><p class="formula">Si no lo marcas, el cobro se queda en ventas y en el payroll como “cobro sin cita”.</p>` : ''}
+    ${d && !d.outcome ? `<p class="formula">El depósito de ${money(d.amount)} (${esc(d.method)}) queda disponible en Depósitos.</p>` : ''}
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn danger" data-x="ok">Eliminar</button></div>`, m => {
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const alsoSales = !!($('[data-delsales]', m) || {}).checked, b = $('[data-x=ok]', m); b.disabled = true;
+      try {
+        await Store.deleteAppointment(a.id);   // primero la cita, para que borrar el cobro no la reviva
+        if (alsoSales) for (const s of sales) await Store.deleteSale(s.id);
+        if (d && !d.outcome && d.appointmentId === a.id) await Store.saveDeposit({ appointmentId: '', _event: 'Se eliminó la cita' }, d.id);
+        if (typeof Audit !== 'undefined') try { await Audit.log({ entity: 'APPT', entityId: a.id, entityLabel: `${apptClient(a)} · ${a.serviceName}`, action: 'DELETE', before: { date: a.date, time: a.time, artist: a.artistName, service: a.serviceName, status: a.status, salesDeleted: alsoSales ? sales.length : 0 }, byName: Mode.who() }); } catch (e) {}
+        UI.close(); UI.toast(alsoSales && sales.length ? 'Cita y cobro eliminados' : 'Cita eliminada');
+      } catch (e) { b.disabled = false; UI.toast('No se pudo eliminar: ' + (e.message || e.code), true); }
+    };
+  });
+}
+
+/* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
    Recepción queda siempre en modo recepción; la seguridad la aplica Supabase (RLS).
    ========================================================= */
@@ -5233,6 +5420,48 @@ Views.config.mount = function (root) {
           (last || []).map(x => [new Date(x.updated_at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit', second: '2-digit' }), nm[x.collection] || x.collection, x.updated_by || '—', colMap(x.collection).has(x.id) ? '<span class="tag app">Sí</span>' : '<span class="tag warn">No</span>']));
     } catch (e) { out.innerHTML = `<div class="banner">No se pudo revisar: ${esc(e.message || '')}</div>`; }
   };
+};
+
+/* Insumos → Link para lashistas (solo administración): link para compartir y claves de cada lashista. */
+const _insHtmlL = Views.insumos.html, _insMountL = Views.insumos.mount;
+const linkUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'solicitud.html';
+Views.insumos.html = function () {
+  let h = _insHtmlL.call(this);
+  if (FM.member.role !== 'admin') return h;
+  h = h.replace(/(<div class="tabs no-print" role="tablist">[\s\S]*?)(<\/div>)/, (m0, a, b) => a + `<button role="tab" class="${S.ins.tab === 'link' ? 'on' : ''}" data-itab="link">Link para lashistas</button>` + b);
+  if (S.ins.tab !== 'link') return h;
+  const pins = this._pins, arts = Store.config.artists.filter(a => a.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+  const body = `<section class="panel"><h2>Link de solicitud de insumos</h2><p class="hint">Mándalo a las lashistas (WhatsApp, por ejemplo). Eligen su nombre, escriben su clave y la solicitud llega aquí, a “Por entregar”.</p>
+      <div class="chips" style="align-items:center"><input class="inp" style="flex:1 1 320px;max-width:none" value="${esc(linkUrl())}" readonly data-linkurl><button class="btn sm primary" data-copylink>Copiar link</button><a class="btn sm" href="${esc(linkUrl())}" target="_blank" rel="noopener">Abrir</a></div>
+      <p class="formula">El link solo muestra los nombres de productos (sin precios ni existencias) y las lashistas que tienen clave. Después de 5 claves incorrectas se bloquea 15 minutos.</p></section>
+    <section class="panel"><h2>Claves de las lashistas</h2><p class="hint">Cada lashista necesita su clave de 4 a 8 números para usar el link. Las claves se guardan cifradas: si alguien la olvida, asígnale una nueva.</p>
+      ${pins == null ? '<div class="loading">Cargando…</div>' : pins.error ? `<div class="banner">${esc(pins.error)}</div>` : table([{ label: 'Lashista' }, { label: 'Clave', html: 1 }, { label: '', html: 1 }],
+        arts.map(a => { const p = pins.find(x => x.artist_id === a.id); return [a.name, p ? `<span class="tag app">Asignada</span> <span class="mutedc" style="font-size:12px">${new Date(p.updated_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span>` : '<span class="tag">Sin clave</span>',
+          `<button class="btn sm" data-setpin="${a.id}">${p ? 'Cambiar clave' : 'Asignar clave'}</button>${p ? ` <button class="btn sm" data-rmpin="${a.id}">Quitar</button>` : ''}`]; }), null, { emptyTitle: 'Sin lashistas activas', empty: '' })}</section>`;
+  return h.replace(/(<div class="tabs no-print" role="tablist">[\s\S]*?<\/div>)[\s\S]*$/, (m0, tabs) => tabs + body);
+};
+Views.insumos.mount = function (root) {
+  _insMountL.call(this, root);
+  if (FM.member.role !== 'admin') return;
+  const lt = $('[data-itab=link]', root); if (lt) lt.onclick = () => { S.ins.tab = 'link'; this._pins = null; UI.render(); };
+  if (S.ins.tab !== 'link') return;
+  if (this._pins == null) { FM.sb.rpc('fm_pins_status').then(({ data, error }) => { this._pins = error ? { error: /function|does not exist|schema cache/i.test(error.message) ? 'Falta correr el archivo actualizacion-link-insumos.sql en Supabase.' : error.message } : (data || []); if (UI.route === 'insumos') UI.render(); }); return; }
+  const cp = $('[data-copylink]', root); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(linkUrl()); UI.toast('Link copiado'); } catch (e) { $('[data-linkurl]', root).select(); UI.toast('Selecciona y copia el link'); } };
+  $$('[data-setpin]', root).forEach(b => b.onclick = () => { const a = Store.config.artists.find(x => x.id === b.dataset.setpin);
+    UI.modal(`<h3>Clave para ${esc(a.name)}</h3><p style="color:var(--muted);margin:0 0 12px">De 4 a 8 números. Dásela a ${esc(a.name)} en persona o por mensaje.</p>
+      <label class="field">Clave<input inputmode="numeric" maxlength="8" data-npin autocomplete="off"></label><p class="err" data-pinerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, m => {
+      const inp = $('[data-npin]', m); inp.focus(); inp.oninput = () => { inp.value = inp.value.replace(/\D/g, ''); };
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=ok]', m).onclick = async () => { if (!/^\d{4,8}$/.test(inp.value)) return ($('[data-pinerr]', m).textContent = 'De 4 a 8 números.');
+        const { error } = await FM.sb.rpc('fm_set_artist_pin', { p_artist: a.id, p_pin: inp.value });
+        if (error) return ($('[data-pinerr]', m).textContent = error.message);
+        UI.close(); UI.toast('Clave guardada'); this._pins = null; UI.render(); };
+    }); });
+  $$('[data-rmpin]', root).forEach(b => b.onclick = async () => { const a = Store.config.artists.find(x => x.id === b.dataset.rmpin);
+    if (!await UI.confirm('Quitar clave', `${esc(a.name)} ya no podrá usar el link de insumos.`, 'Quitar')) return;
+    const { error } = await FM.sb.rpc('fm_remove_artist_pin', { p_artist: a.id }); if (error) return UI.toast(error.message, true);
+    this._pins = null; UI.render(); });
 };
 
 window.FM_BOOT = function () {
