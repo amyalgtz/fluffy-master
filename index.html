@@ -211,6 +211,11 @@ tbody tr.inv-cero td{background:#FBECEE}tbody tr.inv-pedir td{background:#FBF4E3
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.inv-cero td{background:#33202A}:root:not([data-theme="light"]) tbody tr.inv-pedir td{background:#30291A}}:root[data-theme="dark"] tbody tr.inv-cero td{background:#33202A}:root[data-theme="dark"] tbody tr.inv-pedir td{background:#30291A}
 .fstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.fbox{border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:4px}.fbox span{font-size:12px;color:var(--muted);font-weight:600}.fbox b{font-size:24px}.fbox.neg b{color:var(--bad)}
 @media (max-width:640px){.fstats{grid-template-columns:repeat(2,1fr)}}
+.rqhead,.rqline{display:grid;grid-template-columns:minmax(0,2.2fr) 74px minmax(0,1fr) 34px;gap:8px;align-items:center}.rqhead{font-size:12px;color:var(--muted);font-weight:600;margin-top:10px}.rqline{margin-top:6px}.rqinfo{grid-column:1/-1;font-size:12px;margin-top:-2px}
+.rqtot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13.5px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.notebox{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px;background:var(--blush)}
+.reqcard{cursor:pointer}
+@media (max-width:640px){.rqhead{display:none}.rqline{grid-template-columns:1fr 70px}}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -284,7 +289,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-13 23:07';
+window.FM_VERSION = '2026-10-13 23:15';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2768,7 +2773,7 @@ Object.assign(Store, {
     if (!this.writable()) throw new Error('No tienes permiso para guardar en esta vista.');
     const now = new Date().toISOString(), prev = id ? this.requests.find(r => r.id === id) : null;
     const doc = { ...(prev ? prev._raw : {}), ...data, updatedAt: now };
-    if (!prev) Object.assign(doc, { createdAt: now, createdByName: Mode.who(), status: 'Pendiente' });
+    if (!prev) Object.assign(doc, { createdAt: now, createdByName: Mode.who(), status: data.status || 'Pendiente' });
     const ref = id ? this.db.doc('supplyRequests/' + id) : this.db.collection('supplyRequests').doc();
     await ref.set(doc); Store.upsertLocal('requests', ref.id, doc); return ref.id;
   },
@@ -2819,7 +2824,7 @@ UI.renderNav = function () {
     return;
   }
   const items = [['recepcion', 'Panel de hoy', 'desk'], ['nueva', 'Cobrar', 'plus'], ['dia', 'Hoja del día', 'day'], ['depositos', 'Depósitos', 'dep'], ['insumos', 'Insumos', 'box']];
-  const pend = Store.deposits.filter(d => d.status === 'Pendiente').length, cola = Store.requests.filter(r => r.status === 'Pendiente').length;
+  const pend = Store.deposits.filter(d => d.status === 'Pendiente').length, cola = Store.requests.filter(r => (typeof hasPending === 'function' ? hasPending(r) : r.status === 'Pendiente')).length;
   const badge = id => id === 'depositos' && pend ? `<span class="soon">${pend}</span>` : id === 'insumos' && cola ? `<span class="soon">${cola}</span>` : '';
   $('#side').innerHTML = `<div class="brand">Fluffy Master<small>Recepción</small></div><div class="brand-rule"></div>
     <nav class="nav">${items.map(([id, l, i]) => `<a class="${UI.route === id ? 'on' : ''}" data-go="${id}">${ic(i)}${l}${badge(id)}</a>`).join('')}</nav>
@@ -3015,7 +3020,7 @@ function requestCard(r) {
 }
 Views.insumos = {
   html() {
-    const t = S.ins.tab, admin = !Mode.reception, cola = Store.requests.filter(r => r.status === 'Pendiente').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const t = S.ins.tab, admin = !Mode.reception, cola = Store.requests.filter(r => (typeof hasPending === 'function' ? hasPending(r) : r.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const hechas = Store.requests.filter(r => r.status !== 'Pendiente').sort((a, b) => (b.deliveredAt || b.cancelledAt || '').localeCompare(a.deliveredAt || a.cancelledAt || ''));
     const tabs = [['cola', `Por entregar · ${cola.length}`], ['hechas', 'Entregadas'], ...(admin ? [['sinstock', 'Sin stock'], ['cobro', 'Cobro del mes']] : [])];
     let body = '';
@@ -3079,7 +3084,7 @@ Views.recepcion = {
     const depHoy = Store.deposits.filter(d => (d.createdAt || '').slice(0, 10) === Dates.toISO(today));
     const pend = Store.deposits.filter(d => d.status === 'Pendiente').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const citasHoy = Store.deposits.filter(d => d.day === today && d.status !== 'Rechazado' && !d.outcome);
-    const cola = Store.requests.filter(x => x.status === 'Pendiente').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    const cola = Store.requests.filter(x => (typeof hasPending === 'function' ? hasPending(x) : x.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
     const kpi = (lab, val, sub) => `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
     return `<div class="head"><div><h1>Panel de hoy</h1><p>${esc(Dates.fmt(today, { weekday: 'long', day: 'numeric', month: 'long' }))}${Mode.operator ? ' · turno de ' + esc(Mode.operator.name) : ''}</p></div>
@@ -4871,7 +4876,7 @@ Views.recepcion.html = function () {
   const conf = rowsN.filter(x => x.d && x.d.status === 'Verificado'), pend = rowsN.filter(x => x.d && x.d.status === 'Pendiente'), none = rowsN.filter(x => !x.d);
   const sumD = l => r2(l.reduce((t, x) => t + num(x.d.amount), 0));
   const pendHoy = Store.appointments.filter(a => a.day === today && a.status === 'Agendada').sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
-  const cola = Store.requests.filter(x => x.status === 'Pendiente').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const cola = Store.requests.filter(x => (typeof hasPending === 'function' ? hasPending(x) : x.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
   const kpi = (lab, val, sub, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const depTag = d => !d ? '<span class="tag">Sin depósito</span>' : d.status === 'Verificado' ? '<span class="tag app">Confirmado</span>' : '<span class="tag warn">Por confirmar</span>';
@@ -5308,6 +5313,163 @@ function deleteApptModal(a) {
     };
   });
 }
+
+/* =========================================================
+   INSUMOS con más detalle:
+   - Nueva solicitud: fecha, existencia en salón y estado por artículo (Pendiente / Entregado / Sin stock).
+   - Toda solicitud se puede abrir para ver y corregir (mientras no esté en una nota enviada).
+   - Cobro del mes por lashista: detalle de lo entregado, estado de su nota (Borrador, Enviada, Pagada),
+     generar la nota, agregarle lo nuevo y abrirla para poner descuentos.
+   ========================================================= */
+const ITEM_STATES = ['Pendiente', 'Entregado', 'Sin stock'];
+const itemTag = s => s === 'Entregado' ? '<span class="tag app">Entregado</span>' : s === 'Sin stock' ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Sin stock</span>' : '<span class="tag warn">Pendiente</span>';
+const reqStatus = items => { const ent = items.filter(i => i.state === 'Entregado').length, ss = items.filter(i => i.state === 'Sin stock').length, pe = items.length - ent - ss;
+  return pe ? (ent ? 'Parcial' : 'Pendiente') : ent === items.length ? 'Entregada' : ent ? 'Parcial' : 'Sin stock'; };
+const reqTag = s => ({ Pendiente: '<span class="tag warn">Pendiente</span>', Entregada: '<span class="tag app">Entregada</span>', Parcial: '<span class="tag warn">Parcial</span>', 'Sin stock': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Sin stock</span>', Cancelada: '<span class="tag off">Cancelada</span>' })[s] || esc(s);
+const noteOf = id => id ? Store.notes.find(n => n.id === id) : null;
+const noteTag = n => !n ? '<span class="tag">Sin nota</span>' : n.status === 'Pagada' ? `<span class="tag app">Pagada · #${esc(n.invoice)}</span>` : n.status === 'Enviada' ? `<span class="tag warn">Enviada · #${esc(n.invoice)}${n.pending ? ' · debe ' + money(n.pending) : ''}</span>` : n.status === 'Cancelada' ? `<span class="tag off">Cancelada · #${esc(n.invoice)}</span>` : `<span class="tag">Borrador · #${esc(n.invoice)}</span>`;
+const unitPrice = code => num((Store.product(code) || {}).priceArtist);
+
+/* ---------- formulario de solicitud (nueva o editar) ---------- */
+function requestEditor(r, deliver) {
+  const billed = r && noteOf(r.billedNoteId), locked = billed && billed.status !== 'Borrador';
+  const cat = Store.config.products.filter(p => p.active !== false).sort((a, b) => (a.category || 'zz').localeCompare(b.category || 'zz') || a.name.localeCompare(b.name)), stock = Store.stock();
+  const st = { artistId: r ? r.artistId : '', date: r ? (r.requestDate || (r.createdAt || '').slice(0, 10)) : Dates.toISO(Dates.today()), note: r ? r.note || '' : '', items: r ? r.items.map(i => ({ ...i })) : [{ code: '', qty: 1, state: 'Pendiente' }] };
+  if (deliver) st.items.forEach(i => { if (i.state === 'Pendiente') i.state = (stock.get(i.code) || { salon: 0 }).salon >= num(i.qty) ? 'Entregado' : 'Sin stock'; });
+  const opts = sel => { let last = null; return '<option value="">Elige producto</option>' + cat.map(p => { const g = (p.category || 'Sin categoría') !== last ? `${last !== null ? '</optgroup>' : ''}<optgroup label="${esc(p.category || 'Sin categoría')}">` : ''; last = p.category || 'Sin categoría'; return g + `<option value="${esc(p.code)}" ${sel === p.code ? 'selected' : ''}>${esc(p.name)} · ${esc(p.code)}</option>`; }).join('') + '</optgroup>'; };
+  const line = (it, k) => { const s = stock.get(it.code) || { salon: 0 };
+    return `<div class="rqline" data-rl="${k}"><select class="inp" data-r="code" ${locked ? 'disabled' : ''}>${opts(it.code)}</select><input class="inp num" type="number" min="1" step="1" data-r="qty" value="${esc(it.qty)}" ${locked ? 'disabled' : ''} aria-label="Cantidad">
+      <select class="inp" data-r="state" ${locked ? 'disabled' : ''} aria-label="Estado">${ITEM_STATES.map(x => `<option ${it.state === x ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="btn sm" data-r="rm" ${locked ? 'disabled' : ''} aria-label="Quitar">×</button>
+      ${it.code ? `<span class="rqinfo ${s.salon < num(it.qty) ? 'neg' : 'mutedc'}">En salón: ${intf(s.salon)} · ${money(unitPrice(it.code), 1)} c/u${it.state === 'Entregado' ? ' · subtotal ' + money(r2(unitPrice(it.code) * num(it.qty)), 1) : ''}</span>` : ''}</div>`; };
+  UI.modal(`<h3>${deliver ? 'Entregar a ' + esc(r.artistName) : r ? 'Solicitud de ' + esc(r.artistName) : 'Nueva solicitud de insumos'}</h3>
+    <p style="color:var(--muted);margin:0 0 12px">${r ? `${reqTag(r.status)} ${r.source === 'link' ? '<span class="tag">Por link</span>' : ''} · registró ${esc(r.createdByName || '—')}${r.deliveredAt ? ' · entregó ' + esc(r.deliveredByName || '—') + ' el ' + new Date(r.deliveredAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : ''}` : 'Marca cada artículo como Pendiente (por entregar), Entregado o Sin stock. Se cobra en la nota del mes solo lo entregado.'}</p>
+    ${billed ? `<div class="banner">Está en la nota #${esc(billed.invoice)} (${esc(billed.status)}).${locked ? ' Ya no se puede cambiar aquí: corrige la nota.' : ' Si cambias algo, después usa “Actualizar nota” en Cobro del mes.'}</div>` : ''}
+    <div class="formgrid"><label class="field">Lashista<select data-ra ${r ? 'disabled' : ''}>${artistOptions(st.artistId, 0, 0)}</select></label><label class="field">Fecha de solicitud<input type="date" data-rdate value="${esc(st.date)}" ${locked ? 'disabled' : ''}></label></div>
+    <div class="rqhead"><span>Producto</span><span>Cant.</span><span>Estado</span><span></span></div><div data-rlines></div>
+    ${locked ? '' : `<div class="chips" style="margin-top:8px"><button class="btn sm" data-radd>${ic('plus')}Agregar producto</button><button class="btn sm" data-rall>Marcar pendientes como entregados</button></div>`}
+    <label class="field" style="margin-top:12px">Nota (opcional)<input data-rnote value="${esc(st.note)}" ${locked ? 'disabled' : ''}></label>
+    <div class="rqtot" data-rtot></div><p class="err" data-rerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts">${r && !billed && Store.writable() ? '<button class="btn danger" data-x="del">Eliminar solicitud</button>' : ''}<button class="btn" data-x="no">${locked ? 'Cerrar' : 'Cancelar'}</button>${locked ? '' : `<button class="btn primary" data-x="ok">${deliver ? 'Confirmar entrega' : r ? 'Guardar cambios' : 'Guardar solicitud'}</button>`}</div>`, m => {
+    m.classList.add('wide');
+    const draw = () => { $('[data-rlines]', m).innerHTML = st.items.map(line).join('');
+      const ent = st.items.filter(i => i.code && i.state === 'Entregado'); $('[data-rtot]', m).innerHTML = `<span>${intf(st.items.filter(i => i.code).length)} productos</span><span>Entregado: <b>${money(r2(ent.reduce((t, i) => t + unitPrice(i.code) * num(i.qty), 0)), 1)}</b> a precio lashista</span>`; };
+    draw();
+    const box = $('[data-rlines]', m);
+    box.addEventListener('change', e => { const l = e.target.closest('[data-rl]'), k = e.target.dataset.r; if (!l || !k || k === 'rm') return; st.items[+l.dataset.rl][k] = e.target.value; draw(); });
+    box.addEventListener('click', e => { if (e.target.closest('[data-r=rm]')) { st.items.splice(+e.target.closest('[data-rl]').dataset.rl, 1); if (!st.items.length) st.items.push({ code: '', qty: 1, state: 'Pendiente' }); draw(); } });
+    const add = $('[data-radd]', m); if (add) add.onclick = () => { st.items.push({ code: '', qty: 1, state: 'Pendiente' }); draw(); };
+    const all = $('[data-rall]', m); if (all) all.onclick = () => { st.items.forEach(i => { if (i.code && i.state === 'Pendiente') i.state = 'Entregado'; }); draw(); };
+    $('[data-x=no]', m).onclick = UI.close;
+    const del = $('[data-x=del]', m); if (del) del.onclick = async () => {
+      if (!await UI.confirm('Eliminar solicitud', `Se borra la solicitud de ${esc(r.artistName)}. Lo que estaba entregado regresa al inventario del salón.`, 'Eliminar')) return;
+      try { await Store.db.doc('supplyRequests/' + r.id).delete(); Store.requests = Store.requests.filter(x => x.id !== r.id); Store.invalidate(); UI.toast('Solicitud eliminada'); } catch (e) { UI.toast('No se pudo eliminar: ' + (e.message || e.code), true); }
+    };
+    const ok = $('[data-x=ok]', m); if (ok) ok.onclick = async () => {
+      const err = t => { $('[data-rerr]', m).textContent = t; }, aid = r ? r.artistId : $('[data-ra]', m).value, items = st.items.filter(i => i.code);
+      if (!aid) return err('Elige la lashista.'); if (!items.length) return err('Agrega al menos un producto.');
+      if (items.some(i => !(num(i.qty) > 0) || !Number.isInteger(num(i.qty)))) return err('Las cantidades deben ser números enteros mayores a 0.');
+      if (!Dates.fromISO($('[data-rdate]', m).value)) return err('Escribe la fecha de solicitud.');
+      const a = Store.config.artists.find(x => x.id === aid), now = new Date().toISOString(), status = reqStatus(items);
+      const anyDone = items.some(i => i.state !== 'Pendiente');
+      const data = { artistId: aid, artistName: a.name, requestDate: $('[data-rdate]', m).value, note: $('[data-rnote]', m).value.trim(), status,
+        items: items.map(i => ({ code: i.code, name: (Store.product(i.code) || {}).name || i.name || i.code, qty: num(i.qty), state: i.state })) };
+      if (anyDone && !(r && r.deliveredAt)) Object.assign(data, { deliveredAt: now, deliveredByName: Mode.who(), month: Dates.ym(Dates.today()) });
+      if (!anyDone && r && r.deliveredAt) Object.assign(data, { deliveredAt: '', deliveredByName: '' });
+      try { await Store.saveRequest(data, r && r.id); UI.close(); UI.toast(r ? 'Solicitud actualizada' : 'Solicitud guardada'); } catch (e) { err('No se pudo guardar: ' + (e.message || e.code)); }
+    };
+  });
+}
+requestForm = () => requestEditor(null);
+/* Entregar: abre la misma ficha con lo pendiente ya marcado (Entregado si hay en salón, si no Sin stock). */
+deliverModal = r => requestEditor(r, true);
+/* "Por entregar" incluye solicitudes parciales que todavía tienen artículos pendientes. */
+const hasPending = r => r.status !== 'Cancelada' && r.items.some(i => i.state === 'Pendiente' || !i.state);
+
+/* ---------- nota del mes de una lashista ---------- */
+const monthNote = (aid, ym) => Store.notes.filter(n => n.source === 'app' && n.artistId === aid && n.month === ym && n.status !== 'Cancelada').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null;
+const deliveredIn = (aid, ym) => Store.requests.filter(r => r.artistId === aid && r.deliveredAt && r.deliveredAt.slice(0, 7) === ym && r.status !== 'Cancelada');
+const linesOf = reqs => reqs.flatMap(r => r.items.map(i => ({ r, i })));
+function mergeItems(base, reqs) {
+  const map = new Map(base.map(i => [i.code || i.desc, { ...i }]));
+  reqs.forEach(r => r.items.filter(i => i.state === 'Entregado').forEach(i => { const p = Store.product(i.code) || { name: i.name, priceArtist: 0 }, k = i.code, o = map.get(k) || { code: i.code, desc: p.name, qty: 0, unit: num(p.priceArtist) }; o.qty = num(o.qty) + num(i.qty); map.set(k, o); }));
+  return [...map.values()];
+}
+const reqDates = reqs => reqs.map(r => (r.requestDate || (r.createdAt || '').slice(0, 10)).slice(5).split('-').reverse().join('/')).join(', ');
+async function billArtist(aid, ym) {
+  const reqs = deliveredIn(aid, ym).filter(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado')); if (!reqs.length) return null;
+  const n = monthNote(aid, ym);
+  let nid;
+  if (n && n.status === 'Borrador') {
+    nid = n.id; await Store.saveNote({ artistId: aid, month: ym, date: n.date, status: n.status, comments: (n.comments || '') + (reqs.length ? ' · Se agregaron solicitudes: ' + reqDates(reqs) : ''), items: mergeItems(n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), reqs), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value })), fromDeliveries: true }, n.id);
+  } else nid = await Store.saveNote({ artistId: aid, month: ym, date: Dates.toISO(Dates.today()), status: 'Borrador', comments: 'Generada desde las entregas del mes. Solicitudes: ' + reqDates(reqs), items: mergeItems([], reqs), discounts: [], fromDeliveries: true });
+  for (const r of reqs) await Store.saveRequest({ billedNoteId: nid }, r.id);
+  return nid;
+}
+function artistMonthDetail(aid, ym) {
+  const a = Store.config.artists.find(x => x.id === aid) || { name: aid }, reqs = Store.requests.filter(r => r.artistId === aid && (r.requestDate || (r.createdAt || '')).slice(0, 7) === ym || (r.artistId === aid && r.deliveredAt && r.deliveredAt.slice(0, 7) === ym)).sort((x, y) => (x.requestDate || x.createdAt || '').localeCompare(y.requestDate || y.createdAt || ''));
+  const n = monthNote(aid, ym), lines = linesOf(reqs), pend = deliveredIn(aid, ym).filter(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado'));
+  const ent = lines.filter(x => x.i.state === 'Entregado'), sub = r2(ent.reduce((t, x) => t + unitPrice(x.i.code) * num(x.i.qty), 0));
+  UI.modal(`<h3>${esc(a.name)} · insumos de ${esc(ymLabel(ym))}</h3>
+    <p style="color:var(--muted);margin:0 0 12px">${intf(reqs.length)} solicitudes · entregado ${money(sub, 1)} a precio lashista · nota del mes: ${noteTag(n)}</p>
+    ${n ? `<div class="notebox"><div><b>Nota #${esc(n.invoice)}</b> · ${esc(n.status)}<br><span class="mutedc" style="font-size:12.5px">Subtotal ${money(n.subtotal, 1)}${n.discountTotal ? ` · descuentos −${money(n.discountTotal, 1)}` : ''} · tax ${money(n.tax, 1)} · <b>total ${money(n.total, 1)}</b>${n.paid ? ` · pagado ${money(n.paid, 1)}` : ''}${n.pending && n.status !== 'Pagada' ? ` · debe ${money(n.pending, 1)}` : ''}</span></div>
+      <div class="chips">${n.status === 'Borrador' && !Mode.reception ? '<button class="btn sm primary" data-x="editnote">Abrir nota (descuentos y enviar)</button>' : '<button class="btn sm" data-x="viewnote">Ver nota</button>'}${n.status === 'Enviada' ? '<button class="btn sm" data-x="paynote">Registrar pago</button>' : ''}</div></div>` : ''}
+    ${pend.length ? `<div class="banner">${intf(pend.length)} solicitudes entregadas todavía no están en ${n && n.status === 'Borrador' ? 'la nota' : 'ninguna nota'}. ${!Mode.reception ? `<button class="btn sm primary" data-x="bill">${n && n.status === 'Borrador' ? 'Agregar a la nota #' + esc(n.invoice) : 'Generar nota'}</button>` : ''}</div>` : ''}
+    <div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Solicitó</th><th>Entregó</th><th>Producto</th><th class="r">Cant.</th><th>Estado</th><th class="r">Precio</th><th class="r">Subtotal</th><th>Nota</th></tr></thead><tbody>
+      ${lines.map(({ r, i }) => `<tr class="click" data-req="${r.id}"><td>${esc(Dates.fmt(Dates.fromISO(r.requestDate || (r.createdAt || '').slice(0, 10)), { day: '2-digit', month: 'short' }))}${r.source === 'link' ? ' <span class="mutedc" style="font-size:11px">link</span>' : ''}</td><td>${r.deliveredAt ? esc(new Date(r.deliveredAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })) : '—'}</td><td>${esc(i.name)}</td><td class="r">${intf(i.qty)}</td><td>${itemTag(i.state)}</td><td class="r">${money(unitPrice(i.code), 1)}</td><td class="r">${i.state === 'Entregado' ? money(r2(unitPrice(i.code) * num(i.qty)), 1) : '—'}</td><td>${r.billedNoteId ? '#' + esc((noteOf(r.billedNoteId) || {}).invoice || '') : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="mutedc">Sin solicitudes este mes.</td></tr>'}
+    </tbody></table></div><p class="formula">Toca un renglón para abrir esa solicitud y corregirla.</p>
+    <div class="acts"><button class="btn" data-x="c">Cerrar</button></div>`, m => {
+    m.classList.add('wide');
+    const on = (k, fn) => { const b = $(`[data-x=${k}]`, m); if (b) b.onclick = fn; };
+    on('c', UI.close); on('editnote', () => { UI.close(); noteEditor(n); }); on('viewnote', () => { UI.close(); noteDetail(n); }); on('paynote', () => { UI.close(); notePaymentForm(n.id); });
+    on('bill', async () => { try { const id = await billArtist(aid, ym); UI.close(); UI.toast('Nota actualizada'); const nn = Store.notes.find(x => x.id === id); if (nn && !Mode.reception) noteEditor(nn); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+    $$('[data-req]', m).forEach(tr => tr.onclick = () => { const r = Store.requests.find(x => x.id === tr.dataset.req); if (r) { UI.close(); requestEditor(r); } });
+  });
+}
+
+/* ---------- Insumos: cobro del mes detallado y filas que se abren ---------- */
+const _insHtml2 = Views.insumos.html, _insMount2 = Views.insumos.mount;
+Views.insumos.html = function () {
+  let h = _insHtml2.call(this);
+  if (S.ins.tab === 'cobro' && !Mode.reception) {
+    const ym = S.ins.month || Dates.ym(Dates.today());
+    const ids = [...new Set(Store.requests.filter(r => (r.deliveredAt && r.deliveredAt.slice(0, 7) === ym) || (r.requestDate || (r.createdAt || '')).slice(0, 7) === ym).map(r => r.artistId).concat(Store.notes.filter(n => n.source === 'app' && n.month === ym).map(n => n.artistId)))];
+    this._cobroIds = ids;
+    const rows = ids.map(aid => { const reqs = deliveredIn(aid, ym), lines = linesOf(reqs), ent = lines.filter(x => x.i.state === 'Entregado'), ss = linesOf(Store.requests.filter(r => r.artistId === aid && (r.requestDate || (r.createdAt || '')).slice(0, 7) === ym)).filter(x => x.i.state === 'Sin stock');
+      const n = monthNote(aid, ym), pend = reqs.filter(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado')).length, a = Store.config.artists.find(x => x.id === aid) || { name: (reqs[0] || {}).artistName || aid };
+      return { aid, name: a.name, nreq: reqs.length, pzs: ent.reduce((t, x) => t + num(x.i.qty), 0), ss: ss.reduce((t, x) => t + num(x.i.qty), 0), sub: r2(ent.reduce((t, x) => t + unitPrice(x.i.code) * num(x.i.qty), 0)), n, pend }; }).sort((a, b) => a.name.localeCompare(b.name));
+    const anyPend = rows.some(x => x.pend);
+    const body = `<div class="filters no-print" style="align-items:center;justify-content:space-between"><div class="weeknav"><button class="btn sm" data-im="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w">${esc(ymLabel(ym))}</span><button class="btn sm" data-im="1" aria-label="Mes siguiente">${ic('right')}</button></div>
+        <button class="btn primary" data-billall ${anyPend && Store.writable() ? '' : 'disabled'}>Generar / actualizar notas del mes</button></div>
+      ${rows.length ? `<div class="tablewrap"><table><thead><tr><th>Lashista</th><th class="r">Solicitudes entregadas</th><th class="r">Piezas</th><th class="r">Sin stock</th><th class="r">Subtotal a precio lashista</th><th>Nota del mes</th><th></th></tr></thead><tbody>
+        ${rows.map(x => `<tr class="click" data-cob="${esc(x.aid)}"><td><b>${esc(x.name)}</b></td><td class="r">${intf(x.nreq)}</td><td class="r">${intf(x.pzs)}</td><td class="r">${x.ss ? intf(x.ss) : '—'}</td><td class="r">${money(x.sub, 1)}</td><td>${noteTag(x.n)}${x.pend ? `<br><span class="mutedc" style="font-size:12px">${x.pend} entrega${x.pend > 1 ? 's' : ''} sin agregar</span>` : ''}</td><td><button class="btn sm" data-cobv="${esc(x.aid)}">Ver detalle</button></td></tr>`).join('')}
+        </tbody></table></div>` : '<div class="tablewrap"><div class="empty"><b>Sin insumos este mes</b>Las solicitudes entregadas aparecerán aquí.</div></div>'}
+      <p class="formula">Toca una lashista para ver todo lo que pidió y se le entregó, con fecha, precio y estado. Desde ahí generas su nota o le agregas lo nuevo, y la abres para poner descuentos por metas y enviarla. Cuando la lashista paga, la nota cambia sola a <b>Pagada</b>.</p>`;
+    h = h.replace(/(<div class="tabs no-print" role="tablist">[\s\S]*?<\/div>)[\s\S]*$/, (m0, tabs) => tabs + body);
+  }
+  // tabla de entregadas: estado de la nota (Pagada, Enviada, Borrador)
+  if (S.ins.tab === 'hechas' && !Mode.reception) h = h.replace(/<span class="tag">En nota<\/span>/g, '<span class="tag">En nota</span>');
+  return h;
+};
+Views.insumos.mount = function (root) {
+  _insMount2.call(this, root);
+  const ym = S.ins.month || Dates.ym(Dates.today());
+  $$('[data-cob]', root).forEach(tr => tr.onclick = () => artistMonthDetail(tr.dataset.cob, ym));
+  const ba = $('[data-billall]', root); if (ba) ba.onclick = async () => {
+    const ids = (this._cobroIds || []).filter(aid => deliveredIn(aid, ym).some(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado')));
+    if (!await UI.confirm('Notas del mes', `Se crea o actualiza la nota en Borrador de ${ids.length} lashista(s) con lo entregado en ${esc(ymLabel(ym))}. Las notas ya enviadas no se tocan: lo nuevo va a una nota aparte.`, 'Continuar')) return;
+    try { for (const aid of ids) await billArtist(aid, ym); UI.toast('Notas listas en Borrador'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); }
+  };
+  // Por entregar: tocar la tarjeta abre la solicitud; Entregadas: tocar la fila abre la solicitud
+  $$('.reqcard', root).forEach(c => c.addEventListener('click', e => { if (e.target.closest('button')) return; const b = $('[data-deliver]', c); const r = b && Store.requests.find(x => x.id === b.dataset.deliver); if (r) requestEditor(r); }));
+  if (S.ins.tab === 'hechas') $$('tbody tr', root).forEach((tr, i) => { const r = (this._done || [])[i]; if (!r) return; tr.classList.add('click'); tr.onclick = () => requestEditor(r); });
+};
+/* La tabla de entregadas muestra si la nota ya se pagó. */
+const _insHtml3 = Views.insumos.html;
+Views.insumos.html = function () {
+  let h = _insHtml3.call(this);
+  if (S.ins.tab === 'hechas' && !Mode.reception) (this._done || []).forEach(r => { if (!r.billedNoteId) return; const n = noteOf(r.billedNoteId); if (n) h = h.replace('<span class="tag">En nota</span>', noteTag(n)); });
+  return h;
+};
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
