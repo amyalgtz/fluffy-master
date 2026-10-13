@@ -278,7 +278,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-12 15:33';
+window.FM_VERSION = '2026-10-13 14:45';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2269,12 +2269,14 @@ function productEditor(p) {
     { name: 'code', label: 'Código', validate: v => !v.trim() ? 'Escribe el código.' : Store.config.products.some(x => x.code.toLowerCase() === v.trim().toLowerCase() && (!p || x.id !== p.id)) ? 'Ese código ya existe.' : '' },
     { name: 'name', label: 'Nombre del producto', validate: v => v.trim() ? '' : 'Escribe el nombre.' },
     { name: 'cost', label: 'Costo', type: 'number', step: '0.01', validate: v => v === '' || num(v) >= 0 ? '' : 'El costo no puede ser negativo.' },
-    { name: 'priceArtist', label: 'Precio lashista', type: 'number', step: '0.01', validate: v => v !== '' && num(v) >= 0 ? '' : 'Escribe el precio para lashistas.' },
+    { name: 'category', label: 'Categoría', validate: () => '' },
+    { name: 'min', label: 'Mínimo en existencia (alerta para pedir)', type: 'number', step: '1', validate: v => v === '' || num(v) >= 0 ? '' : 'El mínimo no puede ser negativo.' },
+    { name: 'priceArtist', label: 'Precio lashista', type: 'number', step: '0.01', validate: v => v === '' || num(v) >= 0 ? '' : 'El precio no puede ser negativo.' },
     { name: 'priceSalon', label: 'Precio salón (venta a clientas)', type: 'number', step: '0.01', validate: v => v === '' || num(v) >= 0 ? '' : 'El precio no puede ser negativo.' },
     { name: 'active', label: 'Estado', type: 'check', hint: 'Activo', full: 1 }],
-    p ? { ...p, cost: p.cost == null ? '' : p.cost, priceSalon: p.priceSalon == null ? '' : p.priceSalon } : { active: true },
+    p ? { ...p, category: p.category || '', min: p.min == null ? '' : p.min, cost: p.cost == null ? '' : p.cost, priceArtist: p.priceArtist == null ? '' : p.priceArtist, priceSalon: p.priceSalon == null ? '' : p.priceSalon } : { active: true },
     async v => {
-      const rec = { id: p ? p.id : 'p' + Date.now().toString(36), code: v.code.trim(), name: v.name.trim(), cost: v.cost === '' ? null : r2(v.cost), priceArtist: r2(v.priceArtist), priceSalon: v.priceSalon === '' ? null : r2(v.priceSalon), active: v.active };
+      const rec = { ...(p || {}), id: p ? p.id : 'p' + Date.now().toString(36), code: v.code.trim(), name: v.name.trim(), category: String(v.category || '').trim(), min: v.min === '' ? null : Math.round(num(v.min)), cost: v.cost === '' ? null : r2(v.cost), priceArtist: v.priceArtist === '' ? null : r2(v.priceArtist), priceSalon: v.priceSalon === '' ? null : r2(v.priceSalon), active: v.active };
       if (p && p.code !== rec.code && Store.allMoves().some(m => m.code === p.code)) throw new Error('Este producto ya tiene movimientos; no se puede cambiar su código.');
       await Store.saveConfig({ products: p ? Store.config.products.map(x => x.id === p.id ? rec : x) : Store.config.products.concat(rec) });
     });
@@ -2301,22 +2303,27 @@ Views.productos = {
   },
   inventario() {
     const st = Store.stock(), q = S.prod.q.trim().toLowerCase();
-    const list = Store.config.products.filter(p => p.active !== false && (!q || (p.code + ' ' + p.name).toLowerCase().includes(q)));
+    const cat = S.prod.cat || '', cats = [...new Set(Store.config.products.filter(p => p.active !== false).map(p => p.category || 'Sin categoría'))].sort();
+    const list = Store.config.products.filter(p => p.active !== false && (!q || (p.code + ' ' + p.name + ' ' + (p.category || '')).toLowerCase().includes(q)) && (!cat || (p.category || 'Sin categoría') === cat))
+      .sort((a, b) => (a.category || 'zz').localeCompare(b.category || 'zz') || a.code.localeCompare(b.code, 'es', { numeric: true }));
     this._inv = list;
     let vb = 0, vs = 0;
     const rows = list.map(p => { const s = st.get(p.code) || { bodega: 0, salon: 0 }; if (p.cost != null) { vb += s.bodega * p.cost; vs += s.salon * p.cost; }
       const n = v => `<span class="${v < 0 ? 'neg' : v === 0 ? 'mutedc' : ''}">${intf(v)}</span>`;
-      return [p.code, p.name, n(s.bodega), n(s.salon), n(s.bodega + s.salon), money(p.priceArtist, 1), p.priceSalon == null ? '—' : money(p.priceSalon, 1), p.cost == null ? '—' : money(p.cost, 1)]; });
+      const tot = s.bodega + s.salon, low = p.min != null && tot <= p.min;
+      return [p.code, p.name, p.category || '—', n(s.bodega), n(s.salon), n(tot), p.min == null ? '—' : intf(p.min), low ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Pedir</span>' : '', p.priceArtist == null ? '—' : money(p.priceArtist, 1), p.priceSalon == null ? '—' : money(p.priceSalon, 1)]; });
+    this._cats = cats; this._low = list.filter(p => { const s = st.get(p.code) || { bodega: 0, salon: 0 }; return p.min != null && s.bodega + s.salon <= p.min; }).length;
     return `<div class="filters no-print"><label class="field" style="max-width:none;flex:1 1 260px">Buscar<input type="search" data-pq value="${esc(S.prod.q)}" placeholder="Código o nombre"></label></div>
-      ${table([{ label: 'Código' }, { label: 'Producto' }, { label: 'Bodega', r: 1, html: 1 }, { label: 'Salón', r: 1, html: 1 }, { label: 'Total', r: 1, html: 1 }, { label: 'Precio lashista', r: 1 }, { label: 'Precio salón', r: 1 }, { label: 'Costo', r: 1 }], rows, null,
+      <div class="chips no-print" style="margin:-6px 0 14px"><button class="chip ${!cat ? 'on' : ''}" data-pcat="">Todas</button>${cats.map(c => `<button class="chip ${cat === c ? 'on' : ''}" data-pcat="${esc(c)}">${esc(c)}</button>`).join('')}${this._low ? `<span class="tag" style="color:var(--bad);border-color:var(--bad);align-self:center">${this._low} por pedir</span>` : ''}</div>
+      ${table([{ label: 'Código' }, { label: 'Producto' }, { label: 'Categoría' }, { label: 'Bodega', r: 1, html: 1 }, { label: 'Salón', r: 1, html: 1 }, { label: 'Total', r: 1, html: 1 }, { label: 'Mínimo', r: 1 }, { label: '', html: 1 }, { label: 'Precio lashista', r: 1 }, { label: 'Precio público', r: 1 }], rows, null,
         { click: 1, emptyTitle: 'Sin productos', empty: 'Agrega productos en Catálogo.' })}
       <div class="pager"><span>${vb + vs ? `Valor a costo: bodega ${money(vb, 1)} · salón ${money(vs, 1)}. ` : ''}Las ventas, las entregas a lashistas y las notas enviadas descuentan del salón. Toca un producto para ver sus movimientos.</span><div class="chips"><button class="btn sm primary" data-count ${Store.writable() ? '' : 'disabled'}>Conteo de inventario</button>${exportButtons('inv')}</div></div>`;
   },
   catalogo() {
     const list = Store.config.products; this._cat = list;
     return `<div class="filters no-print" style="justify-content:flex-end"><button class="btn primary" data-addp ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Agregar producto</button></div>
-      ${table([{ label: 'Código' }, { label: 'Producto' }, { label: 'Costo', r: 1 }, { label: 'Precio lashista', r: 1 }, { label: 'Precio salón', r: 1 }, { label: 'Estado', html: 1 }],
-        list.map(p => [p.code, p.name, p.cost == null ? '—' : money(p.cost, 1), money(p.priceArtist, 1), p.priceSalon == null ? '—' : money(p.priceSalon, 1), p.active === false ? '<span class="tag off">Inactivo</span>' : '<span class="tag app">Activo</span>']), null, { click: 1 })}
+      ${table([{ label: 'Código' }, { label: 'Producto' }, { label: 'Categoría' }, { label: 'Costo', r: 1 }, { label: 'Precio lashista', r: 1 }, { label: 'Precio salón', r: 1 }, { label: 'Estado', html: 1 }],
+        list.map(p => [p.code, p.name, p.category || '—', p.cost == null ? '—' : money(p.cost, 1), p.priceArtist == null ? '—' : money(p.priceArtist, 1), p.priceSalon == null ? '—' : money(p.priceSalon, 1), p.active === false ? '<span class="tag off">Inactivo</span>' : '<span class="tag app">Activo</span>']), null, { click: 1 })}
       <p class="formula">Cambiar un precio no modifica notas ni ventas anteriores. Un producto con movimientos se desactiva en lugar de borrarse.</p>`;
   },
   movimientos() {
@@ -4998,6 +5005,121 @@ chargeAppt = function (a) {
     f.extras = a.addons.map(x => ({ serviceId: x.serviceId, artistId: x.artistId || a.artistId, price: x.price, discount: '' }));
     UI.render();
   }
+};
+
+/* =========================================================
+   PRODUCTOS → Subir inventario (Excel): crea los productos que faltan en el catálogo,
+   actualiza nombre, categoría y precios, y carga las existencias como conteo.
+   Lee la hoja "Inventario" de Inventario_Fluffy_Lashes.xlsx (o cualquier hoja con
+   Código, Producto, Categoría, Precio público, Precio lashista, Bodega, Salón, Mínimo).
+   ========================================================= */
+const pkey = s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const ProdImport = {
+  parse(wb) {
+    for (const sh of wb.SheetNames) {
+      const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sh], { header: 1, raw: true, defval: null });
+      for (let i = 0; i < Math.min(20, aoa.length); i++) {
+        const h = (aoa[i] || []).map(x => normS(x)), at = (...names) => h.findIndex(x => names.includes(x));
+        const c = { code: at('codigo', 'cod', 'code'), name: at('producto', 'nombre', 'nombre del producto'), cat: at('categoria'), use: at('uso'), pub: at('precio publico', 'precio salon'), art: at('precio lashista'), bod: at('bodega'), sal: at('salon'), min: at('minimo'), cost: at('costo') };
+        if (c.code < 0 || c.name < 0) continue;
+        const rows = [];
+        aoa.slice(i + 1).forEach((r, k) => {
+          const g = j => j < 0 ? null : r[j], code = String(g(c.code) == null ? '' : g(c.code)).trim(), name = String(g(c.name) == null ? '' : g(c.name)).trim();
+          if (!code || !name || /^total/i.test(name)) return;
+          const n = j => { const v = g(j); if (v == null || v === '') return null; const x = Number(String(v).replace(/[$,\s]/g, '')); return isNaN(x) ? NaN : x; };
+          rows.push({ rowNo: i + 2 + k, code, name, category: String(g(c.cat) || '').trim(), use: String(g(c.use) || '').trim(), pub: n(c.pub), art: n(c.art), bod: n(c.bod), sal: n(c.sal), min: n(c.min), cost: n(c.cost) });
+        });
+        if (rows.length) return { sheet: sh, rows };
+      }
+    }
+    return { error: 'No encontré una hoja con las columnas Código y Producto.' };
+  },
+  plan(rows, opt) {
+    const cat = Store.config.products, st = Store.stock(), seen = new Set();
+    return rows.map(r => {
+      const errs = [];
+      ['pub', 'art', 'bod', 'sal', 'min', 'cost'].forEach(k => { if (Number.isNaN(r[k]) || (r[k] != null && r[k] < 0)) errs.push('número no válido'); });
+      if ((r.bod != null && !Number.isInteger(r.bod)) || (r.sal != null && !Number.isInteger(r.sal))) errs.push('las existencias deben ser enteras');
+      const k = pkey(r.code); if (seen.has(k)) errs.push('código repetido en el archivo'); seen.add(k);
+      const p = cat.find(x => pkey(x.code) === k) || cat.find(x => pkey(x.name) === pkey(r.name));
+      const s = p ? (st.get(p.code) || { bodega: 0, salon: 0 }) : { bodega: 0, salon: 0 };
+      const ch = [];
+      if (p) {
+        if (p.name !== r.name) ch.push(`nombre: ${p.name} → ${r.name}`);
+        if (r.category && (p.category || '') !== r.category) ch.push(`categoría → ${r.category}`);
+        if (r.pub != null && p.priceSalon !== r.pub) ch.push(`precio público ${p.priceSalon == null ? '—' : money(p.priceSalon, 1)} → ${money(r.pub, 1)}`);
+        if (r.art != null && p.priceArtist !== r.art) ch.push(`precio lashista ${p.priceArtist == null ? '—' : money(p.priceArtist, 1)} → ${money(r.art, 1)}`);
+        if (r.min != null && p.min !== r.min) ch.push(`mínimo → ${r.min}`);
+      }
+      const stock = [];
+      if (opt.stock && r.bod != null && r.bod !== s.bodega) stock.push({ loc: 'bodega', from: s.bodega, to: r.bod });
+      if (opt.stock && r.sal != null && r.sal !== s.salon) stock.push({ loc: 'salon', from: s.salon, to: r.sal });
+      return { r, p, ch, stock, errs, codeNote: p && pkey(p.code) !== pkey(r.code) ? `en la app es ${p.code}` : '' };
+    });
+  },
+  open() {
+    let rows = null, fileName = '';
+    UI.modal(`<h3>Subir inventario desde Excel</h3>
+      <p style="color:var(--muted);margin:0 0 14px">Usa la hoja <b>Inventario</b> de tu archivo. Nada se guarda hasta que revises la vista previa.</p>
+      <div class="chips" style="margin-bottom:10px;align-items:center"><label class="btn primary" style="cursor:pointer">${ic('dl')}Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" data-pifile hidden></label></div>
+      <div class="chips" style="margin-bottom:12px;flex-direction:column;align-items:flex-start;gap:6px">
+        <label class="check"><input type="checkbox" data-piopt="create" checked> Crear los productos que no existen en la app</label>
+        <label class="check"><input type="checkbox" data-piopt="update" checked> Actualizar nombre, categoría, precios y mínimo con los del Excel</label>
+        <label class="check"><input type="checkbox" data-piopt="stock" checked> Cargar las existencias de Bodega y Salón como conteo de hoy</label></div>
+      <div data-piprev></div>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok" disabled>Aplicar</button></div>`, m => {
+      m.classList.add('wide');
+      const prev = $('[data-piprev]', m), ok = $('[data-x=ok]', m), opt = () => ({ create: $('[data-piopt=create]', m).checked, update: $('[data-piopt=update]', m).checked, stock: $('[data-piopt=stock]', m).checked });
+      let plan = [];
+      const show = () => {
+        if (!rows) return; const o = opt(); plan = ProdImport.plan(rows, o);
+        const nw = plan.filter(x => !x.p && !x.errs.length), up = plan.filter(x => x.p && x.ch.length && !x.errs.length), stk = plan.filter(x => x.stock.length && !x.errs.length), bad = plan.filter(x => x.errs.length);
+        const acts = (o.create ? nw.length : 0) + (o.update ? up.length : 0) + stk.reduce((t, x) => t + x.stock.length, 0);
+        prev.innerHTML = `<div class="kpis imp" style="grid-template-columns:repeat(5,1fr)"><div class="kpi"><div class="lab">Productos en el archivo</div><div class="val">${intf(plan.length)}</div></div><div class="kpi lead"><div class="lab">Nuevos</div><div class="val">${intf(nw.length)}</div></div><div class="kpi"><div class="lab">Con cambios</div><div class="val">${intf(up.length)}</div></div><div class="kpi"><div class="lab">Existencias a ajustar</div><div class="val">${intf(stk.length)}</div></div><div class="kpi"><div class="lab">Con error</div><div class="val ${bad.length ? 'neg' : ''}">${intf(bad.length)}</div></div></div>
+          <p class="formula" style="margin-top:-20px">${esc(fileName)}. Si una casilla de Bodega o Salón está vacía, esa existencia no se toca.</p>
+          <div class="tablewrap" style="max-height:50vh;overflow:auto"><table><thead><tr><th>Código</th><th>Producto</th><th>Categoría</th><th>Qué pasa</th><th>Existencias</th></tr></thead><tbody>
+          ${plan.map(x => `<tr><td>${esc(x.r.code)}${x.codeNote ? `<br><span class="mutedc" style="font-size:12px">${esc(x.codeNote)}</span>` : ''}</td><td>${esc(x.r.name)}</td><td>${esc(x.r.category || '—')}</td>
+            <td style="white-space:normal;font-size:12.5px">${x.errs.length ? `<span class="tag" style="color:var(--bad);border-color:var(--bad)">${esc(x.errs.join(' · '))}</span>` : !x.p ? (o.create ? '<span class="tag app">Nuevo</span>' : '<span class="mutedc">No se crea</span>') : x.ch.length ? (o.update ? esc(x.ch.join(' · ')) : '<span class="mutedc">No se actualiza</span>') : '<span class="mutedc">Sin cambios</span>'}</td>
+            <td style="font-size:12.5px">${x.stock.map(s => `${s.loc === 'bodega' ? 'Bodega' : 'Salón'} ${s.from} → <b>${s.to}</b>`).join('<br>') || '<span class="mutedc">—</span>'}</td></tr>`).join('')}
+          </tbody></table></div>`;
+        ok.disabled = !acts || !Store.writable(); ok.textContent = acts ? `Aplicar ${intf(acts)} cambios` : 'Aplicar';
+      };
+      $$('[data-piopt]', m).forEach(cb => cb.onchange = show);
+      $('[data-pifile]', m).onchange = async e => {
+        const f = e.target.files[0]; if (!f) return; fileName = f.name; prev.innerHTML = '<div class="loading">Leyendo…</div>';
+        try { const res = ProdImport.parse(await ExpenseImport.read(f)); if (res.error) { prev.innerHTML = `<div class="banner">${esc(res.error)}</div>`; return; } rows = res.rows; fileName += ' · hoja ' + res.sheet; show(); }
+        catch (er) { prev.innerHTML = `<div class="banner">${esc(er.message)}</div>`; }
+      };
+      $('[data-x=no]', m).onclick = UI.close;
+      ok.onclick = async () => {
+        const o = opt(); ok.disabled = true; ok.textContent = 'Guardando catálogo…';
+        try {
+          let products = Store.config.products.map(p => ({ ...p })), created = 0, updated = 0;
+          for (const x of plan) {
+            if (x.errs.length) continue; const r = x.r;
+            if (!x.p && o.create) { products.push({ id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), code: r.code, name: r.name, category: r.category, use: r.use, cost: r.cost, priceArtist: r.art, priceSalon: r.pub, min: r.min == null ? null : Math.round(r.min), active: true }); x.code = r.code; created++; }
+            else if (x.p) { x.code = x.p.code; if (o.update && x.ch.length) { products = products.map(p => p.id === x.p.id ? { ...p, name: r.name, category: r.category || p.category || '', use: r.use || p.use || '', priceSalon: r.pub != null ? r.pub : p.priceSalon, priceArtist: r.art != null ? r.art : p.priceArtist, min: r.min != null ? Math.round(r.min) : (p.min == null ? null : p.min), cost: r.cost != null ? r.cost : p.cost } : p); updated++; } }
+          }
+          if (created || updated) await Store.saveConfig({ products });
+          let adj = 0; const todo = plan.filter(x => !x.errs.length && x.code && x.stock.length);
+          for (const x of todo) for (const s of x.stock) {
+            ok.textContent = `Cargando existencias ${++adj}…`;
+            await Store.saveMove({ type: 'Ajuste', code: x.code, name: x.r.name, date: Dates.toISO(Dates.today()), location: s.loc, counted: s.to, qty: s.to - s.from, notes: 'Conteo cargado desde Excel', byName: Mode.who() });
+          }
+          UI.close(); UI.toast(`Listo: ${created} nuevos, ${updated} actualizados, ${adj} existencias cargadas`);
+        } catch (e) { ok.disabled = false; ok.textContent = 'Reintentar'; UI.toast('No se pudo guardar: ' + (e.message || e.code), true); }
+      };
+    });
+  },
+};
+const _prodHtmlI = Views.productos.html, _prodMountI = Views.productos.mount;
+Views.productos.html = function () {
+  return _prodHtmlI.call(this).replace('<div class="chips no-print">', `<div class="chips no-print"><button class="btn sm" data-pimport ${Store.writable() ? '' : 'disabled'}>${ic('dl')}Subir inventario (Excel)</button>`);
+};
+Views.productos.mount = function (root) {
+  _prodMountI.call(this, root);
+  const b = $('[data-pimport]', root); if (b) b.onclick = () => ProdImport.open();
+  $$('[data-pcat]', root).forEach(x => x.onclick = () => { S.prod.cat = x.dataset.pcat; UI.render(); });
 };
 
 /* =========================================================
