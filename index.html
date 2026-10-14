@@ -228,6 +228,12 @@ tbody tr.inv-cero td{background:#FBECEE}tbody tr.inv-pedir td{background:#FBF4E3
 .bellwrap{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-size:12.5px}
 .mobile-top{gap:10px}.mobile-top .bell{margin-left:auto}
 .apnum{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:99px;background:var(--blush);border:1px solid var(--line);font-weight:700;font-size:12.5px}
+.clientsugg{position:absolute;z-index:30;left:0;right:0;top:100%;margin-top:4px;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px rgba(0,0,0,.14);max-height:300px;overflow:auto}
+label.field{position:relative}
+.clientsugg button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;border:0;background:none;padding:9px 12px;cursor:pointer;color:var(--ink);font:inherit;border-top:1px solid var(--line)}
+.clientsugg button:hover{background:var(--blush)}.clientsugg button span{font-size:12px;color:var(--muted)}
+.clientcard{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:10px;padding:10px 12px;background:var(--blush);font-size:13.5px;display:flex;flex-direction:column;gap:3px}.clientcard.new{border-left-color:var(--sand)}
+.clientinfo:empty{display:none}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -301,7 +307,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-14 18:07';
+window.FM_VERSION = '2026-10-14 18:18';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -5560,6 +5566,111 @@ const _rnBell = UI.renderNav;
 UI.renderNav = function () { _rnBell(); Notify.paint(); };
 const _recMountB = Views.recepcion.mount;
 Views.recepcion.mount = function (root) { _recMountB.call(this, root); Notify.paint(); };
+
+/* =========================================================
+   CLIENTAS QUE YA VINIERON — al escribir el nombre (en Nueva cita o en Cobrar) la app
+   sugiere clientas anteriores, llena sus datos y muestra su historial: cuántas veces
+   ha venido, la última visita, servicio, lashista, depósitos y no-shows.
+   Sale de todas las ventas (incluido el histórico del Excel), citas y depósitos.
+   ========================================================= */
+const ckey = (f, l) => String((f || '') + ' ' + (l || '')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const ClientDir = {
+  _sig: '', _map: null,
+  build() {
+    const sig = Store.sales.length + '|' + Store.appointments.length + '|' + Store.deposits.length;
+    if (this._map && sig === this._sig) return this._map;
+    const map = new Map();
+    const get = (f, l) => { const k = ckey(f, l); if (!k || k.length < 3) return null; let c = map.get(k); if (!c) { c = { key: k, first: '', last: '', phone: '', email: '', visits: new Set(), sales: [], appts: 0, noshow: 0, spent: 0, last: null, lastSale: null }; map.set(k, c); } if (f && (!c.first || f !== f.toLowerCase())) { c.first = String(f).trim(); c.last = String(l || '').trim(); } return c; };
+    Store.sales.forEach(s => { const c = get(s.first, s.last); if (!c) return;
+      if (s.service === 'DEPOSITO - NO SHOW') { c.noshow++; return; }
+      c.visits.add(s.day); c.sales.push(s); c.spent += s.price - s.discount + s.tip; if (!c.lastSale || s.day > c.lastSale.day) c.lastSale = s; });
+    Store.appointments.forEach(a => { const c = get(a.first, a.last); if (!c) return; c.appts++; if (a.status === 'No-show') c.noshow++; if (a.phone) c.phone = a.phone; if (a.email) c.email = a.email; });
+    Store.deposits.forEach(d => { const c = get(d.first, d.last); if (c && d.phone && !c.phone) c.phone = d.phone; });
+    map.forEach(c => { c.nvisits = c.visits.size; c.lastDay = c.lastSale ? c.lastSale.day : null; c.name = title((c.first + ' ' + c.last).trim()); });
+    this._map = map; this._sig = sig; return map;
+  },
+  find(f, l) { return this.build().get(ckey(f, l)) || null; },
+  search(q) {
+    const k = ckey(q, ''); if (k.length < 2) return [];
+    const toks = k.split(' ');
+    return [...this.build().values()].filter(c => { const w = c.key.split(' '); return toks.every(t => w.some(x => x.startsWith(t))); })
+      .sort((a, b) => (b.lastDay || 0) - (a.lastDay || 0) || b.nvisits - a.nvisits).slice(0, 7);
+  },
+  summary(c) {
+    if (!c) return '';
+    const ls = c.lastSale, ago = ls ? Dates.today() - ls.day : null;
+    return `<div class="clientcard"><div><b>${esc(c.name)}</b> ya ha venido <b>${intf(c.nvisits)}</b> ${c.nvisits === 1 ? 'vez' : 'veces'}${ls ? ` · última visita <b>${esc(Dates.fmt(ls.day, { day: 'numeric', month: 'short', year: 'numeric' }))}</b>${ago != null && ago >= 0 ? ` (hace ${ago === 0 ? 'hoy' : ago < 60 ? ago + ' días' : Math.round(ago / 30) + ' meses'})` : ''}` : ''}</div>
+      ${ls ? `<div class="mutedc">Último servicio: ${esc(ls.service)} con ${esc(ls.artistName)} · ${money(r2(ls.price - ls.discount + ls.tip), 1)}${ls.tip ? ` (tip ${money(ls.tip)})` : ''}</div>` : ''}
+      <div class="mutedc">${c.phone ? 'Tel. ' + esc(c.phone) + ' · ' : ''}${c.email ? esc(c.email) + ' · ' : ''}Total gastado ${money(r2(c.spent))}${c.noshow ? ` · <span style="color:var(--bad);font-weight:700">${c.noshow} no-show${c.noshow > 1 ? 's' : ''}</span>` : ''}</div></div>`;
+  },
+  history(c) {
+    if (!c || !c.sales.length) return '<p class="mutedc">Sin visitas anteriores.</p>';
+    const l = c.sales.slice().sort((a, b) => b.day - a.day).slice(0, 12);
+    return `<div class="tablewrap" style="max-height:40vh;overflow:auto"><table><thead><tr><th>Fecha</th><th>Servicio</th><th>Lashista</th><th class="r">Total</th></tr></thead><tbody>${l.map(s => `<tr><td>${esc(Dates.fmt(s.day, { day: '2-digit', month: 'short', year: '2-digit' }))}</td><td>${esc(s.service)}</td><td>${esc(s.artistName)}</td><td class="r">${money(r2(s.price - s.discount + s.tip), 1)}</td></tr>`).join('')}</tbody></table></div>${c.sales.length > 12 ? `<p class="formula">Mostrando las últimas 12 de ${c.sales.length} visitas.</p>` : ''}`;
+  },
+};
+Store.onChange(() => { ClientDir._map = null; });
+
+/* Sugerencias al escribir el nombre. opts: { first, last, phone, email, artist, service, after } (inputs) */
+function attachClientLookup(box, opts) {
+  const fi = opts.first, la = opts.last; if (!fi || !la) return;
+  let list = null, items = [], info = null;
+  const anchor = fi.closest('.formgrid') || fi.parentNode;
+  const card = document.createElement('div'); card.className = 'full clientinfo'; (opts.after || la.closest('label')).insertAdjacentElement('afterend', card);
+  const showCard = () => {
+    const c = ClientDir.find(fi.value, la.value); info = c;
+    card.innerHTML = c ? ClientDir.summary(c) + (opts.artist && c.lastSale ? `<div class="chips" style="margin-top:6px"><button type="button" class="btn sm" data-cl-same>Misma lashista y servicio que la última vez</button><button type="button" class="btn sm" data-cl-hist>Ver historial</button></div>` : `<div class="chips" style="margin-top:6px"><button type="button" class="btn sm" data-cl-hist>Ver historial</button></div>`) : (fi.value.trim().length >= 2 ? '<div class="clientcard new"><b>Clienta nueva</b> <span class="mutedc">· no hay visitas anteriores con ese nombre.</span></div>' : '');
+    const same = $('[data-cl-same]', card); if (same) same.onclick = () => { const s = c.lastSale; if (opts.artist) { opts.artist.value = s.artistKey; opts.artist.dispatchEvent(new Event('change', { bubbles: true })); opts.artist.dispatchEvent(new Event('input', { bubbles: true })); } const sid = s.serviceId || (Store.config.services.find(x => x.name === s.service) || {}).id; if (opts.service && sid) { opts.service.value = sid; opts.service.dispatchEvent(new Event('change', { bubbles: true })); opts.service.dispatchEvent(new Event('input', { bubbles: true })); } UI.toast('Lashista y servicio de la última visita'); };
+    const hist = $('[data-cl-hist]', card); if (hist) hist.onclick = () => { const p = document.createElement('div'); p.className = 'clienthist'; p.innerHTML = ClientDir.history(c); hist.replaceWith(p); };
+  };
+  const close = () => { if (list) { list.remove(); list = null; } };
+  const pick = c => {
+    fi.value = c.first ? title(c.first) : ''; la.value = c.last ? title(c.last) : '';
+    if (opts.phone && c.phone && !opts.phone.value) opts.phone.value = c.phone;
+    if (opts.email && c.email && !opts.email.value) opts.email.value = c.email;
+    [fi, la, opts.phone, opts.email].forEach(el => { if (el) { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } });
+    close(); showCard();
+  };
+  const open = src => {
+    items = ClientDir.search(fi.value + ' ' + la.value); close();
+    if (!items.length || (items.length === 1 && ckey(fi.value, la.value) === items[0].key)) { showCard(); return; }
+    list = document.createElement('div'); list.className = 'clientsugg';
+    list.innerHTML = `<div class="mutedc" style="padding:6px 12px;font-size:12px">Clientas que ya vinieron</div>` + items.map((c, i) => `<button type="button" data-ci="${i}"><b>${esc(c.name)}</b><span>${intf(c.nvisits)} visita${c.nvisits === 1 ? '' : 's'}${c.lastSale ? ' · última ' + esc(Dates.fmt(c.lastSale.day, { day: '2-digit', month: 'short', year: '2-digit' })) + ' · ' + esc(c.lastSale.service) : ''}${c.phone ? ' · ' + esc(c.phone) : ''}</span></button>`).join('');
+    src.closest('label').appendChild(list);
+    $$('[data-ci]', list).forEach(b => b.onmousedown = e => { e.preventDefault(); pick(items[+b.dataset.ci]); });
+  };
+  [fi, la].forEach(el => {
+    el.setAttribute('autocomplete', 'off');
+    el.addEventListener('input', () => { open(el); });
+    el.addEventListener('blur', () => setTimeout(() => { close(); showCard(); }, 150));
+    el.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  });
+  if (fi.value) showCard();
+}
+
+/* Nueva cita / Editar cita */
+const _apptFormCl = apptForm;
+apptForm = function (a, preset) {
+  _apptFormCl(a, preset);
+  const m = $('.modal'); if (!m) return;
+  const g = k => $(`[data-a="${k}"]`, m);
+  attachClientLookup(m, { first: g('first'), last: g('last'), phone: g('phone'), email: g('email'), artist: g('artistId'), service: g('serviceId'), after: g('email') ? g('email').closest('label') : null });
+};
+/* Cobrar → Servicio */
+const _nvMountCl = Views.nueva.mount;
+Views.nueva.mount = function (root) {
+  _nvMountCl.call(this, root);
+  const form = $('[data-form]', root); if (!form || !form.first) return;
+  attachClientLookup(root, { first: form.first, last: form.last, artist: form.artistId, service: form.serviceId });
+};
+/* Detalle de la cita: historial de la clienta */
+const _apptDetailCl = apptDetail;
+apptDetail = function (a) {
+  _apptDetailCl(a);
+  const m = $('.modal'), c = ClientDir.find(a.first, a.last); if (!m || !c) return;
+  const dl = $('.dl', m); if (!dl) return;
+  dl.insertAdjacentHTML('afterend', `<div style="margin-top:12px">${ClientDir.summary(c)}<details style="margin-top:8px"><summary class="linkbtn" style="cursor:pointer">Ver sus últimas visitas</summary><div style="margin-top:8px">${ClientDir.history(c)}</div></details></div>`);
+};
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
