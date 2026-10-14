@@ -219,6 +219,14 @@ tbody tr.inv-cero td{background:#FBECEE}tbody tr.inv-pedir td{background:#FBF4E3
 .brand.withlogo{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center}.brand.withlogo small{grid-column:2}.brandlogo{height:52px;width:auto;grid-row:span 2}
 .mobile-top .brand.withlogo{grid-template-columns:auto 1fr}.brandlogo.sm{height:34px;grid-row:auto}.brandlogo.lg{height:84px;display:block;margin:0 0 12px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .brandlogo{filter:invert(1) brightness(1.1)}}:root[data-theme="dark"] .brandlogo{filter:invert(1) brightness(1.1)}
+.bell{position:relative;display:inline-grid;place-items:center;width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;flex:none}
+.bell svg{width:20px;height:20px}.bell.has{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.22)}.bell.sm{width:36px;height:36px}
+.bell .bdg{position:absolute;top:-5px;right:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#C62F4B;color:#fff;font-size:11.5px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
+.bell.ring svg{animation:bellring 1s ease-in-out 0s 3;transform-origin:50% 10%}
+@keyframes bellring{0%,100%{transform:rotate(0)}15%{transform:rotate(16deg)}30%{transform:rotate(-14deg)}45%{transform:rotate(10deg)}60%{transform:rotate(-8deg)}75%{transform:rotate(4deg)}}
+@media (prefers-reduced-motion:reduce){.bell.ring svg{animation:none}}
+.bellwrap{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-size:12.5px}
+.mobile-top{gap:10px}.mobile-top .bell{margin-left:auto}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -292,7 +300,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-14 00:52';
+window.FM_VERSION = '2026-10-14 17:04';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -5490,6 +5498,67 @@ UI.renderNav = function () {
 };
 const _turnoHtml = Views.turno.html;
 Views.turno.html = function () { return _turnoHtml.call(this).replace('<div class="turno">', `<div class="turno">${brandImg('brandlogo lg', 'Fluffy Lashes')}`); };
+
+/* =========================================================
+   CAMPANITA de solicitudes de insumos.
+   - Muestra cuántas solicitudes hay por entregar (menú lateral, barra del celular y Panel de hoy).
+   - Cuando llega una nueva (por el link o capturada en otro dispositivo): suena un aviso,
+     la campanita se mueve y aparece un mensaje con quién la pidió.
+   ========================================================= */
+ICON.bell = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
+const Notify = {
+  seen: (() => { try { return new Set(JSON.parse(localStorage.getItem('fm-seen-req') || '[]')); } catch (e) { return new Set(); } })(),
+  first: (() => { try { return localStorage.getItem('fm-seen-req') == null; } catch (e) { return false; } })(), t0: Date.now(), audio: null, ringUntil: 0,
+  pending() { return Store.requests.filter(r => typeof hasPending === 'function' ? hasPending(r) : r.status === 'Pendiente').sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')); },
+  save() { try { localStorage.setItem('fm-seen-req', JSON.stringify([...this.seen].slice(-400))); } catch (e) {} },
+  unlock() { // los navegadores solo dejan sonar después de un toque en la página
+    if (this.audio) return; try { const AC = window.AudioContext || window.webkitAudioContext; if (AC) this.audio = new AC(); } catch (e) {}
+  },
+  ding() {
+    const ac = this.audio; if (!ac) return; try { if (ac.state === 'suspended') ac.resume();
+      [[880, 0], [1320, 0.16]].forEach(([f, t]) => { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = f; o.connect(g); g.connect(ac.destination);
+        const s = ac.currentTime + t; g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.25, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.45); o.start(s); o.stop(s + 0.5); }); } catch (e) {}
+  },
+  check() {
+    const pend = this.pending();
+    // Primera vez en este dispositivo: lo que ya estaba pendiente no suena (solo se cuenta en la campanita).
+    if (this.first && Date.now() - this.t0 < 6000) { pend.forEach(r => this.seen.add(r.id)); this.save(); return; }
+    const fresh = pend.filter(r => !this.seen.has(r.id));
+    if (!fresh.length) return;
+    fresh.forEach(r => this.seen.add(r.id)); this.save();
+    const r = fresh[0], n = r.items.length;
+    this.ringUntil = Date.now() + 4000; this.ding();
+    UI.toast(`🔔 Nueva solicitud de insumos: ${r.artistName} · ${n} producto${n > 1 ? 's' : ''}${r.source === 'link' ? ' (por link)' : ''}${fresh.length > 1 ? ` y ${fresh.length - 1} más` : ''}`);
+    this.paint();
+    try { if ('Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') new Notification('Fluffy Master', { body: `Nueva solicitud de insumos de ${r.artistName}`, icon: 'apple-touch-icon.png' }); } catch (e) {}
+  },
+  html(cls) { const n = this.pending().length; return `<button type="button" class="bell ${cls || ''} ${Date.now() < this.ringUntil ? 'ring' : ''} ${n ? 'has' : ''}" data-bell aria-label="Solicitudes de insumos por entregar: ${n}">${ic('bell')}${n ? `<span class="bdg">${n > 99 ? '99+' : n}</span>` : ''}</button>`; },
+  paint() {
+    const side = $('#side .brand'); if (side) { $$('#side .bellwrap').forEach(x => x.remove()); const n = this.pending().length; side.insertAdjacentHTML('afterend', `<div class="bellwrap">${this.html()}<span class="mutedc">${n ? `${n} solicitud${n > 1 ? 'es' : ''} de insumos` : 'Sin solicitudes de insumos'}</span></div>`); }
+    const top = $('.mobile-top'); if (top) { const old = $('[data-bell]', top); if (old) old.remove(); const menu = $('[data-go=mas]', top); if (menu) menu.insertAdjacentHTML('beforebegin', this.html('sm')); }
+    const ph = $('#view .head .chips'); if (UI.route === 'recepcion' && ph && !$('[data-bell]', ph)) ph.insertAdjacentHTML('afterbegin', this.html());
+    if (Date.now() < this.ringUntil) setTimeout(() => this.paint(), this.ringUntil - Date.now() + 50);
+  },
+  open() {
+    const pend = this.pending();
+    UI.modal(`<h3>🔔 Solicitudes por entregar</h3><p style="color:var(--muted);margin:0 0 12px">${pend.length ? `${pend.length} solicitud${pend.length > 1 ? 'es' : ''} esperando. Toca Entregar cuando se las des a la lashista.` : 'No hay solicitudes pendientes.'}</p>
+      ${pend.length ? `<div class="reqgrid">${pend.slice(0, 12).map(requestCard).join('')}</div>` : ''}
+      <div class="acts">${'Notification' in window && Notification.permission === 'default' ? '<button class="btn" data-x="perm">Avisarme también con la app minimizada</button>' : ''}<button class="btn" data-x="c">Cerrar</button><button class="btn primary" data-x="go">Ir a Insumos</button></div>`, m => {
+      m.classList.add('wide');
+      $('[data-x=c]', m).onclick = UI.close; $('[data-x=go]', m).onclick = () => { UI.close(); S.ins.tab = 'cola'; UI.go('insumos'); };
+      const p = $('[data-x=perm]', m); if (p) p.onclick = async () => { try { await Notification.requestPermission(); } catch (e) {} UI.close(); this.open(); };
+      $$('[data-deliver]', m).forEach(b => b.onclick = e => { e.stopPropagation(); const r = Store.requests.find(x => x.id === b.dataset.deliver); UI.close(); deliverModal(r); });
+      $$('.reqcard', m).forEach(c => c.addEventListener('click', e => { if (e.target.closest('button')) return; const b = $('[data-deliver]', c), r = b && Store.requests.find(x => x.id === b.dataset.deliver); if (r) { UI.close(); requestEditor(r); } }));
+    });
+  },
+};
+let _ntm; Store.onChange(() => { clearTimeout(_ntm); _ntm = setTimeout(() => { Notify.check(); Notify.paint(); }, 150); });
+document.addEventListener('pointerdown', () => Notify.unlock(), { once: false, capture: true });
+document.addEventListener('click', e => { if (e.target.closest('[data-bell]')) { Notify.unlock(); Notify.open(); } });
+const _rnBell = UI.renderNav;
+UI.renderNav = function () { _rnBell(); Notify.paint(); };
+const _recMountB = Views.recepcion.mount;
+Views.recepcion.mount = function (root) { _recMountB.call(this, root); Notify.paint(); };
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
