@@ -227,6 +227,7 @@ tbody tr.inv-cero td{background:#FBECEE}tbody tr.inv-pedir td{background:#FBF4E3
 @media (prefers-reduced-motion:reduce){.bell.ring svg{animation:none}}
 .bellwrap{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-size:12.5px}
 .mobile-top{gap:10px}.mobile-top .bell{margin-left:auto}
+.apnum{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 6px;border-radius:99px;background:var(--blush);border:1px solid var(--line);font-weight:700;font-size:12.5px}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -300,7 +301,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-14 17:04';
+window.FM_VERSION = '2026-10-14 18:07';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3397,15 +3398,15 @@ Views.agenda = {
   },
   html() {
     const f = S.ag, t = Dates.today(), list = this.list(); this._list = list;
-    const days = Array.from({ length: 7 }, (_, i) => t + i);
+    const days = Array.from({ length: 8 }, (_, i) => t - 1 + i);
     const sum = { tot: list.length, dep: list.filter(a => apptDeposit(a)).length, paid: list.filter(a => a.status === 'Pagada').length, pend: list.filter(a => a.status === 'Agendada').length };
     const groups = new Map(); list.forEach(a => { if (!groups.has(a.day)) groups.set(a.day, []); groups.get(a.day).push(a); });
-    const rows = l => table([{ label: 'Hora' }, { label: 'Clienta', html: 1 }, { label: 'Lashista', html: 1 }, { label: 'Servicio', html: 1 }, { label: 'Depósito', html: 1 }, { label: 'Pago', html: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
-      l.map(a => [a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
+    const rows = l => table([{ label: '#', r: 1, html: 1 }, { label: 'Hora' }, { label: 'Clienta', html: 1 }, { label: 'Lashista', html: 1 }, { label: 'Servicio', html: 1 }, { label: 'Depósito', html: 1 }, { label: 'Pago', html: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
+      l.map((a, k) => [`<span class="apnum">${k + 1}</span>`, a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
         a.status === 'Agendada' && Store.writable() ? `<button class="btn sm primary" data-pay="${a.id}">Cobrar</button>` : '']), null, { click: 1 });
     return `<div class="head"><div><h1>Agenda</h1><p>${intf(sum.tot)} citas · ${intf(sum.dep)} con depósito · ${intf(sum.paid)} pagadas · ${intf(sum.pend)} por cobrar</p></div><div class="chips"><button class="btn primary" data-newappt ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva cita</button></div></div>
       <div class="filters no-print" style="align-items:center">
-        <div class="chips">${days.map(d => `<button class="chip ${f.range === 'dia' && f.day === d ? 'on' : ''}" data-agday="${d}">${d === t ? 'Hoy' : d === t + 1 ? 'Mañana' : esc(Dates.fmt(d, { weekday: 'short', day: 'numeric' }))}</button>`).join('')}
+        <div class="chips">${days.map(d => `<button class="chip ${f.range === 'dia' && f.day === d ? 'on' : ''}" data-agday="${d}">${d === t - 1 ? 'Ayer' : d === t ? 'Hoy' : d === t + 1 ? 'Mañana' : esc(Dates.fmt(d, { weekday: 'short', day: 'numeric' }))}</button>`).join('')}
           <input type="date" class="inp" style="width:auto" data-agdate value="${Dates.toISO(f.day)}" aria-label="Elegir fecha"><button class="chip ${f.range === 'prox' ? 'on' : ''}" data-agprox>Próximos 14 días</button></div>
         <label class="field" style="max-width:none;flex:1 1 200px">Buscar<input type="search" data-agq value="${esc(f.q)}" placeholder="Clienta, lashista o servicio"></label></div>
       ${!list.length ? `<div class="tablewrap"><div class="empty"><b>Sin citas ${f.range === 'dia' ? 'este día' : 'en los próximos días'}</b>Agrega las citas con “Nueva cita”.</div></div>`
@@ -4671,13 +4672,13 @@ Views.agenda.html = function () {
   const list = unlinkedSales(from, Math.min(to, t)); this._walk = list;
   h = h.replace(/<p>(\d+) citas · /, (m0, n) => `<p>${n} citas · ${intf(list.length)} cobros sin cita · `);
   if (!list.length) return h;
-  const rows = list.map(s => { const tot = r2(s.price - s.discount + s.tip), dep = s.depositAmount || 0;
-    return `<tr class="click st-sincita" tabindex="0" data-walk="${s.id}"><td>${f.range === 'dia' ? hhmm(s.createdAt) : Dates.fmt(s.day, { weekday: 'short', day: 'numeric' }) + ' · ' + hhmm(s.createdAt)}</td><td><b>${esc(client(s))}</b></td><td>${esc(s.artistName)}</td><td>${esc(s.service)}<br><span class="mutedc" style="font-size:12px">${money(s.price)}</span></td>
+  const rows = list.map((s, k) => { const tot = r2(s.price - s.discount + s.tip), dep = s.depositAmount || 0;
+    return `<tr class="click st-sincita" tabindex="0" data-walk="${s.id}"><td class="r"><span class="apnum">${k + 1}</span></td><td>${f.range === 'dia' ? hhmm(s.createdAt) : Dates.fmt(s.day, { weekday: 'short', day: 'numeric' }) + ' · ' + hhmm(s.createdAt)}</td><td><b>${esc(client(s))}</b></td><td>${esc(s.artistName)}</td><td>${esc(s.service)}<br><span class="mutedc" style="font-size:12px">${money(s.price)}</span></td>
       <td>${dep ? `<span class="dep ok">${money(dep)} · ${esc(s.depositMethod || '')}</span>` : '<span class="mutedc">Sin depósito</span>'}</td><td><b>${money(r2(tot - dep), 1)}</b> · ${esc(s.method || 'sin método')}${dep ? `<br><span class="mutedc" style="font-size:12px">+ depósito ${money(dep)}</span>` : ''}</td>
       <td><span class="tag app">Cobrado sin cita</span></td><td class="mutedc" style="font-size:12px">${esc(s.cashierName || '')}</td></tr>`; }).join('');
   const block = `<section class="panel" style="margin-top:22px"><h2>Cobros sin cita${f.range === 'dia' ? '' : ' (hoy y días anteriores del rango)'}</h2>
     <p class="hint">Se cobraron en “Cobrar” sin entrar por una cita. Si la clienta sí tenía cita en la agenda, ábrela y usa “Ya se cobró” para ligarla.</p>
-    <div class="tablewrap"><table><thead><tr><th>Hora del cobro</th><th>Clienta</th><th>Lashista</th><th>Servicio</th><th>Depósito</th><th>Pago</th><th>Estado</th><th>Cobró</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    <div class="tablewrap"><table><thead><tr><th class="r">#</th><th>Hora del cobro</th><th>Clienta</th><th>Lashista</th><th>Servicio</th><th>Depósito</th><th>Pago</th><th>Estado</th><th>Cobró</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   h = h.replace(/<div class="tablewrap"><div class="empty"><b>Sin citas[^]*?<\/div><\/div>/, `<div class="tablewrap"><div class="empty"><b>Sin citas agendadas en la app</b>Abajo están los cobros de ${f.range === 'dia' ? 'este día' : 'estos días'}.</div></div>`);
   return h.replace('<div class="aglegend">', block + '<div class="aglegend">').replace('<span><i class="sw st-cancelada"></i>Cancelada</span>', '<span><i class="sw st-cancelada"></i>Cancelada</span><span><i class="sw st-sincita"></i>Cobrado sin cita</span>');
 };
