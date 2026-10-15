@@ -34,7 +34,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .step b{min-width:22px;text-align:center}
 .cat{padding:8px 14px;background:var(--blush);font-weight:700;font-size:12.5px;border-bottom:1px solid var(--line)}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px))}
-.bar .in{max-width:560px;margin:0 auto;display:flex;gap:12px;align-items:center}
+.bar .in{max-width:560px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .btn{flex:1;border:0;border-radius:999px;padding:15px 18px;font:inherit;font-weight:700;font-size:16px;background:#3A2A2E;color:#fff;cursor:pointer;box-shadow:0 0 0 3px rgba(212,175,55,.35)}
 @media (prefers-color-scheme:dark){.btn{background:var(--pink);color:#3A2A2E}}
 .btn:disabled{opacity:.5;cursor:default}.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
@@ -65,7 +65,7 @@ h2{font-size:17px;margin:22px 0 4px}
   const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
   const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Solicitud de insumos</h1><p class="sub">Fluffy Lashes · recepción te los entrega y se cobran en tu nota del mes.</p></div></div>`;
 
-  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis pedidos</button></div>`;
+  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button></div>`;
   const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
   function render() {
     if (S.tab === 'mis') return renderMine();
@@ -103,14 +103,14 @@ h2{font-size:17px;margin:22px 0 4px}
       const cur = m.requests.filter(r => (r.deliveredAt || r.requestDate || '').slice(0, 7) === ym);
       const ent = cur.flatMap(r => (r.items || []).filter(i => i.state === 'Entregado')), pend = m.requests.flatMap(r => (r.items || []).filter(i => !i.state || i.state === 'Pendiente'));
       const sub = ent.reduce((t, i) => t + Number(i.qty) * Number(m.prices[i.code] || 0), 0);
-      body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Pedidos (75 días)</span><b>${m.requests.length}</b></div></div>
+      body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Solicitudes (75 días)</span><b>${m.requests.length}</b></div></div>
         <p class="sub">El monto es a precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
         ${m.notes.length ? `<h2>Tus notas</h2>${m.notes.map(n => `<div class="rq"><h3><span>Nota #${esc(n.invoice)} · ${esc(n.month)}</span>${n.status === 'Pagada' ? '<span class="tg ok">Pagada</span>' : `<span class="tg pe">${esc(n.status)}</span>`}</h3>${Number(n.paid) ? `<small>Pagos registrados: $${Number(n.paid).toFixed(2)}</small>` : '<small>Sin pagos registrados</small>'}</div>`).join('')}` : ''}
-        <h2>Tus pedidos</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Pediste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes pedidos en los últimos 75 días.</p>'}`;
+        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
     }
     app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
       <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
-      <p class="err" id="err"></p><button class="btn" id="see" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : m ? 'Actualizar' : 'Ver mis pedidos'}</button>${body}`;
+      <p class="err" id="err"></p><button class="btn" id="see" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : m ? 'Actualizar' : 'Ver mis solicitudes'}</button>${body}`;
     $('#art').onchange = e => { S.artist = e.target.value; S.mine = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderMine(); };
     $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
     bindTabs();
@@ -140,8 +140,8 @@ h2{font-size:17px;margin:22px 0 4px}
     app.innerHTML = header + `<div class="done"><div class="ok">✓</div><h1>Solicitud enviada</h1><p class="sub">${esc(name)} · ${new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       <div class="sum">${sent.map(i => `<div><span>${esc(i.name)}</span><b>× ${i.qty}</b></div>`).join('')}</div>
       <p class="sub">Recepción ya la tiene en la app. Se cobra en tu nota del mes, solo lo que te entreguen.</p></div>
-      <div class="bar"><div class="in"><button class="btn ghost" id="again">Hacer otra solicitud</button><button class="btn" id="mine">Ver mis pedidos</button></div></div>`;
-    $('#again').onclick = render; $('#mine').onclick = () => { S.tab = 'mis'; S.mine = null; render(); };
+      <div class="bar"><div class="in"><button class="btn" id="mine">Ver mis solicitudes</button><button class="btn ghost" id="again">Hacer otra solicitud</button></div></div>`;
+    $('#again').onclick = render; $('#mine').onclick = () => { S.tab = 'mis'; S.mine = null; render(); const b = $('#see'); if (b && S.artist && S.pin) b.click(); };
   }
 
   sb.rpc('fm_public_form').then(({ data, error }) => {
