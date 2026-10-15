@@ -44,6 +44,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .sum{text-align:left;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
 .sum div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.sum div:last-child{border-bottom:0}
 .empty{color:var(--muted);padding:16px 14px}
+.tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;padding:10px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
+.kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.kp div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kp span{display:block;font-size:12px;color:var(--muted);font-weight:700}.kp b{font-size:22px}
+.rq{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}.rq h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;gap:8px}.rq small{color:var(--muted);font-weight:400}
+.rq li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px}.rq ul{list-style:none;margin:0;padding:0}
+.tg{font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;border:1px solid var(--line);white-space:nowrap}.tg.ok{color:var(--ok);border-color:var(--ok)}.tg.no{color:var(--bad);border-color:var(--bad)}.tg.pe{color:#9A6B00;border-color:#C9A227}
+h2{font-size:17px;margin:22px 0 4px}
 </style>
 </head>
 <body>
@@ -54,19 +60,22 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
   const cfg = window.FM_CONFIG || {}, app = $('#app');
   if (!cfg.url || !cfg.anonKey || /TU-PROYECTO|PEGA/.test(cfg.url + cfg.anonKey)) { app.innerHTML = '<p class="err">Falta configurar el sistema.</p>'; return; }
   const sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false } });
-  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false };
+  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false };
   try { S.artist = localStorage.getItem('fm-req-artist') || ''; } catch (e) {}
   const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
   const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Solicitud de insumos</h1><p class="sub">Fluffy Lashes · recepción te los entrega y se cobran en tu nota del mes.</p></div></div>`;
 
+  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis pedidos</button></div>`;
+  const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
   function render() {
+    if (S.tab === 'mis') return renderMine();
     const cats = [...new Set(S.products.map(p => p.category))];
     const q = S.q.trim().toLowerCase();
     const list = S.products.filter(p => (!S.cat || p.category === S.cat) && (!q || (p.name + ' ' + p.code).toLowerCase().includes(q)));
     let last = null;
     const rows = list.map(p => { const head = !S.cat && p.category !== last ? `<div class="cat">${esc(p.category)}</div>` : ''; last = p.category; const n = S.qty[p.code] || 0;
       return head + `<div class="item ${n ? 'sel' : ''}"><div>${esc(p.name)}<small>${esc(p.code)}</small></div><div class="step"><button type="button" data-m="${esc(p.code)}" aria-label="Menos">−</button><b>${n}</b><button type="button" data-p="${esc(p.code)}" aria-label="Más">+</button></div></div>`; }).join('');
-    app.innerHTML = header + `
+    app.innerHTML = header + tabs() + `
       <label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
       <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
       <label>¿Qué necesitas?</label><input id="q" type="search" placeholder="Buscar producto" value="${esc(S.q)}">
@@ -82,7 +91,38 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
     document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cat = b.dataset.c; render(); });
     document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const c = b.dataset.p; S.qty[c] = Math.min(100, (S.qty[c] || 0) + 1); render(); });
     document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const c = b.dataset.m; if (S.qty[c] > 1) S.qty[c]--; else delete S.qty[c]; render(); });
-    $('#send').onclick = send;
+    $('#send').onclick = send; bindTabs();
+  }
+
+  const dmy = iso => { if (!iso) return ''; const d = new Date(String(iso).length <= 10 ? iso + 'T12:00:00' : iso); return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }); };
+  const tag = st => st === 'Entregado' ? '<span class="tg ok">Entregado</span>' : st === 'Sin stock' ? '<span class="tg no">Sin stock</span>' : '<span class="tg pe">Pendiente</span>';
+  function renderMine() {
+    const m = S.mine, ym = new Date().toISOString().slice(0, 7);
+    let body = '';
+    if (m) {
+      const cur = m.requests.filter(r => (r.deliveredAt || r.requestDate || '').slice(0, 7) === ym);
+      const ent = cur.flatMap(r => (r.items || []).filter(i => i.state === 'Entregado')), pend = m.requests.flatMap(r => (r.items || []).filter(i => !i.state || i.state === 'Pendiente'));
+      const sub = ent.reduce((t, i) => t + Number(i.qty) * Number(m.prices[i.code] || 0), 0);
+      body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Pedidos (75 días)</span><b>${m.requests.length}</b></div></div>
+        <p class="sub">El monto es a precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
+        ${m.notes.length ? `<h2>Tus notas</h2>${m.notes.map(n => `<div class="rq"><h3><span>Nota #${esc(n.invoice)} · ${esc(n.month)}</span>${n.status === 'Pagada' ? '<span class="tg ok">Pagada</span>' : `<span class="tg pe">${esc(n.status)}</span>`}</h3>${Number(n.paid) ? `<small>Pagos registrados: $${Number(n.paid).toFixed(2)}</small>` : '<small>Sin pagos registrados</small>'}</div>`).join('')}` : ''}
+        <h2>Tus pedidos</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Pediste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes pedidos en los últimos 75 días.</p>'}`;
+    }
+    app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
+      <p class="err" id="err"></p><button class="btn" id="see" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : m ? 'Actualizar' : 'Ver mis pedidos'}</button>${body}`;
+    $('#art').onchange = e => { S.artist = e.target.value; S.mine = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderMine(); };
+    $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
+    bindTabs();
+    $('#see').onclick = async () => {
+      if (!S.artist) return ($('#err').textContent = 'Elige tu nombre.');
+      if (!/^\d{4,8}$/.test(S.pin)) return ($('#err').textContent = 'Escribe tu clave (4 a 8 números).');
+      S.loading = true; renderMine();
+      const { data, error } = await sb.rpc('fm_my_requests', { p_artist: S.artist, p_pin: S.pin });
+      S.loading = false;
+      if (error || !data || !data.ok) { S.mine = null; renderMine(); $('#err').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); return; }
+      S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] }; renderMine();
+    };
   }
 
   async function send() {
@@ -96,12 +136,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
     S.sending = false;
     if (error || !data || !data.ok) { render(); return err((data && data.error) || 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.'); }
     const name = (S.artists.find(a => a.id === S.artist) || {}).name || '', sent = items.map(i => ({ ...i, name: (S.products.find(p => p.code === i.code) || {}).name || i.code }));
-    S.qty = {}; S.note = ''; S.pin = '';
+    S.qty = {}; S.note = '';
     app.innerHTML = header + `<div class="done"><div class="ok">✓</div><h1>Solicitud enviada</h1><p class="sub">${esc(name)} · ${new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
       <div class="sum">${sent.map(i => `<div><span>${esc(i.name)}</span><b>× ${i.qty}</b></div>`).join('')}</div>
       <p class="sub">Recepción ya la tiene en la app. Se cobra en tu nota del mes, solo lo que te entreguen.</p></div>
-      <div class="bar"><div class="in"><button class="btn ghost" id="again">Hacer otra solicitud</button></div></div>`;
-    $('#again').onclick = render;
+      <div class="bar"><div class="in"><button class="btn ghost" id="again">Hacer otra solicitud</button><button class="btn" id="mine">Ver mis pedidos</button></div></div>`;
+    $('#again').onclick = render; $('#mine').onclick = () => { S.tab = 'mis'; S.mine = null; render(); };
   }
 
   sb.rpc('fm_public_form').then(({ data, error }) => {

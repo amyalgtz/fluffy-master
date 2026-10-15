@@ -234,6 +234,10 @@ label.field{position:relative}
 .clientsugg button:hover{background:var(--blush)}.clientsugg button span{font-size:12px;color:var(--muted)}
 .clientcard{border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:10px;padding:10px 12px;background:var(--blush);font-size:13.5px;display:flex;flex-direction:column;gap:3px}.clientcard.new{border-left-color:var(--sand)}
 .clientinfo:empty{display:none}
+.splitbox{border:1px dashed var(--sand);border-radius:12px;padding:10px 12px}.splitbox:not(.on){border:0;padding:0}
+.payhead,.payline{display:grid;grid-template-columns:minmax(0,1.4fr) 100px minmax(0,1fr) 34px;gap:8px;align-items:center}.payhead{font-size:12px;color:var(--muted);font-weight:600;margin-top:8px}.payline{margin-top:6px}
+.splitleft{font-size:13px}.muted-field{opacity:.45}
+@media (max-width:640px){.payhead{display:none}.payline{grid-template-columns:1fr 90px}}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -307,7 +311,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-14 18:18';
+window.FM_VERSION = '2026-10-15 14:51';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -758,7 +762,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '' };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '' };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -790,6 +794,7 @@ const Store = {
       cashierName: prev ? (prev.cashierName || '') : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
       txn: String(form.txn || '').trim(), origin: prev ? (prev.origin || '') : (form.origin || ''),
+      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '',
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
     doc.createdBy = prev ? prev.createdBy || '' : uid;
@@ -1096,7 +1101,8 @@ Views.dia = {
   html() {
     const d = S.dia.day, r = Logic.calculateDailySales(Store.sales, d);
     const byA = Logic.calculatePayroll(r.list, d, d);
-    const parts = r.list.flatMap(s => { const tot = s.price - s.discount + s.tip, dep = Math.min(s.depositAmount || 0, tot);
+    const parts = r.list.flatMap(s => { if (s.payGroup) return []; const tot = s.price - s.discount + s.tip, dep = Math.min(s.depositAmount || 0, tot);
+      if ((s.payments || []).length > 1) return (dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }] : []).concat(s.payments.map(p => ({ m: p.method, v: num(p.amount) })));
       const mth = s.method === 'Paquete prepagado' ? 'Paquete prepagado (ya cobrado)' : (s.method || 'Sin registrar');
       return dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }, { m: mth, v: tot - dep }] : [{ m: mth, v: tot }]; })
       .concat((Store.packages || []).filter(p => p.day === d).map(p => ({ m: p.method + ' (paquete vendido)', v: num(p.total) + num(p.tipTotal) })))
@@ -4005,7 +4011,7 @@ Store.saveSale = async function (form, id) {
     const ids = [];
     for (const x of extras) {
       ids.push(await _saveSaleX.call(this, { date: form.date, artistId: x.artistId, serviceId: x.serviceId, price: x.price, discount: x.discount || 0, tip: 0, method: form.method === 'Paquete prepagado' ? '' : form.method,
-        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', manualOn: false, manualCommission: '', _isExtra: true }, null));
+        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', payGroup: (form.payments || []).length > 1 ? saleId : '', manualOn: false, manualCommission: '', _isExtra: true }, null));
     }
     if (form._appt) { const ap = this.appointments.find(a => a.id === form._appt); if (ap) await this.saveAppointment({ extraSaleIds: (ap.extraSaleIds || []).concat(ids) }, ap.id); }
   }
@@ -4072,8 +4078,9 @@ const Summary = {
     const prods = (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).map(m => ({ date: Dates.fromISO(m.date), name: m.name || m.code, qty: num(m.qty), amount: r2(num(m.qty) * num(m.unitPrice)), method: m.method || 'Sin registrar', txn: m.txn || '', client: m.client || '' }));
     const pays = Store.notePayments.filter(p => inR(p.day)).map(p => ({ date: p.day, artist: p.artistName, invoice: p.invoice, amount: num(p.amount), method: p.method, txn: p.txn || '' }));
     const parts = [];
-    sales.forEach(s => { if (s.method === 'Paquete prepagado') return; const tot = r2(s.price - s.discount + s.tip), dep = Math.min(s.depositAmount || 0, tot);
-      if (dep) parts.push({ m: (s.depositMethod || 'Sin registrar'), k: 'Depósitos aplicados', v: dep }); if (tot - dep) parts.push({ m: s.method || 'Sin registrar', k: 'Servicios', v: r2(tot - dep) }); });
+    sales.forEach(s => { if (s.method === 'Paquete prepagado' || s.payGroup) return; const tot = r2(s.price - s.discount + s.tip), dep = Math.min(s.depositAmount || 0, tot);
+      if (dep) parts.push({ m: (s.depositMethod || 'Sin registrar'), k: 'Depósitos aplicados', v: dep });
+      if ((s.payments || []).length > 1) { s.payments.forEach(p => parts.push({ m: p.method, k: 'Servicios', v: r2(num(p.amount)) })); return; } if (tot - dep) parts.push({ m: s.method || 'Sin registrar', k: 'Servicios', v: r2(tot - dep) }); });
     pkgs.forEach(p => parts.push({ m: p.method, k: 'Paquetes', v: p.amount }));
     prods.forEach(p => parts.push({ m: p.method, k: 'Productos', v: p.amount }));
     pays.forEach(p => parts.push({ m: p.method, k: 'Pagos de lashistas', v: p.amount }));
@@ -5671,6 +5678,185 @@ apptDetail = function (a) {
   const dl = $('.dl', m); if (!dl) return;
   dl.insertAdjacentHTML('afterend', `<div style="margin-top:12px">${ClientDir.summary(c)}<details style="margin-top:8px"><summary class="linkbtn" style="cursor:pointer">Ver sus últimas visitas</summary><div style="margin-top:8px">${ClientDir.history(c)}</div></details></div>`);
 };
+
+/* =========================================================
+   COBRAR → PAGO DIVIDIDO: una clienta paga con varias formas (por ejemplo, parte en Zelle
+   y parte con tarjeta). Cada forma lleva su monto y su TXN, y la Hoja del día y el Resumen
+   cuentan cada parte en su método.
+   ========================================================= */
+const payMethodsAll = () => [...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito' && m !== 'Paquete prepagado');
+const cobroDue = f => {
+  const main = num(f.price) - num(f.discount) + num(f.tip), ex = (f.extras || []).filter(x => x.serviceId).reduce((t, x) => t + num(x.price) - num(x.discount), 0);
+  const d = f.depositId === '__new' ? num((f.newDep || {}).amount) : f.depositId ? num((Store.deposits.find(x => x.id === f.depositId) || {}).amount) : 0;
+  return r2(Math.max(0, main + ex - d));
+};
+const splitLine = (p, k) => `<div class="payline" data-pl2="${k}"><select class="inp" data-p2="method" aria-label="Forma de pago"><option value="">Forma de pago</option>${payMethodsAll().map(m => `<option ${p.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
+  <input class="inp num" type="number" min="0" step="0.01" data-p2="amount" value="${esc(p.amount)}" placeholder="Monto" aria-label="Monto"><input class="inp" data-p2="txn" value="${esc(p.txn || '')}" placeholder="TXN" aria-label="TXN" autocomplete="off"><button type="button" class="btn sm" data-p2="rm" aria-label="Quitar">×</button></div>`;
+const _nvHtmlP = Views.nueva.html, _nvMountP = Views.nueva.mount, _nvReceiptP = Views.nueva.receipt;
+Views.nueva.html = function () {
+  const h = _nvHtmlP.call(this);
+  if (S.cobro.tipo !== 'servicio' || !this.form || this.form.packageId) return h;
+  const f = this.form;
+  if (UI.params.edit && f.payments == null) { const s = Store.appSales.find(x => x.id === UI.params.edit); f.payments = s && (s.payments || []).length > 1 ? s.payments.map(p => ({ ...p })) : []; f.split = f.payments.length > 1; }
+  const block = `<div class="full splitbox ${f.split ? 'on' : ''}" data-split>
+    <button type="button" class="linkbtn" data-splitbtn>${f.split ? 'Pagar con una sola forma' : '¿Pagó con varias formas? Dividir el pago'}</button>
+    <div data-splitbody style="${f.split ? '' : 'display:none'}"><div class="payhead"><span>Forma de pago</span><span>Monto</span><span>TXN</span><span></span></div><div data-splitlines>${(f.payments || []).map(splitLine).join('')}</div>
+      <div class="chips" style="margin-top:6px;align-items:center"><button type="button" class="btn sm" data-splitadd>${ic('plus')}Otra forma de pago</button><span class="splitleft" data-splitleft></span></div></div></div>`;
+  return h.replace(/(<label class="field">TXN:<input name="txn"[^>]*><\/label>)/, '$1' + block);
+};
+Views.nueva.receipt = function () {
+  let h = _nvReceiptP.call(this); const f = this.form;
+  if (f && f.split && (f.payments || []).length) {
+    const lines = f.payments.filter(p => p.method || num(p.amount)).map(p => `<div class="rline"><span>· ${esc(p.method || 'Sin forma')}</span><span>${money(num(p.amount), 1)}</span></div>`).join('');
+    h = h.replace('<p class="formula">', `<div class="rline total"><span>Pago dividido</span><span>${money(r2(f.payments.reduce((t, p) => t + num(p.amount), 0)), 1)}</span></div>${lines}<p class="formula">`);
+  }
+  return h;
+};
+Views.nueva.mount = function (root) {
+  _nvMountP.call(this, root);
+  const form = $('[data-form]', root), box = $('[data-split]', root); if (!form || !box) return;
+  const f = this.form;
+  const repaint = () => { const rec = $('[data-receipt]', root); if (rec) rec.innerHTML = this.receipt(); };
+  const left = () => { const el = $('[data-splitleft]', root); if (!el) return; const due = cobroDue(f), got = r2((f.payments || []).reduce((t, p) => t + num(p.amount), 0)), d = r2(due - got);
+    el.innerHTML = Math.abs(d) < 0.01 ? `<span style="color:var(--ok);font-weight:700">✓ Cuadra con lo que se cobra hoy (${money(due, 1)})</span>` : d > 0 ? `Falta asignar <b>${money(d, 1)}</b> de ${money(due, 1)}` : `<span style="color:var(--bad)">Sobran <b>${money(-d, 1)}</b> (se cobra ${money(due, 1)})</span>`; };
+  const draw = () => { $('[data-splitlines]', root).innerHTML = (f.payments || []).map(splitLine).join(''); left(); repaint(); };
+  $('[data-splitbtn]', root).onclick = () => {
+    f.split = !f.split;
+    if (f.split && !(f.payments || []).length) { const due = cobroDue(f); f.payments = [{ method: f.method || '', amount: due, txn: f.txn || '' }, { method: '', amount: '', txn: '' }]; }
+    if (!f.split) { const first = (f.payments || [])[0]; if (first && first.method && payMethodsAll().includes(first.method)) { f.method = first.method; if (form.method) form.method.value = first.method; } f.payments = []; }
+    UI.formDirty = true; UI.render();
+  };
+  if (!f.split) return;
+  const lines = $('[data-splitlines]', root);
+  const upd = e => { const l = e.target.closest('[data-pl2]'), k = e.target.dataset.p2; if (!l || !k || k === 'rm') return; f.payments[+l.dataset.pl2][k] = e.target.value; UI.formDirty = true; left(); repaint(); };
+  lines.addEventListener('input', upd); lines.addEventListener('change', upd);
+  lines.addEventListener('click', e => { if (e.target.closest('[data-p2=rm]')) { f.payments.splice(+e.target.closest('[data-pl2]').dataset.pl2, 1); draw(); } });
+  $('[data-splitadd]', root).onclick = () => { const due = cobroDue(f), got = f.payments.reduce((t, p) => t + num(p.amount), 0); f.payments.push({ method: '', amount: due - got > 0 ? r2(due - got) : '', txn: '' }); draw(); };
+  form.addEventListener('input', e => { if (['price', 'discount', 'tip'].includes(e.target.name)) left(); });
+  if (form.method) { form.method.closest('label').classList.add('muted-field'); form.method.disabled = true; }
+  if (form.txn) { form.txn.closest('label').classList.add('muted-field'); form.txn.disabled = true; }
+  left();
+  const orig = form.onsubmit;
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const ps = (f.payments || []).filter(p => p.method || num(p.amount) > 0);
+    if (ps.length < 2) { UI.toast('Para dividir el pago agrega al menos dos formas de pago, o toca “Pagar con una sola forma”.', true); return; }
+    if (ps.some(p => !p.method)) { UI.toast('Elige la forma de pago de cada parte.', true); return; }
+    if (ps.some(p => !(num(p.amount) > 0))) { UI.toast('Cada parte debe tener un monto mayor a 0.', true); return; }
+    const due = cobroDue(f), got = r2(ps.reduce((t, p) => t + num(p.amount), 0));
+    if (Math.abs(got - due) >= 0.01) { UI.toast(`Las partes suman ${money(got, 1)} y se cobra ${money(due, 1)}. Ajusta los montos.`, true); return; }
+    f.payments = ps.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() }));
+    f.method = [...new Set(f.payments.map(p => p.method))].join(' + '); f.txn = f.payments.map(p => p.txn).filter(Boolean).join(' · ');
+    return orig(e);
+  };
+};
+/* Detalle de la venta: muestra cada parte del pago. */
+const _saleDetailP = saleDetail;
+saleDetail = function (s) {
+  _saleDetailP(s);
+  const m = $('.modal'); if (!m || !(s.payments || []).length) return;
+  const dl = $('.dl', m); if (dl) dl.insertAdjacentHTML('beforeend', `<dt>Pago dividido</dt><dd style="white-space:normal">${s.payments.map(p => `${esc(p.method)} ${money(num(p.amount), 1)}${p.txn ? ' · TXN ' + esc(p.txn) : ''}`).join('<br>')}</dd>`);
+};
+
+/* =========================================================
+   IMPRIMIR / DESCARGAR para recepción:
+   - Agenda del día (o próximos 14 días) con cobros: para cotejar en Excel.
+   - Productos e insumos del día: lo que salió del inventario (ventas a clientas,
+     entregas a lashistas) y lo que entró, para capturarlo en Clover.
+   ========================================================= */
+const payText = s => !s ? '' : (s.payments || []).length > 1 ? s.payments.map(p => `${p.method} ${money(num(p.amount), 1)}`).join(' + ') : s.method || '';
+const txnText = s => !s ? '' : (s.payments || []).length > 1 ? s.payments.map(p => p.txn).filter(Boolean).join(' · ') : s.txn || '';
+function pdfTable(doc, startY, title, head, body, money0) {
+  let y = startY; if (y > doc.internal.pageSize.getHeight() - 110) { doc.addPage(); y = 50; }
+  if (title) { doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(58, 42, 46); doc.text(title, 40, y); y += 6; }
+  const cs = {}; (money0 || []).forEach(i => { cs[i] = { halign: 'right' }; });
+  doc.autoTable({ startY: y, head: [head], body: body.map(r => r.map(v => v == null ? '' : String(v))), theme: 'grid', margin: { left: 40, right: 40 },
+    styles: { font: 'helvetica', fontSize: 8, cellPadding: 3.5, textColor: [58, 42, 46], lineColor: [239, 228, 223], lineWidth: 0.5, overflow: 'linebreak' }, headStyles: { fillColor: [244, 194, 194], textColor: [58, 42, 46] }, columnStyles: cs });
+  return doc.lastAutoTable.finalY + 22;
+}
+
+/* ---------- Agenda ---------- */
+const AgendaPrint = {
+  rows() {
+    const f = S.ag, t = Dates.today(), from = f.range === 'dia' ? f.day : t, to = f.range === 'dia' ? f.day : t + 13;
+    const appts = Store.appointments.filter(a => a.day >= from && a.day <= to).sort((a, b) => a.day - b.day || (a.time || '99').localeCompare(b.time || '99'));
+    const out = []; let n = 0, lastDay = null;
+    appts.forEach(a => {
+      if (a.day !== lastDay) { n = 0; lastDay = a.day; } n++;
+      const s = a.saleId ? Store.sales.find(x => x.id === a.saleId) : null, xs = (a.extraSaleIds || []).map(id => Store.sales.find(x => x.id === id)).filter(Boolean), d = apptDeposit(a);
+      const tot = s ? r2([s].concat(xs).reduce((t2, x) => t2 + x.price - x.discount + x.tip, 0)) : null;
+      out.push({ day: a.day, n, time: a.time || '', client: apptClient(a), phone: a.phone || '', artist: a.artistName, service: a.serviceName + ((a.addons || []).length ? ' + ' + a.addons.map(x => x.serviceName).join(', ') : '') + (xs.length ? ' + ' + xs.map(x => x.service).join(', ') : ''),
+        price: num(a.price) + (typeof AddOns !== 'undefined' ? AddOns.total(a) : 0), tip: s ? r2([s].concat(xs).reduce((t2, x) => t2 + x.tip, 0)) : '', deposit: d ? `${money(d.amount, 1)} ${d.method}${d.txn ? ' · ' + d.txn : ''}` : '', depAmount: d ? num(d.amount) : 0,
+        paid: tot == null ? '' : r2(tot - (s.depositAmount || 0)), method: payText(s), txn: txnText(s), status: a.status, cashier: s ? s.cashierName || '' : '' });
+    });
+    const linked = new Set(Store.appointments.flatMap(a => [a.saleId].concat(a.extraSaleIds || [])).filter(Boolean));
+    const walk = Store.sales.filter(s => s.source === 'app' && s.day >= from && s.day <= Math.min(to, t) && !linked.has(s.id) && !s.payGroup).sort((a, b) => a.day - b.day || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    walk.forEach((s, i) => { const kids = Store.sales.filter(x => x.payGroup === s.id), all = [s].concat(kids);
+      out.push({ day: s.day, n: 'S' + (i + 1), time: hhmm(s.createdAt), client: client(s), phone: '', artist: s.artistName, service: s.service + (kids.length ? ' + ' + kids.map(x => x.service).join(', ') : ''), price: r2(all.reduce((t, x) => t + x.price - x.discount, 0)), tip: r2(all.reduce((t, x) => t + x.tip, 0)), deposit: s.depositAmount ? `${money(s.depositAmount, 1)} ${s.depositMethod || ''}` : '', depAmount: s.depositAmount || 0, paid: r2(all.reduce((t, x) => t + x.price - x.discount + x.tip, 0) - (s.depositAmount || 0)), method: payText(s), txn: txnText(s), status: 'Cobrado sin cita', cashier: s.cashierName || '' }); });
+    return { from, to, rows: out.sort((a, b) => a.day - b.day) };
+  },
+  head: ['Fecha', '#', 'Hora', 'Clienta', 'Teléfono', 'Lashista', 'Servicio', 'Precio', 'Depósito', 'Cobrado hoy', 'Tip', 'Forma de pago', 'TXN', 'Estado', 'Cobró'],
+  aoa(d) { return d.rows.map(r => [Dates.toISO(r.day), r.n, r.time, r.client, r.phone, r.artist, r.service, r.price, r.deposit, r.paid, r.tip, r.method, r.txn, r.status, r.cashier]); },
+  label(d) { return d.from === d.to ? Dates.fmt(d.from, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : `${Dates.fmt(d.from)} – ${Dates.fmt(d.to)}`; },
+  excel() { const d = this.rows(); if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
+    const ws = XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Agenda · ${this.label(d)}`], []].concat([this.head]).concat(this.aoa(d))), wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Agenda');
+    Exporter.save(`Agenda_${Dates.toISO(d.from)}${d.from === d.to ? '' : '_a_' + Dates.toISO(d.to)}.xlsx`, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })])); },
+  pdf() { const d = this.rows(), doc = Pdf.doc(true); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+    Pdf.header(doc, 'Agenda y cobros', this.label(d));
+    const fm = v => typeof v === 'number' ? money(v, 1) : v;
+    const sum = k => r2(d.rows.reduce((t, r) => t + num(r[k]), 0));
+    pdfTable(doc, 104, '', ['#', 'Hora', 'Clienta', 'Lashista', 'Servicio', 'Precio', 'Depósito', 'Cobrado hoy', 'Tip', 'Forma de pago', 'TXN', 'Estado'].concat(d.from === d.to ? [] : ['Fecha']),
+      d.rows.map(r => [r.n, r.time, r.client, r.artist, r.service, fm(r.price), r.deposit, r.paid === '' ? '' : fm(r.paid), r.tip === '' ? '' : fm(r.tip), r.method, r.txn, r.status].concat(d.from === d.to ? [] : [Dates.fmt(r.day, { day: '2-digit', month: 'short' })]))
+        .concat([['', '', `${d.rows.length} renglones`, '', 'Totales', money(sum('price'), 1), money(sum('depAmount'), 1), money(sum('paid'), 1), money(sum('tip'), 1), '', '', ''].concat(d.from === d.to ? [] : [''])]), [5, 7, 8]);
+    Pdf.save(doc, `Agenda_${Dates.toISO(d.from)}`); },
+};
+const _agHtmlPr = Views.agenda.html, _agMountPr = Views.agenda.mount;
+Views.agenda.html = function () { return _agHtmlPr.call(this).replace('<div class="chips"><button class="btn primary" data-newappt', `<div class="chips"><button class="btn" data-agpdf>${ic('dl')}Imprimir (PDF)</button><button class="btn" data-agxls>${ic('dl')}Excel</button><button class="btn primary" data-newappt`); };
+Views.agenda.mount = function (root) { _agMountPr.call(this, root); const a = $('[data-agpdf]', root), b = $('[data-agxls]', root); if (a) a.onclick = () => AgendaPrint.pdf(); if (b) b.onclick = () => AgendaPrint.excel(); };
+
+/* ---------- Productos e insumos del día ---------- */
+const DayProducts = {
+  build(day) {
+    const iso = Dates.toISO(day);
+    const sold = (Store.moves || []).filter(m => m.type === 'Venta en salón' && m.date === iso).map(m => ({ code: m.code, name: m.name || (Store.product(m.code) || {}).name || m.code, qty: num(m.qty), price: num(m.unitPrice), amount: r2(num(m.qty) * num(m.unitPrice)), who: m.client || '', type: m.buyerType || 'Público', method: m.method || '', txn: m.txn || '' }));
+    const loc = ts => { const t = new Date(ts); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+    const deliv = Store.requests.filter(r => r.deliveredAt && loc(r.deliveredAt) === iso).flatMap(r => r.items.filter(i => i.state === 'Entregado').map(i => { const p = Store.product(i.code) || {}; return { code: i.code, name: i.name, qty: num(i.qty), price: num(p.priceArtist), amount: r2(num(i.qty) * num(p.priceArtist)), who: r.artistName, by: r.deliveredByName || '' }; }));
+    const delivered = deliv;
+    const inMoves = (Store.moves || []).filter(m => m.type === 'Compra' && m.date === iso).map(m => ({ code: m.code, name: m.name || (Store.product(m.code) || {}).name || m.code, qty: num(m.qty), to: m.to === 'salon' ? 'Salón' : 'Bodega', cost: m.unitCost, notes: m.notes || '' }));
+    const pays = (Store.notePayments || []).filter(p => p.day === day).map(p => ({ who: p.artistName, invoice: p.invoice, amount: num(p.amount), method: p.method, txn: p.txn || '' }));
+    const tot = new Map(); const add = (c, n, k, q) => { const o = tot.get(c) || { code: c, name: n, sold: 0, deliv: 0, inq: 0 }; o[k] += q; tot.set(c, o); };
+    sold.forEach(x => add(x.code, x.name, 'sold', x.qty)); delivered.forEach(x => add(x.code, x.name, 'deliv', x.qty)); inMoves.forEach(x => add(x.code, x.name, 'inq', x.qty));
+    const st = Store.stock();
+    const byProd = [...tot.values()].map(o => ({ ...o, out: o.sold + o.deliv, salon: (st.get(o.code) || { salon: 0 }).salon })).sort((a, b) => a.name.localeCompare(b.name));
+    return { day, sold, delivered, inMoves, pays, byProd };
+  },
+  aoaSheets(d) {
+    return {
+      'Para Clover (resumen)': [['Código', 'Producto', 'Vendido a clientas', 'Entregado a lashistas', 'Total que sale', 'Entró (compra)', 'Queda en salón']].concat(d.byProd.map(o => [o.code, o.name, o.sold, o.deliv, o.out, o.inq, o.salon])),
+      'Ventas a clientas': [['Código', 'Producto', 'Cantidad', 'Precio', 'Total', 'Tipo', 'Cliente', 'Método', 'TXN']].concat(d.sold.map(x => [x.code, x.name, x.qty, x.price, x.amount, x.type, x.who, x.method, x.txn])),
+      'Insumos entregados': [['Código', 'Producto', 'Cantidad', 'Lashista', 'Precio lashista', 'Subtotal', 'Entregó']].concat(d.delivered.map(x => [x.code, x.name, x.qty, x.who, x.price, x.amount, x.by])),
+      'Entradas de mercancía': [['Código', 'Producto', 'Cantidad', 'A dónde', 'Costo', 'Nota']].concat(d.inMoves.map(x => [x.code, x.name, x.qty, x.to, x.cost == null ? '' : x.cost, x.notes])),
+      'Pagos de lashistas': [['Lashista', 'Invoice', 'Monto', 'Método', 'TXN']].concat(d.pays.map(x => [x.who, x.invoice, x.amount, x.method, x.txn])),
+    };
+  },
+  excel(day) { const d = this.build(day), wb = XLSX.utils.book_new(), sh = this.aoaSheets(d), lab = Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    Object.entries(sh).forEach(([n, rows]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · ${n} · ${lab}`], []].concat(rows)), n.slice(0, 31)));
+    Exporter.save(`Productos_e_insumos_${Dates.toISO(day)}.xlsx`, new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })])); },
+  pdf(day) { const d = this.build(day), doc = Pdf.doc(false); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+    Pdf.header(doc, 'Productos e insumos del día', Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+    let y = pdfTable(doc, 104, 'Para Clover: lo que sale del inventario', ['Código', 'Producto', 'Vendido', 'A lashistas', 'Sale total', 'Entró', 'Queda en salón'], d.byProd.map(o => [o.code, o.name, o.sold || '', o.deliv || '', o.out, o.inq || '', o.salon]));
+    if (!d.byProd.length) { doc.setFontSize(9); doc.text('Sin movimientos de productos este día.', 40, y); y += 20; }
+    if (d.sold.length) y = pdfTable(doc, y, 'Ventas de producto a clientas', ['Producto', 'Cant.', 'Precio', 'Total', 'Tipo', 'Cliente', 'Método', 'TXN'], d.sold.map(x => [x.name, x.qty, money(x.price, 1), money(x.amount, 1), x.type, x.who, x.method, x.txn]), [2, 3]);
+    if (d.delivered.length) y = pdfTable(doc, y, 'Insumos entregados a lashistas', ['Producto', 'Cant.', 'Lashista', 'Precio lashista', 'Subtotal', 'Entregó'], d.delivered.map(x => [x.name, x.qty, x.who, money(x.price, 1), money(x.amount, 1), x.by]), [3, 4]);
+    if (d.inMoves.length) y = pdfTable(doc, y, 'Entradas de mercancía', ['Producto', 'Cant.', 'A dónde', 'Nota'], d.inMoves.map(x => [x.name, x.qty, x.to, x.notes]));
+    if (d.pays.length) y = pdfTable(doc, y, 'Pagos de lashistas', ['Lashista', 'Invoice', 'Monto', 'Método', 'TXN'], d.pays.map(x => [x.who, '#' + x.invoice, money(x.amount, 1), x.method, x.txn]), [2]);
+    Pdf.save(doc, `Productos_e_insumos_${Dates.toISO(day)}`); },
+};
+const _diaHtmlPr = Views.dia.html, _diaMountPr = Views.dia.mount;
+Views.dia.html = function () {
+  return _diaHtmlPr.call(this).replace('<section class="panel"><h2>Productos e insumos del día</h2>', `<section class="panel"><div class="chips no-print" style="float:right"><button class="btn sm" data-dppdf>${ic('dl')}Imprimir para Clover (PDF)</button><button class="btn sm" data-dpxls>${ic('dl')}Excel</button></div><h2>Productos e insumos del día</h2>`);
+};
+Views.dia.mount = function (root) { _diaMountPr.call(this, root); const a = $('[data-dppdf]', root), b = $('[data-dpxls]', root); if (a) a.onclick = () => DayProducts.pdf(S.dia.day); if (b) b.onclick = () => DayProducts.excel(S.dia.day); };
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
