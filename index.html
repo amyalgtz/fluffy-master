@@ -239,6 +239,10 @@ label.field{position:relative}
 .splitleft{font-size:13px}.muted-field{opacity:.45}
 @media (max-width:640px){.payhead{display:none}.payline{grid-template-columns:1fr 90px}}
 .splitswitch{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.splitswitch>span{font-size:12.5px;color:var(--muted);font-weight:600}
+.caja{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:-8px 0 26px}.caja:has(.none){grid-template-columns:1fr 1.4fr 1fr}
+.cajabox{border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}.cajabox span{font-size:13px;font-weight:700;color:var(--muted)}.cajabox b{font-size:28px;letter-spacing:-.01em}.cajabox small{font-size:12px;color:var(--muted);line-height:1.4}
+.cajabox.cash{border-left:5px solid #2E7D4F}.cajabox.tx{border-left:5px solid var(--gold)}.cajabox.none{border-left:5px solid var(--bad)}
+@media (max-width:640px){.caja,.caja:has(.none){grid-template-columns:1fr}}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -312,7 +316,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-15 15:04';
+window.FM_VERSION = '2026-10-16 00:49';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -929,7 +933,7 @@ const UI = {
       <nav class="nav">${NAV.map(n => `<a class="${n.sub ? 'sub ' : ''}${UI.route === n.id ? 'on' : ''}" data-go="${n.id}">${n.sub ? '' : ic(n.icon)}${n.label}${n.soon ? '<span class="soon">Fase 2</span>' : ''}</a>`).join('')}</nav>
       <div class="side-foot">${Store.dbState === 'on' ? (Store.canWrite === false ? 'Solo lectura: puedes consultar, no registrar.' : 'Los registros nuevos se guardan en la nube.') : Store.dbState === 'connecting' ? 'Conectando…' : 'Modo consulta: abre la app desde Claude para registrar.'}
       <br><button data-theme-toggle>Cambiar tema</button></div>`;
-    const tabs = [['dashboard', 'Inicio', 'dash'], ['recepcion', 'Recepción', 'desk'], ['nueva', 'Cobrar', 'plus'], ['dia', 'Hoja del día', 'day'], ['mas', 'Más', 'more']];
+    const tabs = [['dashboard', 'Inicio', 'dash'], ['agenda', 'Agenda', 'cal'], ['nueva', 'Cobrar', 'plus'], ['dia', 'Hoja del día', 'day'], ['mas', 'Más', 'more']];
     $('#bottom').innerHTML = tabs.map(([id, l, i]) => `<a data-go="${id}" class="${UI.route === id ? 'on' : ''} ${id === 'nueva' ? 'plus' : ''}">${id === 'nueva' ? `<span class="p">${ic(i)}</span>` : ic(i)}${l}</a>`).join('');
   },
   render() {
@@ -4155,14 +4159,14 @@ Views.resumen = {
 
 Summary.download = function (kind, d) {
   const label = Summary.label(d.from, d.to), file = `Resumen_ventas_${Dates.toISO(d.from)}${d.from === d.to ? '' : '_a_' + Dates.toISO(d.to)}`, rec = Mode.reception;
-  const resumen = [['Concepto', 'Monto'], ['Ventas de servicios', d.tot.ventas], ['Descuentos', d.tot.descuentos], ['Tips', d.tot.tips], ['Productos en salón', d.tot.productos], ['Pagos de lashistas', d.tot.lashistas], ['Total del periodo (servicios − descuentos + tips + productos)', d.tot.totalDia], ['Paquetes vendidos', d.tot.paquetes], ['Sesiones de paquetes ya pagadas (no suman al dinero)', d.tot.prepaid], ['Dinero recibido', d.tot.recibido]];
+  const resumen = [['Concepto', 'Monto'], ['Ventas de servicios', d.tot.ventas], ['Descuentos', d.tot.descuentos], ['Tips', d.tot.tips], ['Productos en salón', d.tot.productos], ['Pagos de lashistas', d.tot.lashistas], ['Total del periodo (servicios − descuentos + tips + productos)', d.tot.totalDia], ['Paquetes vendidos', d.tot.paquetes], ['Sesiones de paquetes ya pagadas (no suman al dinero)', d.tot.prepaid], ['Dinero recibido', d.tot.recibido]].concat(typeof Caja !== 'undefined' ? (c => [['   Efectivo', c.cash], ['   Transacciones (tarjeta, Zelle, Cash App…)', c.tx]].concat(c.none ? [['   Sin método registrado', c.none]] : []))(Caja.split(d)) : []);
   const metodos = [['Método', 'Monto', 'Detalle']].concat(d.methods.map(x => [x.key, x.value, x.detail]));
   const lash = [['Lashista', 'Servicios', 'Ventas', 'Tips', ...(rec ? [] : ['Comisión'])]].concat(d.byArt.map(a => [a.name, a.count, a.ventas, a.tips, ...(rec ? [] : [a.comision])]));
   const svc = [['Servicio', 'Cantidad', 'Ventas', 'Ventas netas']].concat(d.bySvc.map(x => [x.key, x.count, x.value, x.netas]));
   const prod = [['Fecha', 'Producto', 'Cantidad', 'Monto', 'Método', 'TXN', 'Cliente']].concat(d.prods.map(p => [Dates.toISO(p.date), p.name, p.qty, p.amount, p.method, p.txn, p.client]));
   const pays = [['Fecha', 'Lashista', 'Invoice', 'Monto', 'Método', 'TXN']].concat(d.pays.map(p => [Dates.toISO(p.date), p.artist, p.invoice, p.amount, p.method, p.txn]));
   const pk = [['Clienta', 'Paquete', 'Monto', 'Método', 'TXN']].concat(d.pkgs.map(p => [p.client, p.what, p.amount, p.method, p.txn]));
-  const det = [['Fecha', 'Lashista', 'Servicio', 'Clienta', 'Precio', 'Descuento', 'Tip', 'Método', 'TXN', 'Depósito']].concat(d.sales.slice().sort((a, b) => a.day - b.day).map(s => [Dates.toISO(s.day), s.artistName, s.service, client(s), s.price, s.discount, s.tip, s.method || '', s.txn || '', s.depositAmount || 0]));
+  const det = [['Fecha', 'Lashista', 'Servicio', 'Clienta', 'Precio', 'Descuento', 'Tip', 'Método', 'TXN', 'Depósito']].concat(d.sales.slice().sort((a, b) => a.day - b.day).map(s => [Dates.toISO(s.day), s.artistName, s.service, client(s), s.price, s.discount, s.tip, (typeof payText !== 'undefined' ? payText(s) : s.method) || '', (typeof txnText !== 'undefined' ? txnText(s) : s.txn) || '', s.depositAmount || 0]));
   if (kind === 'xlsx') {
     if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true);
     const wb = XLSX.utils.book_new(), add = (name, rows) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Resumen de ventas · ${label}`], []].concat(rows)), name);
@@ -5988,6 +5992,48 @@ const SplitPay = {
   };
   const _savePkgS = Store.savePackage.bind(Store);
   Store.savePackage = function (data, id) { const sp = Store._pkgSplit; if (sp && !id) data = { ...data, method: sp.method, txn: sp.txn, payments: sp.payments }; return _savePkgS(data, id); };
+}
+
+/* =========================================================
+   CAJA: cuánto entró en EFECTIVO y cuánto en TRANSACCIONES (tarjeta, Zelle, Cash App,
+   Apple Cash, Venmo, PayPal…), en la Hoja del día y en el Resumen de ventas.
+   Usa el dinero recibido: depósitos aplicados, pagos divididos, productos, paquetes y pagos de lashistas.
+   ========================================================= */
+const Caja = {
+  split(d) {
+    const ms = d.methods || [], cash = ms.filter(x => /^efectivo$/i.test(x.key)), none = ms.filter(x => /sin registrar/i.test(x.key)), other = ms.filter(x => !cash.includes(x) && !none.includes(x));
+    const sum = l => r2(l.reduce((t, x) => t + x.value, 0));
+    return { cash: sum(cash), tx: sum(other), none: sum(none), other: other.sort((a, b) => b.value - a.value) };
+  },
+  html(d, title) {
+    const c = this.split(d);
+    return `<section class="caja"><div class="cajabox cash"><span>💵 Efectivo</span><b>${money(c.cash, 1)}</b><small>lo que debe haber en caja</small></div>
+      <div class="cajabox tx"><span>💳 Transacciones</span><b>${money(c.tx, 1)}</b><small>${c.other.length ? c.other.map(x => `${esc(x.key)} ${money(x.value)}`).join(' · ') : 'tarjeta, Zelle, Cash App, Apple Cash…'}</small></div>
+      ${c.none ? `<div class="cajabox none"><span>Sin método registrado</span><b>${money(c.none, 1)}</b><small>revisa esos cobros y ponles método</small></div>` : ''}</section>`;
+  },
+};
+/* Hoja del día: arriba, debajo de los indicadores */
+{
+  const H = Views.dia.html;
+  Views.dia.html = function () { const h = H.call(this), d = Summary.build(S.dia.day, S.dia.day); return h.replace(/(<section class="kpis"[\s\S]*?<\/section>)/, m0 => m0 + Caja.html(d)); };
+}
+/* Resumen de ventas: efectivo / transacciones y la lista de cobros con su método de pago */
+{
+  const H = Views.resumen.html, M = Views.resumen.mount;
+  Views.resumen.html = function () {
+    let h = H.call(this); const d = this._d; if (!d) return h;
+    h = h.replace(/(<section class="kpis"[\s\S]*?<\/section>)/, m0 => m0 + Caja.html(d));
+    const list = d.sales.filter(s => !s.payGroup).slice().sort((a, b) => a.day - b.day || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+    const kids = id => d.sales.filter(x => x.payGroup === id);
+    const rows = list.slice(-400).map(s => { const all = [s].concat(kids(s.id)), tot = r2(all.reduce((t, x) => t + x.price - x.discount + x.tip, 0)), dep = s.depositAmount || 0;
+      return [Dates.fmt(s.day, { day: '2-digit', month: 'short' }) + (d.from === d.to ? ' · ' + hhmm(s.createdAt) : ''), client(s), s.artistName, s.service + (kids(s.id).length ? ' + ' + kids(s.id).map(x => x.service).join(', ') : ''), money(tot, 1),
+        dep ? `${money(dep)} ${s.depositMethod || ''}` : '—', s.method === 'Paquete prepagado' ? 'Paquete prepagado' : payText(s) || 'Sin registrar', txnText(s) || '—']; });
+    const tbl = `<section class="panel"><h2>Cobros ${d.from === d.to ? 'del día' : 'del periodo'}</h2><p class="hint">Cada cobro con su forma de pago. Si se dividió, aparecen las dos partes.</p>
+      ${table([{ label: 'Fecha' }, { label: 'Clienta' }, { label: 'Lashista' }, { label: 'Servicio' }, { label: 'Total', r: 1 }, { label: 'Depósito' }, { label: 'Forma de pago' }, { label: 'TXN' }], rows, null, { emptyTitle: 'Sin cobros', empty: '' })}
+      ${list.length > 400 ? `<p class="formula">Mostrando los últimos 400 de ${intf(list.length)}. El Excel trae todos.</p>` : ''}</section>`;
+    return h.replace('<section class="panel"><h2>Por servicio</h2>', tbl + '<section class="panel"><h2>Por servicio</h2>');
+  };
+
 }
 
 /* =========================================================
