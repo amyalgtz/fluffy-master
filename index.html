@@ -247,6 +247,7 @@ label.field{position:relative}
 .cortebox .corteline .inp{max-width:150px;text-align:right}.cortebox .corteline.total{font-size:16px;border-bottom:2px solid var(--gold)}.cortebox .corteline.total b{font-size:20px}
 .cortebox .corteline.ok b{color:var(--ok)}.cortebox .corteline.bad b{color:var(--bad)}
 .salline{display:grid;grid-template-columns:1fr 110px 34px;gap:8px;margin-top:6px}.cortebox .salline .inp{max-width:none;text-align:left}.cortebox .salline .inp.num{text-align:right}
+.latebox{border-color:var(--gold);background:var(--blush)}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -320,7 +321,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-16 01:21';
+window.FM_VERSION = '2026-10-16 01:27';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -6150,6 +6151,92 @@ if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(RECEP_MENU.findIndex(x 
   Views.dia.html = function () { const h = H.call(this), c = CashLog.total(S.dia.day);
     return h.replace(/<div class="cajabox cash"><span>💵 Efectivo<\/span><b>[^<]*<\/b><small>[^<]*<\/small><\/div>/, `<div class="cajabox cash"><span>💵 Efectivo</span><b>${money(c, 1)}</b><small>lo que debe haber en caja · <button class="linkbtn" data-tocorte>ver detalle y hacer corte</button></small></div>`); };
   Views.dia.mount = function (root) { M.call(this, root); const b = $('[data-tocorte]', root); if (b) b.onclick = () => { S.caja.day = S.dia.day; UI.go('caja'); }; };
+}
+
+/* =========================================================
+   COBROS REGISTRADOS AL DÍA SIGUIENTE (servicios después de las 7 pm).
+   - La venta queda con la FECHA DEL SERVICIO (ventas, payroll, Hoja del día de ese día).
+   - El CORTE DE CAJA cuenta el dinero el día en que se REGISTRÓ en la app
+     (que es cuando recepción lo recibe y lo mete a caja).
+   - Al cobrar una cita de un día anterior, se usa la fecha de la cita.
+   - Panel de hoy muestra las citas de días anteriores que quedaron sin cobrar.
+   ========================================================= */
+const regDay = o => o && o.createdAt ? Dates.fromISO(locISO(o.createdAt)) : (o ? o.day : null);
+CashLog.entries = function (day) {
+  const iso = Dates.toISO(day), out = [], late = d => d != null && d !== day ? `servicio del ${Dates.fmt(d, { weekday: 'short', day: 'numeric', month: 'short' })}, registrado este día` : '';
+  Store.sales.filter(s => s.source === 'app' && !s.payGroup && regDay(s) === day).forEach(s => {
+    const kids = Store.sales.filter(x => x.payGroup === s.id), all = [s].concat(kids), tot = r2(all.reduce((t, x) => t + x.price - x.discount + x.tip, 0));
+    const split = (s.payments || []).length > 1, cash = split ? cashOf(s.payments) : isCash(s.method) ? r2(tot - (s.depositAmount || 0)) : 0;
+    if (cash > 0) out.push({ ts: s.createdAt, kind: 'Servicio', who: client(s), detail: `${s.service}${kids.length ? ' + ' + kids.map(x => x.service).join(', ') : ''} · ${s.artistName}`, total: tot, amount: cash, late: late(s.day),
+      note: [split ? 'parte en efectivo de un pago dividido' : '', s.depositAmount ? `depósito de ${money(s.depositAmount)} ya cobrado antes` : ''].filter(Boolean).join(' · '), by: s.cashierName || '' });
+  });
+  Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && d.createdAt && locISO(d.createdAt) === iso).forEach(d =>
+    out.push({ ts: d.createdAt, kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', late: '', by: d.createdByName || '' }));
+  const mv = (Store.moves || []).filter(m => m.type === 'Venta en salón' && (m.createdAt ? locISO(m.createdAt) === iso : m.date === iso));
+  mv.forEach(m => {
+    if (m.payGroup && !m.payLead) return;
+    const grp = m.payGroup ? mv.filter(x => x.payGroup === m.payGroup) : [m], tot = r2(grp.reduce((t, x) => t + num(x.qty) * num(x.unitPrice), 0));
+    const cash = m.payGroup ? cashOf(m.payments) : isCash(m.method) ? tot : 0;
+    if (cash > 0) out.push({ ts: m.createdAt || '', kind: 'Producto', who: m.client || 'Clienta', detail: grp.map(x => `${x.name || x.code} × ${num(x.qty)}`).join(', '), total: tot, amount: cash, late: late(Dates.fromISO(m.date)), note: m.payGroup ? 'parte en efectivo de un pago dividido' : '', by: m.byName || '' });
+  });
+  (Store.packages || []).filter(p => regDay(p) === day).forEach(p => { const tot = r2(num(p.total) + num(p.tipTotal)), cash = (p.payments || []).length > 1 ? cashOf(p.payments) : isCash(p.method) ? tot : 0;
+    if (cash > 0) out.push({ ts: p.createdAt, kind: 'Paquete', who: title(((p.first || '') + ' ' + (p.last || '')).trim()), detail: `${p.serviceName} × ${p.sessions}`, total: tot, amount: cash, late: late(p.day), note: (p.payments || []).length > 1 ? 'parte en efectivo de un pago dividido' : '', by: p.createdByName || '' }); });
+  (Store.notePayments || []).filter(p => regDay(p) === day && isCash(p.method)).forEach(p => out.push({ ts: p.createdAt, kind: 'Pago de lashista', who: p.artistName, detail: `nota #${p.invoice}`, total: num(p.amount), amount: num(p.amount), late: late(p.day), note: '', by: p.byName || '' }));
+  return out.sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || '')));
+};
+/* Corte: avisos de cobros de otros días y de cobros registrados después del corte guardado */
+{
+  const H = Views.caja.html;
+  Views.caja.html = function () {
+    let h = H.call(this); const day = S.caja.day, ent = CashLog.entries(day), sv = CashLog.saved(day);
+    // marca en el detalle los que son de otro día
+    ent.forEach(e => { if (e.late) h = h.replace(`<b>${esc(e.who)}</b></td><td style="white-space:normal">${esc(e.detail)}`, `<b>${esc(e.who)}</b><br><span class="tag warn" style="font-size:11px">${esc(e.late.split(',')[0])}</span></td><td style="white-space:normal">${esc(e.detail)}`); });
+    const after = sv ? ent.filter(e => e.ts && e.ts > sv.savedAt) : [];
+    const lateSum = r2(ent.filter(e => e.late).reduce((t, e) => t + e.amount, 0));
+    const banners = (lateSum ? `<div class="banner">Incluye <b>${money(lateSum, 1)}</b> de servicios de días anteriores que se registraron este día (por ejemplo, citas después de las 7 pm). En ventas y payroll cuentan en la fecha del servicio; en caja, hoy.</div>` : '')
+      + (after.length ? `<div class="banner" style="border-color:var(--bad)">Después del corte guardado (${esc(hhmm(sv.savedAt))}) se registraron <b>${after.length}</b> cobros en efectivo por <b>${money(r2(after.reduce((t, e) => t + e.amount, 0)), 1)}</b>. Vuelve a contar y guarda el corte otra vez.</div>` : '');
+    return h.replace('<section class="kpis"', banners + '<section class="kpis"');
+  };
+}
+/* Hoja del día: el recuadro de efectivo es de los servicios del día; el corte puede diferir por cobros registrados otro día */
+{
+  const H = Views.dia.html;
+  Views.dia.html = function () {
+    let h = H.call(this); const d = Summary.build(S.dia.day, S.dia.day), c = Caja.split(d), reg = CashLog.total(S.dia.day);
+    h = h.replace(/<div class="cajabox cash"><span>💵 Efectivo<\/span><b>[^<]*<\/b><small>[\s\S]*?<\/small><\/div>/, `<div class="cajabox cash"><span>💵 Efectivo</span><b>${money(c.cash, 1)}</b><small>de los servicios de este día${Math.abs(reg - c.cash) >= 0.01 ? ` · en caja (registrado este día): <b>${money(reg, 1)}</b>` : ''} · <button class="linkbtn" data-tocorte>corte de caja</button></small></div>`);
+    const late = Store.sales.filter(s => s.source === 'app' && s.day === S.dia.day && s.createdAt && regDay(s) !== s.day);
+    if (late.length) h = h.replace('<section class="panel"><h2>Servicios del día</h2>', `<section class="panel"><h2>Registrados después</h2><p class="hint">Servicios de este día que se capturaron en otro día (por ejemplo, citas después de las 7 pm).</p>
+      ${table([{ label: 'Clienta' }, { label: 'Servicio' }, { label: 'Lashista' }, { label: 'Total', r: 1 }, { label: 'Pago' }, { label: 'Registrado' }], late.map(s => [client(s), s.service, s.artistName, money(r2(s.price - s.discount + s.tip), 1), payText(s) || 'Sin registrar', `${Dates.fmt(regDay(s), { day: '2-digit', month: 'short' })} ${hhmm(s.createdAt)} · ${s.cashierName || ''}`]))}</section><section class="panel"><h2>Servicios del día</h2>`);
+    return h;
+  };
+}
+/* Cobrar una cita de un día anterior: la venta queda con la fecha de la cita */
+{
+  const C = chargeAppt;
+  chargeAppt = function (a) {
+    C(a);
+    const f = Views.nueva.form, t = Dates.today();
+    if (f && a.day != null && a.day < t && a.day >= t - 14) { f.date = a.date; UI.render(); }
+  };
+  const H = Views.nueva.html;
+  Views.nueva.html = function () {
+    const h = H.call(this), f = this.form; if (!f || S.cobro.tipo !== 'servicio' || UI.params.edit) return h;
+    const d = Dates.fromISO(f.date), t = Dates.today();
+    if (d == null || d >= t) return h;
+    return h.replace('<div class="sale-layout">', `<div class="banner">Este cobro es de un servicio del <b>${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long' }))}</b>. En ventas y payroll queda en esa fecha; en el corte de caja cuenta hoy, que es cuando se registra.</div><div class="sale-layout">`);
+  };
+}
+/* Panel de hoy: citas de días anteriores que quedaron sin cobrar */
+{
+  const H = Views.recepcion.html, M = Views.recepcion.mount;
+  Views.recepcion.html = function () {
+    const h = H.call(this), t = Dates.today(), pend = Store.appointments.filter(a => a.status === 'Agendada' && a.day < t && a.day >= t - 7).sort((a, b) => a.day - b.day || (a.time || '').localeCompare(b.time || ''));
+    if (!pend.length) return h;
+    const block = `<section class="panel latebox"><h2>⚠︎ Citas de días anteriores sin cobrar</h2><p class="hint">Probablemente fueron después de que se fue recepción. Cóbralas aquí: quedan con la fecha de la cita. Si no llegó, ábrela en la Agenda y márcala como no-show.</p>
+      <ul class="rlist">${pend.map(a => { const d = apptDeposit(a); return `<li><div><b>${esc(Dates.fmt(a.day, { weekday: 'short', day: 'numeric', month: 'short' }))}${a.time ? ' · ' + esc(a.time) : ''} · ${esc(apptClient(a))}</b><br><span class="mutedc">${esc(a.artistName)} · ${esc(a.serviceName)}${d ? ' · depósito ' + money(d.amount) : ''}</span></div><div class="ra">${Store.writable() ? `<button class="btn sm primary" data-latepay="${a.id}">Cobrar</button>` : ''}</div></li>`; }).join('')}</ul></section>`;
+    return h.replace('<div class="grid2">', block + '<div class="grid2">');
+  };
+  Views.recepcion.mount = function (root) { M.call(this, root); $$('[data-latepay]', root).forEach(b => b.onclick = () => chargeAppt(Store.appointments.find(a => a.id === b.dataset.latepay))); };
 }
 
 /* =========================================================
