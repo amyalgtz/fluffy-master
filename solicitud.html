@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Solicitud de insumos · Fluffy Lashes</title>
+<title>Portal de lashistas · Fluffy Lashes</title>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -44,7 +44,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .sum{text-align:left;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
 .sum div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.sum div:last-child{border-bottom:0}
 .empty{color:var(--muted);padding:16px 14px}
-.tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;padding:10px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
+.weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
+.tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;font-size:14px;padding:10px 6px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
 .kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.kp div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kp span{display:block;font-size:12px;color:var(--muted);font-weight:700}.kp b{font-size:22px}
 .rq{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}.rq h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;gap:8px}.rq small{color:var(--muted);font-weight:400}
 .rq li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px}.rq ul{list-style:none;margin:0;padding:0}
@@ -60,15 +61,16 @@ h2{font-size:17px;margin:22px 0 4px}
   const cfg = window.FM_CONFIG || {}, app = $('#app');
   if (!cfg.url || !cfg.anonKey || /TU-PROYECTO|PEGA/.test(cfg.url + cfg.anonKey)) { app.innerHTML = '<p class="err">Falta configurar el sistema.</p>'; return; }
   const sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false } });
-  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false };
+  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false, week: null, wofs: 0 };
   try { S.artist = localStorage.getItem('fm-req-artist') || ''; } catch (e) {}
   const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
-  const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Solicitud de insumos</h1><p class="sub">Fluffy Lashes · recepción te los entrega y se cobran en tu nota del mes.</p></div></div>`;
+  const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Portal de lashistas</h1><p class="sub">Fluffy Lashes · pide insumos, revisa tus solicitudes y tu semana.</p></div></div>`;
 
-  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button></div>`;
-  const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); });
+  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button><button data-t="semana" class="${S.tab === 'semana' ? 'on' : ''}">Mi semana</button></div>`;
+  const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); if ((S.tab === 'mis' && !S.mine) || (S.tab === 'semana' && !S.week)) { const k = S.tab === 'mis' ? '#see' : '#seew', x = $(k); if (x && S.artist && /^\d{4,8}$/.test(S.pin)) x.click(); } });
   function render() {
     if (S.tab === 'mis') return renderMine();
+    if (S.tab === 'semana') return renderWeek();
     const cats = [...new Set(S.products.map(p => p.category))];
     const q = S.q.trim().toLowerCase();
     const list = S.products.filter(p => (!S.cat || p.category === S.cat) && (!q || (p.name + ' ' + p.code).toLowerCase().includes(q)));
@@ -123,6 +125,37 @@ h2{font-size:17px;margin:22px 0 4px}
       if (error || !data || !data.ok) { S.mine = null; renderMine(); $('#err').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); return; }
       S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] }; renderMine();
     };
+  }
+
+  const $$m = v => '$' + Number(v || 0).toFixed(2);
+  const fdate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  async function loadWeek() {
+    const err = t => { const e = $('#err'); if (e) e.textContent = t; };
+    if (!S.artist) return err('Elige tu nombre.');
+    if (!/^\d{4,8}$/.test(S.pin)) return err('Escribe tu clave (4 a 8 números).');
+    S.loading = true; renderWeek();
+    const { data, error } = await sb.rpc('fm_my_week', { p_artist: S.artist, p_pin: S.pin, p_offset: S.wofs });
+    S.loading = false;
+    if (error || !data || !data.ok) { S.week = null; renderWeek(); err((data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.')); return; }
+    S.week = data; renderWeek();
+  }
+  function renderWeek() {
+    const w = S.week; let body = '';
+    if (w) {
+      const t = w.totals || {}, byDay = {};
+      (w.rows || []).forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+      body = `<div class="weeknav2"><button class="chip" data-wk="-1">← Anterior</button><b>${esc(fdate(w.weekStart))} – ${esc(fdate(w.weekEnd))}</b><button class="chip" data-wk="1" ${S.wofs >= 0 ? 'disabled' : ''}>Siguiente →</button></div>
+        <div class="kp"><div><span>Servicios</span><b>${Number(t.count || 0)}</b></div><div><span>Ventas</span><b>${$$m(t.sales)}</b></div><div><span>Comisiones</span><b>${$$m(t.commission)}</b></div><div><span>Tips</span><b>${$$m(t.tips)}</b></div></div>
+        <div class="rq" style="border-color:var(--gold)"><h3><span>Total a recibir</span><b>${$$m(Number(t.commission || 0) + Number(t.tips || 0))}</b></h3><small>Comisiones + tips de la semana (viernes a jueves). No incluye descuentos de tu nota de insumos ni ajustes de administración.</small></div>
+        ${Object.keys(byDay).length ? Object.entries(byDay).map(([d, l]) => `<h2>${esc(fdate(d))}</h2>${l.map(r => `<div class="rq"><h3><span>${esc(r.service)}</span><small>${esc(r.client || '')}</small></h3><ul><li><span>Precio${Number(r.discount) ? ' (desc. ' + $$m(r.discount) + ')' : ''}</span><span>${$$m(Number(r.price) - Number(r.discount || 0))}</span></li><li><span>Tu comisión</span><b>${$$m(r.commission)}</b></li><li><span>Tip</span><span>${$$m(r.tip)}</span></li></ul></div>`).join('')}`).join('') : '<p class="sub" style="margin-top:14px">No hay servicios registrados en esta semana.</p>'}`;
+    }
+    app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
+      <p class="err" id="err"></p><button class="btn" id="seew" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : w ? 'Actualizar' : 'Ver mi semana'}</button>${body}`;
+    $('#art').onchange = e => { S.artist = e.target.value; S.week = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderWeek(); };
+    $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
+    $('#seew').onclick = loadWeek; bindTabs();
+    document.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.min(0, S.wofs + Number(b.dataset.wk)); loadWeek(); });
   }
 
   async function send() {
