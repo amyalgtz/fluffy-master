@@ -248,6 +248,9 @@ label.field{position:relative}
 .cortebox .corteline.ok b{color:var(--ok)}.cortebox .corteline.bad b{color:var(--bad)}
 .salline{display:grid;grid-template-columns:1fr 110px 34px;gap:8px;margin-top:6px}.cortebox .salline .inp{max-width:none;text-align:left}.cortebox .salline .inp.num{text-align:right}
 .latebox{border-color:var(--gold);background:var(--blush)}
+tbody tr.dupdel td{background:#FBECEE;text-decoration:line-through;text-decoration-color:rgba(179,38,30,.4)}tbody tr.dupdel td:first-child{text-decoration:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.dupdel td{background:#33202A}}:root[data-theme="dark"] tbody tr.dupdel td{background:#33202A}
+.panel.dupmaybe{border-left:4px solid #C9A227}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -321,7 +324,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-16 01:27';
+window.FM_VERSION = '2026-10-16 15:11';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4717,9 +4720,11 @@ Views.agenda.mount = function (root) {
    ========================================================= */
 const nameKey2 = (f, l) => String((f || '') + (l || '')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z]/g, '');
 const firstTok = f => String(f || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().split(/[\s.]+/)[0] || '';
+const nameToks = v => String(v || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ]/g, ' ').split(/\s+/).filter(t => t.length > 1);
+const namesLike = (a, b) => { const A = nameToks(a), B = nameToks(b); if (!A.length || !B.length) return false; if (A.join('') === B.join('')) return true; return A[0] === B[0] && (A.length === 1 || B.length === 1 || A[A.length - 1].slice(0, 3) === B[B.length - 1].slice(0, 3)) || (A.length > 1 && B.length > 1 && A[A.length - 1] === B[B.length - 1] && A[0][0] === B[0][0]); };
 const SaleCompare = {
   run(res, from, to) {
-    const app = Store.sales.filter(s => s.day >= from && s.day <= to), used = new Set(), out = [];
+    const app = Store.sales.filter(s => s.day >= from - 2 && s.day <= to + 2), used = new Set(), out = [];
     const ex = res.rows.filter(r => r.status !== 'error');
     const pass = (r, cond) => { const s = app.find(x => !used.has(x.id) && cond(x)); if (s) used.add(s.id); return s; };
     const svcEq = (s, r) => String(s.service).trim().toLowerCase() === String(r.serviceName).trim().toLowerCase();
@@ -4731,6 +4736,12 @@ const SaleCompare = {
       ['Diferente', (s, x) => s.day === x.r.day && x.ft && firstTok(s.first) === x.ft && (s.artistKey === x.r.artistId || svcEq(s, x.r))],
       ['Diferente', (s, x) => s.day === x.r.day && !nameKey2(s.first, s.last) && s.artistKey === x.r.artistId && svcEq(s, x.r)],
       ['Diferente', (s, x) => s.day === x.r.day && s.artistKey === x.r.artistId && svcEq(s, x.r) && Math.abs(s.price - x.r.price) < .01],
+      // nombres escritos distinto (ej. "Dorothea Delacruz" / "Dorothea De La Cruz", o solo el apellido igual)
+      ['Diferente', (s, x) => s.day === x.r.day && (s.artistKey === x.r.artistId || svcEq(s, x.r)) && namesLike(s.first + ' ' + s.last, x.r.first + ' ' + x.r.last)],
+      // misma lashista, mismo servicio y mismo día: es la misma venta aunque cambie el nombre o el precio
+      ['Diferente', (s, x) => s.day === x.r.day && s.artistKey === x.r.artistId && svcEq(s, x.r)],
+      // misma clienta con 1 o 2 días de diferencia (se capturó otro día) o con el servicio cambiado (Volume / Wispy)
+      ['Diferente', (s, x) => Math.abs(s.day - x.r.day) <= 2 && namesLike(s.first + ' ' + s.last, x.r.first + ' ' + x.r.last) && (s.artistKey === x.r.artistId || svcEq(s, x.r) || Math.abs(s.price - x.r.price) < .01)],
     ];
     const match = new Map();
     for (const [st, cond] of tries) rows.forEach(x => { if (match.has(x)) return; const s = pass(x.r, s2 => cond(s2, x)); if (s) match.set(x, [st, s]); });
@@ -4740,6 +4751,7 @@ const SaleCompare = {
       const [st, s] = m, d = [];
       if (s.artistKey !== r.artistId) d.push(`Lashista: ${s.artistName} → ${r.artistName}`);
       if (!svcEq(s, r)) d.push(`Servicio: ${s.service} → ${r.serviceName}`);
+      if (s.day !== r.day) d.push(`Fecha: ${Dates.fmt(s.day, { day: '2-digit', month: 'short' })} → ${Dates.fmt(r.day, { day: '2-digit', month: 'short' })}`);
       if (Math.abs(s.price - r.price) > .005) d.push(`Precio: ${money(s.price, 1)} → ${money(r.price, 1)}`);
       if (Math.abs(s.discount - r.discount) > .005) d.push(`Descuento: ${money(s.discount, 1)} → ${money(r.discount, 1)}`);
       if (Math.abs(s.tip - r.tip) > .005) d.push(`Tip: ${money(s.tip, 1)} → ${money(r.tip, 1)}`);
@@ -4749,7 +4761,7 @@ const SaleCompare = {
       const status = st === 'Coincide' || !d.length ? 'Coincide' : 'Diferente';
       out.push({ status, r, s, diffs: d, act: status === 'Diferente' && s.source === 'app', locked: s.source !== 'app' });
     });
-    app.filter(s => !used.has(s.id)).forEach(s => out.push({ status: 'Solo en la app', s, act: false, locked: s.source !== 'app' }));
+    app.filter(s => !used.has(s.id) && s.day >= from && s.day <= to).forEach(s => out.push({ status: 'Solo en la app', s, act: false, locked: s.source !== 'app' }));
     res.rows.filter(r => r.status === 'error').forEach(r => out.push({ status: 'Con error', r, act: false }));
     const ord = ['Diferente', 'Falta', 'Solo en la app', 'Con error', 'Coincide'];
     return out.sort((a, b) => ord.indexOf(a.status) - ord.indexOf(b.status) || ((a.r || a.s).day - (b.r || b.s).day));
@@ -6238,6 +6250,107 @@ CashLog.entries = function (day) {
   };
   Views.recepcion.mount = function (root) { M.call(this, root); $$('[data-latepay]', root).forEach(b => b.onclick = () => chargeAppt(Store.appointments.find(a => a.id === b.dataset.latepay))); };
 }
+
+/* =========================================================
+   VENTAS → DUPLICADOS: encuentra cobros repetidos (por ejemplo, una venta que recepción
+   capturó y que luego el Excel volvió a agregar con el nombre escrito distinto).
+   Muestra cuánto cambia el payroll al quitarlos y deja elegir cuál copia se queda.
+   ========================================================= */
+const Dups = {
+  windows: () => (typeof Revision !== 'undefined' ? Revision.windows() : []),
+  fromExcel(s) { return s.origin === 'excel' || (typeof Revision !== 'undefined' && s.createdAt && Revision.inWin(s.createdAt, s.createdBy, this.windows())); },
+  linked(s) { return Store.appointments.some(a => a.saleId === s.id || (a.extraSaleIds || []).includes(s.id)); },
+  score(s) { return (this.linked(s) ? 8 : 0) + (!this.fromExcel(s) ? 4 : 0) + (s.method ? 2 : 0) + (s.txn ? 1 : 0) + (s.depositAmount ? 1 : 0); },
+  sameName(a, b) { const A = nameToks(a.first + ' ' + a.last), B = nameToks(b.first + ' ' + b.last); if (!A.length || !B.length) return true; return namesLike(a.first + ' ' + a.last, b.first + ' ' + b.last); },
+  // fuerte: mismo día, lashista, servicio y precio (nombre parecido o vacío)
+  // posible: misma clienta con 1–2 días de diferencia o con servicio/precio/lashista cambiado
+  find(from, to) {
+    const list = Store.sales.filter(s => s.source === 'app' && s.day >= from - 2 && s.day <= to + 2);
+    const net = s => r2(s.price - s.discount), svc = s => String(s.service).toLowerCase().trim(), named = s => nameToks(s.first + ' ' + s.last).length > 0;
+    const parent = new Map(list.map(s => [s.id, s.id])), find = id => { while (parent.get(id) !== id) id = parent.get(id); return id; };
+    const join = (a, b) => parent.set(find(a.id), find(b.id)), reasons = new Map(), strongSet = new Set();
+    const note = (a, b, why, strong) => { join(a, b); const k = find(a.id); if (!reasons.has(a.id + b.id)) reasons.set(a.id + b.id, why); if (strong) { strongSet.add(a.id); strongSet.add(b.id); } };
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const a = list[i], b = list[j], dd = Math.abs(a.day - b.day);
+      if (dd > 2) continue;
+      if (dd === 0 && a.artistKey === b.artistKey && svc(a) === svc(b) && net(a) === net(b) && this.sameName(a, b)) { note(a, b, 'mismo día, servicio y precio', true); continue; }
+      if (named(a) && named(b) && namesLike(a.first + ' ' + a.last, b.first + ' ' + b.last) && (a.artistKey === b.artistKey || svc(a) === svc(b) || net(a) === net(b))) {
+        const why = [dd ? `${dd} día${dd > 1 ? 's' : ''} de diferencia` : '', svc(a) !== svc(b) ? 'servicio distinto' : '', a.artistKey !== b.artistKey ? 'lashista distinta' : '', net(a) !== net(b) ? 'precio distinto' : ''].filter(Boolean).join(' · ') || 'misma clienta y servicio';
+        if (dd || svc(a) !== svc(b) || a.artistKey !== b.artistKey || net(a) !== net(b)) note(a, b, why, false); else note(a, b, 'misma clienta y servicio', true);
+      }
+    }
+    const groups = new Map(); list.forEach(s => { const r = find(s.id); (groups.get(r) || groups.set(r, []).get(r)).push(s); });
+    const sets = [];
+    groups.forEach(items => {
+      if (items.length < 2 || !items.some(s => s.day >= from && s.day <= to)) return;
+      items.sort((a, b) => a.day - b.day);
+      const strong = items.every(s => strongSet.has(s.id));
+      const keep = items.slice().sort((x, y) => this.score(y) - this.score(x) || String(x.createdAt || '').localeCompare(String(y.createdAt || '')))[0];
+      const why = [...new Set(items.flatMap((a, i) => items.slice(i + 1).map(b => reasons.get(a.id + b.id) || reasons.get(b.id + a.id)).filter(Boolean)))].join(' / ');
+      // se marcan para eliminar: en grupos seguros, todas menos la que se queda; en posibles, solo las que vinieron del Excel si la que se queda es de la app
+      const del = items.filter(s => s.id !== keep.id && (strong || (this.fromExcel(s) && !this.fromExcel(keep))));
+      sets.push({ items, keep: keep.id, strong, why, del: del.map(s => s.id) });
+    });
+    return sets.sort((a, b) => a.items[0].day - b.items[0].day);
+  },
+};
+S.dup = { ws: Dates.fluffyWeekStart(Dates.today()), kind: 'semana', from: Dates.today() - 13, to: Dates.today() };
+Views.duplicados = {
+  range() { const r = S.dup; return r.kind === 'semana' ? [r.ws, r.ws + 6] : [r.from, r.to]; },
+  html() {
+    const r = S.dup, [from, to] = this.range(), sets = Dups.find(from, to);
+    if (!this._sel || this._key !== from + '|' + to) { this._sel = new Set(sets.flatMap(st => st.del)); this._fix = new Set(sets.filter(st => !st.strong && st.del.length && st.items.some(x => st.del.includes(x.id) && Dups.fromExcel(x))).map(st => st.keep)); this._key = from + '|' + to; }
+    this._sets = sets; const sel = this._sel;
+    const sales = Store.sales.filter(s => s.day >= from && s.day <= to), now = Logic.calculatePayroll(sales, from, to), after = Logic.calculatePayroll(sales.filter(s => !sel.has(s.id)), from, to);
+    const pay = a => r2(a.comision + a.tips), aft = new Map(after.map(a => [a.name, a]));
+    const nav = r.kind === 'semana' ? `<button class="btn sm" data-dws="-1">${ic('left')}</button><span class="w">${weekLabel(r.ws)}</span><button class="btn sm" data-dws="1">${ic('right')}</button>`
+      : `<input type="date" class="inp" style="width:auto" data-dfrom value="${Dates.toISO(r.from)}"><span>a</span><input type="date" class="inp" style="width:auto" data-dto value="${Dates.toISO(r.to)}">`;
+    const extra = sets.reduce((t, st) => t + st.items.length - 1, 0);
+    const row = (s, st) => `<tr class="${sel.has(s.id) ? 'dupdel' : ''}"><td><label class="check"><input type="checkbox" data-dsel="${s.id}" ${sel.has(s.id) ? 'checked' : ''}> ${sel.has(s.id) ? 'Eliminar' : 'Se queda'}</label></td>
+      <td><b>${esc(client(s))}</b></td><td>${esc(Dates.fmt(s.day, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(s.artistName)}<br><span class="mutedc" style="font-size:12.5px">${esc(s.service)}</span></td><td>${money(r2(s.price - s.discount), 1)}${s.tip ? ` + tip ${money(s.tip)}` : ''}</td><td>${money(s.commission, 1)}</td><td>${esc(payText(s) || 'Sin método')}${s.txn ? ' · ' + esc(s.txn) : ''}</td>
+      <td style="font-size:12.5px">${Dups.fromExcel(s) ? '<span class="tag warn">Subido del Excel</span>' : '<span class="tag app">Capturado en la app</span>'}${Dups.linked(s) ? ' <span class="tag">Ligado a cita</span>' : ''}<br><span class="mutedc">${esc(s.cashierName || '')} ${s.createdAt ? '· ' + esc(new Date(s.createdAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' })) : ''}</span></td></tr>`;
+    return `<div class="head"><div><h1>Cobros duplicados</h1><p>Cobros iguales (mismo día, lashista, servicio y precio, y nombre parecido) registrados más de una vez.</p></div></div>
+      <div class="filters no-print" style="align-items:center"><div class="chips">${[['semana', 'Semana'], ['rango', 'Rango']].map(([k, l]) => `<button class="chip ${r.kind === k ? 'on' : ''}" data-dk="${k}">${l}</button>`).join('')}</div><div class="weeknav">${nav}</div></div>
+      <section class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi lead"><div class="lab">Grupos repetidos</div><div class="val">${intf(sets.length)}</div><div class="sub">${intf(extra)} copias de más</div></div>
+        <div class="kpi"><div class="lab">Marcadas para eliminar</div><div class="val">${intf(sel.size)}</div><div class="sub">puedes cambiarlas abajo</div></div>
+        <div class="kpi"><div class="lab">Payroll de la semana</div><div class="val">${money(r2(now.reduce((t, a) => t + pay(a), 0)))}</div><div class="sub">después: ${money(r2(after.reduce((t, a) => t + pay(a), 0)))}</div></div></section>
+      <section class="panel"><h2>Cómo queda el payroll</h2><p class="hint">Comisión + tips por lashista, ahora y después de eliminar las copias marcadas.</p>
+        ${table([{ label: 'Lashista' }, { label: 'Comisión ahora', r: 1 }, { label: 'Tips ahora', r: 1 }, { label: 'Total ahora', r: 1 }, { label: 'Comisión después', r: 1 }, { label: 'Tips después', r: 1 }, { label: 'Total después', r: 1 }, { label: 'Diferencia', r: 1, html: 1 }],
+          now.map(a => { const b = aft.get(a.name) || { comision: 0, tips: 0 }, d = r2(pay(b) - pay(a)); return [a.name, money(a.comision, 1), money(a.tips, 1), money(pay(a), 1), money(b.comision, 1), money(b.tips, 1), money(pay(b), 1), d ? `<b style="color:var(--bad)">${money(d, 1)}</b>` : '—']; }),
+          ['Total', money(r2(now.reduce((t, a) => t + a.comision, 0)), 1), money(r2(now.reduce((t, a) => t + a.tips, 0)), 1), money(r2(now.reduce((t, a) => t + pay(a), 0)), 1), money(r2(after.reduce((t, a) => t + a.comision, 0)), 1), money(r2(after.reduce((t, a) => t + a.tips, 0)), 1), money(r2(after.reduce((t, a) => t + pay(a), 0)), 1), ''])}</section>
+      ${sets.length ? sets.map(st => { const s0 = st.items[0]; return `<section class="panel ${st.strong ? '' : 'dupmaybe'}"><h2 style="font-size:16px">${st.strong ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Duplicado</span>' : '<span class="tag warn">Posible duplicado</span>'} ${esc(client(st.items.find(x => x.first) || s0))} · ${esc(Dates.fmt(s0.day, { weekday: 'short', day: 'numeric', month: 'short' }))}${st.items.some(x => x.day !== s0.day) ? ' – ' + esc(Dates.fmt(st.items[st.items.length - 1].day, { day: 'numeric', month: 'short' })) : ''} <span class="mutedc" style="font-weight:400">· ${st.items.length} cobros · ${esc(st.why)}</span></h2>
+          <div class="tablewrap"><table><thead><tr><th></th><th>Clienta</th><th>Fecha · lashista · servicio</th><th>Precio</th><th>Comisión</th><th>Pago</th><th>Origen</th></tr></thead><tbody>${st.items.map(s => row(s, st)).join('')}</tbody></table></div>${!st.strong && st.items.some(x => sel.has(x.id) && Dups.fromExcel(x)) ? `<label class="check" style="margin-top:8px"><input type="checkbox" data-dfix="${st.keep}" ${this._fix.has(st.keep) ? 'checked' : ''}> Corregir la que se queda con los datos del Excel (fecha, lashista, servicio, precio y tip)</label>` : ''}</section>`; }).join('')
+        : '<div class="tablewrap"><div class="empty"><b>Sin duplicados en este periodo</b>No hay cobros repetidos.</div></div>'}
+      ${sets.length ? `<div class="chips" style="margin-top:6px"><button class="btn danger" data-ddel ${sel.size && Store.writable() && !Mode.reception ? '' : 'disabled'}>Eliminar ${intf(sel.size)} copias marcadas</button><button class="btn" data-dxls>${ic('dl')}Descargar lista</button></div>
+        <p class="formula"><b>Duplicado:</b> mismo día, lashista, servicio y precio. <b>Posible duplicado:</b> la misma clienta con 1 o 2 días de diferencia, o con el servicio, el precio o la lashista cambiados (por ejemplo, Volume capturado como Wispy). Se queda la copia ligada a una cita o capturada por recepción; en los posibles solo se marca la que subió el Excel. En los posibles, la que se queda se corrige con los datos del Excel (casilla marcada) para que quede la fecha y el servicio correctos. Revisa cada grupo: si de verdad fueron dos visitas, desmarca.</p>` : ''}`;
+  },
+  mount(root) {
+    const r = S.dup;
+    $$('[data-dk]', root).forEach(b => b.onclick = () => { r.kind = b.dataset.dk; UI.render(); });
+    $$('[data-dws]', root).forEach(b => b.onclick = () => { r.ws += 7 * +b.dataset.dws; UI.render(); });
+    const f = $('[data-dfrom]', root), t = $('[data-dto]', root);
+    if (f) f.onchange = () => { const x = Dates.fromISO(f.value); if (x != null) { r.from = x; UI.render(); } };
+    if (t) t.onchange = () => { const x = Dates.fromISO(t.value); if (x != null) { r.to = x; UI.render(); } };
+    $$('[data-dfix]', root).forEach(cb => cb.onchange = () => { if (cb.checked) this._fix.add(cb.dataset.dfix); else this._fix.delete(cb.dataset.dfix); });
+    $$('[data-dsel]', root).forEach(cb => cb.onchange = () => { if (cb.checked) this._sel.add(cb.dataset.dsel); else this._sel.delete(cb.dataset.dsel); UI.render(); });
+    const x = $('[data-dxls]', root); if (x) x.onclick = () => Exporter.run('xlsx', 'Cobros_duplicados', [['Fecha', 'Lashista', 'Servicio', 'Clienta', 'Precio', 'Tip', 'Comisión', 'Pago', 'Origen', 'Acción']].concat(this._sets.flatMap(st => st.items.map(s => [Dates.toISO(s.day), s.artistName, s.service, client(s), r2(s.price - s.discount), s.tip, s.commission, payText(s), Dups.fromExcel(s) ? 'Subido del Excel' : 'Capturado en la app', this._sel.has(s.id) ? 'Eliminar' : 'Se queda']))));
+    const d = $('[data-ddel]', root); if (d) d.onclick = async () => {
+      const ids = [...this._sel]; if (!ids.length) return;
+      if (!await UI.confirm('Eliminar duplicados', `Se eliminarán ${ids.length} cobros repetidos. Queda registro en la bitácora. ¿Continuar?`, 'Eliminar')) return;
+      const e = await Claves.ask('Clave de administración', { admin: true, hint: 'Para eliminar cobros escribe tu clave de administración.' }); if (!e) return;
+      d.disabled = true; let n = 0;
+      try {
+        // si la copia que se queda no tiene el nombre de la clienta, se lo pasamos de la que se elimina
+        for (const st of this._sets) { const keep = st.items.find(x => !this._sel.has(x.id)), xl = st.items.find(x => this._sel.has(x.id) && Dups.fromExcel(x));
+          if (keep && xl && this._fix.has(keep.id)) { await Store.saveSale({ date: Dates.toISO(xl.day), artistId: xl.artistKey, serviceId: xl.serviceId || (Store.config.services.find(v => v.name === xl.service) || {}).id, price: xl.price, discount: xl.discount || '', tip: xl.tip || '', method: keep.method || xl.method || '', txn: keep.txn || '', first: keep.first || title(xl.first || ''), last: keep.last || title(xl.last || ''), comments: keep.comments || '', manualOn: xl.manual, manualCommission: xl.manual ? xl.commission : '', packageId: keep.packageId || '', packageSession: keep.packageSession || 0, depositId: keep.depositId || '', payments: keep.payments }, keep.id); continue; }
+          const donor = st.items.find(x => this._sel.has(x.id) && (x.first || x.last));
+          if (keep && donor && !keep.first && !keep.last) await Store.saveSale({ date: Dates.toISO(keep.day), artistId: keep.artistKey, serviceId: keep.serviceId, price: keep.price, discount: keep.discount || '', tip: keep.tip || '', method: keep.method || '', txn: keep.txn || '', first: title(donor.first || ''), last: title(donor.last || ''), comments: keep.comments || '', manualOn: keep.manual, manualCommission: keep.manual ? keep.commission : '', packageId: keep.packageId || '', packageSession: keep.packageSession || 0, depositId: keep.depositId || '', payments: keep.payments }, keep.id); }
+        for (const id of ids) { await Store.deleteSale(id); n++; if (n % 5 === 0) d.textContent = `Eliminando ${n}/${ids.length}…`; } this._sel = null; UI.toast(`${n} duplicados eliminados`); UI.render(); }
+      catch (er) { UI.toast(`Se detuvo en ${n} de ${ids.length}: ${er.message || er.code}`, true); this._sel = null; UI.render(); }
+    };
+  },
+};
+NAV.splice(NAV.findIndex(n => n.id === 'revision') + 1, 0, { id: 'duplicados', label: 'Duplicados', icon: 'rep', sub: true });
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
