@@ -243,6 +243,10 @@ label.field{position:relative}
 .cajabox{border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}.cajabox span{font-size:13px;font-weight:700;color:var(--muted)}.cajabox b{font-size:28px;letter-spacing:-.01em}.cajabox small{font-size:12px;color:var(--muted);line-height:1.4}
 .cajabox.cash{border-left:5px solid #2E7D4F}.cajabox.tx{border-left:5px solid var(--gold)}.cajabox.none{border-left:5px solid var(--bad)}
 @media (max-width:640px){.caja,.caja:has(.none){grid-template-columns:1fr}}
+.cortebox .corteline{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14.5px}.cortebox .corteline.col{flex-direction:column;align-items:stretch}
+.cortebox .corteline .inp{max-width:150px;text-align:right}.cortebox .corteline.total{font-size:16px;border-bottom:2px solid var(--gold)}.cortebox .corteline.total b{font-size:20px}
+.cortebox .corteline.ok b{color:var(--ok)}.cortebox .corteline.bad b{color:var(--bad)}
+.salline{display:grid;grid-template-columns:1fr 110px 34px;gap:8px;margin-top:6px}.cortebox .salline .inp{max-width:none;text-align:left}.cortebox .salline .inp.num{text-align:right}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -316,7 +320,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-16 00:49';
+window.FM_VERSION = '2026-10-16 01:21';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3116,7 +3120,7 @@ Views.recepcion = {
     const pend = Store.deposits.filter(d => d.status === 'Pendiente').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const citasHoy = Store.deposits.filter(d => d.day === today && d.status !== 'Rechazado' && !d.outcome);
     const cola = Store.requests.filter(x => (typeof hasPending === 'function' ? hasPending(x) : x.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
+    const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today) && n.type !== 'corte').sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
     const kpi = (lab, val, sub) => `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
     return `<div class="head"><div><h1>Panel de hoy</h1><p>${esc(Dates.fmt(today, { weekday: 'long', day: 'numeric', month: 'long' }))}${Mode.operator ? ' · turno de ' + esc(Mode.operator.name) : ''}</p></div>
       <div class="chips"><button class="btn" data-pdep>${ic('plus')}Depósito</button><button class="btn" data-preq>${ic('plus')}Solicitud de insumos</button><button class="btn primary cta" data-go="nueva">${ic('plus')}Cobrar</button></div></div>
@@ -4909,7 +4913,7 @@ Views.recepcion.html = function () {
   const sumD = l => r2(l.reduce((t, x) => t + num(x.d.amount), 0));
   const pendHoy = Store.appointments.filter(a => a.day === today && a.status === 'Agendada').sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
   const cola = Store.requests.filter(x => (typeof hasPending === 'function' ? hasPending(x) : x.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today)).sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
+  const notes = Store.dayNotes.filter(n => n.date === Dates.toISO(today) && n.type !== 'corte').sort((a, b) => (a.time || a.createdAt).localeCompare(b.time || b.createdAt));
   const kpi = (lab, val, sub, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub}</div></div>`;
   const depTag = d => !d ? '<span class="tag">Sin depósito</span>' : d.status === 'Verificado' ? '<span class="tag app">Confirmado</span>' : '<span class="tag warn">Por confirmar</span>';
   return `<div class="head"><div><h1>Panel de hoy</h1><p>${esc(Dates.fmt(today, { weekday: 'long', day: 'numeric', month: 'long' }))}${Mode.operator ? ' · turno de ' + esc(Mode.operator.name) : ''}</p></div>
@@ -6034,6 +6038,118 @@ const Caja = {
     return h.replace('<section class="panel"><h2>Por servicio</h2>', tbl + '<section class="panel"><h2>Por servicio</h2>');
   };
 
+}
+
+/* =========================================================
+   CORTE DE CAJA — detalle de todo el EFECTIVO del día para cuadrar la caja:
+   servicios (incluida la parte en efectivo de pagos divididos), productos, paquetes,
+   pagos de lashistas y depósitos recibidos en efectivo ese día.
+   Fondo inicial + efectivo cobrado − salidas = lo que debe haber; se compara con lo contado.
+   ========================================================= */
+const isCash = m => /^efectivo$/i.test(String(m || '').trim());
+const locISO = ts => { const t = new Date(ts); return isNaN(t) ? '' : `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
+const cashOf = pays => r2((pays || []).filter(p => isCash(p.method)).reduce((t, p) => t + num(p.amount), 0));
+const CashLog = {
+  entries(day) {
+    const iso = Dates.toISO(day), out = [];
+    Store.sales.filter(s => s.source === 'app' && s.day === day && !s.payGroup).forEach(s => {
+      const kids = Store.sales.filter(x => x.payGroup === s.id), all = [s].concat(kids), tot = r2(all.reduce((t, x) => t + x.price - x.discount + x.tip, 0));
+      const split = (s.payments || []).length > 1, cash = split ? cashOf(s.payments) : isCash(s.method) ? r2(tot - (s.depositAmount || 0)) : 0;
+      if (cash > 0) out.push({ ts: s.createdAt, kind: 'Servicio', who: client(s), detail: `${s.service}${kids.length ? ' + ' + kids.map(x => x.service).join(', ') : ''} · ${s.artistName}`, total: tot, amount: cash, note: split ? 'parte en efectivo de un pago dividido' : s.depositAmount ? `depósito de ${money(s.depositAmount)} ya cobrado antes` : '', by: s.cashierName || '' });
+    });
+    Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && d.createdAt && locISO(d.createdAt) === iso).forEach(d =>
+      out.push({ ts: d.createdAt, kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', by: d.createdByName || '' }));
+    const mv = (Store.moves || []).filter(m => m.type === 'Venta en salón' && m.date === iso);
+    mv.forEach(m => {
+      if (m.payGroup && !m.payLead) return;
+      const grp = m.payGroup ? mv.filter(x => x.payGroup === m.payGroup) : [m], tot = r2(grp.reduce((t, x) => t + num(x.qty) * num(x.unitPrice), 0));
+      const cash = m.payGroup ? cashOf(m.payments) : isCash(m.method) ? tot : 0;
+      if (cash > 0) out.push({ ts: m.createdAt || '', kind: 'Producto', who: m.client || 'Clienta', detail: grp.map(x => `${x.name || x.code} × ${num(x.qty)}`).join(', '), total: tot, amount: cash, note: m.payGroup ? 'parte en efectivo de un pago dividido' : '', by: m.byName || '' });
+    });
+    (Store.packages || []).filter(p => p.day === day).forEach(p => { const tot = r2(num(p.total) + num(p.tipTotal)), cash = (p.payments || []).length > 1 ? cashOf(p.payments) : isCash(p.method) ? tot : 0;
+      if (cash > 0) out.push({ ts: p.createdAt, kind: 'Paquete', who: title(((p.first || '') + ' ' + (p.last || '')).trim()), detail: `${p.serviceName} × ${p.sessions}`, total: tot, amount: cash, note: (p.payments || []).length > 1 ? 'parte en efectivo de un pago dividido' : '', by: p.createdByName || '' }); });
+    (Store.notePayments || []).filter(p => p.day === day && isCash(p.method)).forEach(p => out.push({ ts: p.createdAt, kind: 'Pago de lashista', who: p.artistName, detail: `nota #${p.invoice}`, total: num(p.amount), amount: num(p.amount), note: '', by: p.byName || '' }));
+    return out.sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || '')));
+  },
+  total(day) { return r2(this.entries(day).reduce((t, e) => t + e.amount, 0)); },
+  saved(day) { return Store.dayNotes.find(n => n.id === 'corte-' + Dates.toISO(day)) || null; },
+};
+
+S.caja = { day: Dates.today() };
+Views.caja = {
+  html() {
+    const day = S.caja.day, ent = CashLog.entries(day), cobrado = r2(ent.reduce((t, e) => t + e.amount, 0)), sv = CashLog.saved(day);
+    const st = this.st && this.st.day === day ? this.st : (this.st = { day, fondo: sv ? sv.fondo : '', contado: sv ? sv.contado : '', nota: sv ? sv.nota || '' : '', salidas: sv ? (sv.salidas || []).map(x => ({ ...x })) : [] });
+    const sal = r2(st.salidas.reduce((t, x) => t + num(x.amount), 0)), debe = r2(num(st.fondo) + cobrado - sal), dif = st.contado === '' ? null : r2(num(st.contado) - debe);
+    const byKind = Logic.groupBy(ent, e => e.kind, e => e.amount);
+    return `<div class="head"><div><h1>Corte de caja</h1><p>${esc(Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))} · todo el efectivo del día</p></div>
+        <div class="chips no-print"><div class="weeknav"><button class="btn sm" data-cd="-1" aria-label="Día anterior">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-cday value="${Dates.toISO(day)}"><button class="btn sm" data-cd="1" aria-label="Día siguiente">${ic('right')}</button></div><button class="btn" data-cpdf>${ic('dl')}Imprimir</button><button class="btn" data-cxls>${ic('dl')}Excel</button></div></div>
+      <section class="kpis" style="grid-template-columns:repeat(4,1fr)">
+        <div class="kpi lead"><div class="lab">Efectivo cobrado</div><div class="val">${money(cobrado, 1)}</div><div class="sub">${intf(ent.length)} movimientos</div></div>
+        ${byKind.slice(0, 3).map(k => `<div class="kpi"><div class="lab">${esc(k.key)}</div><div class="val">${money(k.value, 1)}</div><div class="sub">${intf(k.count)} en efectivo</div></div>`).join('')}</section>
+      <div class="grid2">
+        <section class="panel"><h2>Detalle del efectivo</h2><p class="hint">Cada cobro que entró en efectivo. Si fue pago dividido, solo la parte en efectivo.</p>
+          ${ent.length ? `<div class="tablewrap"><table><thead><tr><th>Hora</th><th>Concepto</th><th>Clienta / lashista</th><th>Detalle</th><th class="r">Efectivo</th><th>Cobró</th></tr></thead><tbody>
+            ${ent.map(e => `<tr><td>${esc(hhmm(e.ts))}</td><td>${esc(e.kind)}</td><td><b>${esc(e.who)}</b></td><td style="white-space:normal">${esc(e.detail)}${e.note ? `<br><span class="mutedc" style="font-size:12px">${esc(e.note)}</span>` : ''}</td><td class="r"><b>${money(e.amount, 1)}</b>${e.total !== e.amount ? `<br><span class="mutedc" style="font-size:12px">de ${money(e.total, 1)}</span>` : ''}</td><td class="mutedc" style="font-size:12.5px">${esc(e.by)}</td></tr>`).join('')}
+            </tbody><tfoot><tr><td></td><td>Total</td><td>${intf(ent.length)} movimientos</td><td></td><td class="r">${money(cobrado, 1)}</td><td></td></tr></tfoot></table></div>` : '<div class="tablewrap"><div class="empty"><b>Sin cobros en efectivo este día</b>Los cobros con método "Efectivo" aparecerán aquí.</div></div>'}
+          <p class="formula">Los depósitos en efectivo cuentan el día en que la clienta los dejó, no el día de su cita.</p></section>
+        <section class="panel cortebox"><h2>Corte</h2>
+          <div class="corteline"><span>Fondo inicial (cambio al abrir)</span><input class="inp num" type="number" min="0" step="0.01" data-cf="fondo" value="${esc(st.fondo)}" placeholder="0.00"></div>
+          <div class="corteline"><span>+ Efectivo cobrado</span><b>${money(cobrado, 1)}</b></div>
+          <div class="corteline col"><span>− Salidas de efectivo <span class="mutedc">(propinas pagadas, compras, cambio…)</span></span>
+            <div data-csal>${st.salidas.map((x, k) => `<div class="salline" data-sl="${k}"><input class="inp" data-sk="desc" value="${esc(x.desc)}" placeholder="Concepto"><input class="inp num" type="number" min="0" step="0.01" data-sk="amount" value="${esc(x.amount)}" placeholder="0.00"><button class="btn sm" data-sk="rm" aria-label="Quitar">×</button></div>`).join('')}</div>
+            <button class="btn sm" data-cadd style="margin-top:6px">${ic('plus')}Agregar salida</button>${sal ? `<b style="align-self:flex-end">− ${money(sal, 1)}</b>` : ''}</div>
+          <div class="corteline total"><span>Debe haber en caja</span><b>${money(debe, 1)}</b></div>
+          <div class="corteline"><span>Contado en caja</span><input class="inp num" type="number" min="0" step="0.01" data-cf="contado" value="${esc(st.contado)}" placeholder="Cuenta el efectivo"></div>
+          <div class="corteline ${dif == null ? '' : Math.abs(dif) < 0.01 ? 'ok' : 'bad'}"><span>Diferencia</span><b>${dif == null ? '—' : Math.abs(dif) < 0.01 ? '✓ Cuadra' : (dif > 0 ? 'Sobra ' : 'Falta ') + money(Math.abs(dif), 1)}</b></div>
+          <label class="field" style="margin-top:8px">Nota (opcional)<input data-cf="nota" value="${esc(st.nota)}" placeholder="Ej. se pagaron $40 de propinas en efectivo"></label>
+          <button class="btn primary" data-csave style="margin-top:12px;width:100%;justify-content:center" ${Store.writable() ? '' : 'disabled'}>Guardar corte</button>
+          ${sv ? `<p class="formula">Último corte guardado por ${esc(sv.byName || '—')} a las ${esc(hhmm(sv.savedAt))}: contado ${money(num(sv.contado), 1)} · ${Math.abs(num(sv.diferencia)) < 0.01 ? 'cuadró' : (num(sv.diferencia) > 0 ? 'sobraron ' : 'faltaron ') + money(Math.abs(num(sv.diferencia)), 1)}.</p>` : ''}</section>
+      </div>`;
+  },
+  mount(root) {
+    const st = this.st;
+    $$('[data-cd]', root).forEach(b => b.onclick = () => { S.caja.day += +b.dataset.cd; UI.render(); });
+    const dd = $('[data-cday]', root); dd.onchange = () => { const d = Dates.fromISO(dd.value); if (d != null) { S.caja.day = d; UI.render(); } };
+    let tm; const rer = () => { clearTimeout(tm); tm = setTimeout(() => { const a = document.activeElement, sel = a && a.dataset ? Object.keys(a.dataset).map(k => `[data-${k.replace(/[A-Z]/g, c => '-' + c.toLowerCase())}="${a.dataset[k]}"]`).join('') : ''; const pos = a && a.selectionStart; UI.render(); const n = sel && $(sel); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } }, 500); };
+    $$('[data-cf]', root).forEach(el => el.oninput = () => { st[el.dataset.cf] = el.value; if (el.dataset.cf !== 'nota') rer(); });
+    $('[data-cadd]', root).onclick = () => { st.salidas.push({ desc: '', amount: '' }); UI.render(); };
+    const box = $('[data-csal]', root);
+    box.addEventListener('input', e => { const l = e.target.closest('[data-sl]'), k = e.target.dataset.sk; if (!l || !k) return; st.salidas[+l.dataset.sl][k] = e.target.value; if (k === 'amount') rer(); });
+    box.addEventListener('click', e => { if (e.target.closest('[data-sk=rm]')) { st.salidas.splice(+e.target.closest('[data-sl]').dataset.sl, 1); UI.render(); } });
+    $('[data-csave]', root).onclick = async () => {
+      const cobrado = CashLog.total(S.caja.day), sal = r2(st.salidas.reduce((t, x) => t + num(x.amount), 0)), debe = r2(num(st.fondo) + cobrado - sal);
+      if (st.contado === '') return UI.toast('Escribe cuánto contaste en caja.', true);
+      if (st.salidas.some(x => num(x.amount) > 0 && !String(x.desc).trim())) return UI.toast('Escribe el concepto de cada salida.', true);
+      const prev = CashLog.saved(S.caja.day), now = new Date().toISOString(), rec = { type: 'corte', date: Dates.toISO(S.caja.day), fondo: r2(st.fondo || 0), cobrado, salidas: st.salidas.filter(x => num(x.amount) > 0).map(x => ({ desc: String(x.desc).trim(), amount: r2(x.amount) })), debe, contado: r2(st.contado), diferencia: r2(num(st.contado) - debe), nota: st.nota || '', byName: Mode.who(), savedAt: now, createdAt: prev ? prev.createdAt || now : now, text: 'Corte de caja', history: ((prev && prev.history) || []).concat(prev ? [{ at: prev.savedAt, by: prev.byName, contado: prev.contado, diferencia: prev.diferencia }] : []) };
+      try { await Store.db.doc('dayNotes/corte-' + rec.date).set(rec); UI.toast(Math.abs(rec.diferencia) < 0.01 ? 'Corte guardado: cuadra ✓' : `Corte guardado: ${rec.diferencia > 0 ? 'sobran' : 'faltan'} ${money(Math.abs(rec.diferencia), 1)}`); }
+      catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); }
+    };
+    const file = 'Corte_de_caja_' + Dates.toISO(S.caja.day), ent = CashLog.entries(S.caja.day), cobrado = r2(ent.reduce((t, e) => t + e.amount, 0)), sal = r2(st.salidas.reduce((t, x) => t + num(x.amount), 0)), debe = r2(num(st.fondo) + cobrado - sal);
+    const resumen = [['Fondo inicial', num(st.fondo)], ['+ Efectivo cobrado', cobrado]].concat(st.salidas.filter(x => num(x.amount) > 0).map(x => ['− ' + (x.desc || 'Salida'), -num(x.amount)])).concat([['Debe haber en caja', debe], ['Contado', st.contado === '' ? '' : num(st.contado)], ['Diferencia', st.contado === '' ? '' : r2(num(st.contado) - debe)]]);
+    $('[data-cxls]', root).onclick = () => { if (!window.XLSX) return UI.toast('El módulo de Excel no cargó.', true); const wb = XLSX.utils.book_new(), lab = Dates.fmt(S.caja.day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Fluffy Lashes · Corte de caja · ${lab}`], [], ['Concepto', 'Monto']].concat(resumen)), 'Corte');
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[`Detalle del efectivo · ${lab}`], [], ['Hora', 'Concepto', 'Clienta / lashista', 'Detalle', 'Total del cobro', 'Efectivo', 'Nota', 'Cobró']].concat(ent.map(e => [hhmm(e.ts), e.kind, e.who, e.detail, e.total, e.amount, e.note, e.by]))), 'Detalle');
+      Exporter.save(file + '.xlsx', new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })])); };
+    $('[data-cpdf]', root).onclick = () => { const doc = Pdf.doc(false); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+      Pdf.header(doc, 'Corte de caja', Dates.fmt(S.caja.day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+      let y = pdfTable(doc, 104, 'Corte', ['Concepto', 'Monto'], resumen.map(r => [r[0], r[1] === '' ? '' : money(r[1], 1)]), [1]);
+      y = pdfTable(doc, y, 'Detalle del efectivo', ['Hora', 'Concepto', 'Clienta / lashista', 'Detalle', 'Efectivo', 'Cobró'], ent.map(e => [hhmm(e.ts), e.kind, e.who, e.detail + (e.note ? ' (' + e.note + ')' : ''), money(e.amount, 1), e.by]).concat([['', 'Total', '', '', money(cobrado, 1), '']]), [4]);
+      doc.setFontSize(9); doc.text('Contó: ______________________     Revisó: ______________________', 40, Math.min(y + 10, doc.internal.pageSize.getHeight() - 40));
+      Pdf.save(doc, file); };
+  },
+};
+/* Menú: Corte de caja (administración y recepción) */
+NAV.splice(NAV.findIndex(n => n.id === 'dia') + 1, 0, { id: 'caja', label: 'Corte de caja', icon: 'pay', sub: true });
+RECEP_ROUTES.push('caja');
+if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(RECEP_MENU.findIndex(x => x[0] === 'dia') + 1, 0, ['caja', 'Corte de caja', 'pay']);
+{ const R = UI.renderNav; UI.renderNav = function () { R(); if (!Mode.reception) return; const d = $('#side .nav [data-go=dia]'); if (d && !$('#side .nav [data-go=caja]')) d.insertAdjacentHTML('afterend', `<a class="${UI.route === 'caja' ? 'on' : ''}" data-go="caja">${ic('pay')}Corte de caja</a>`); }; }
+/* El recuadro de Efectivo de la Hoja del día usa el mismo cálculo y lleva al corte. */
+{
+  const H = Views.dia.html, M = Views.dia.mount;
+  Views.dia.html = function () { const h = H.call(this), c = CashLog.total(S.dia.day);
+    return h.replace(/<div class="cajabox cash"><span>💵 Efectivo<\/span><b>[^<]*<\/b><small>[^<]*<\/small><\/div>/, `<div class="cajabox cash"><span>💵 Efectivo</span><b>${money(c, 1)}</b><small>lo que debe haber en caja · <button class="linkbtn" data-tocorte>ver detalle y hacer corte</button></small></div>`); };
+  Views.dia.mount = function (root) { M.call(this, root); const b = $('[data-tocorte]', root); if (b) b.onclick = () => { S.caja.day = S.dia.day; UI.go('caja'); }; };
 }
 
 /* =========================================================
