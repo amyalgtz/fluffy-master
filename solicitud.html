@@ -44,6 +44,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .sum{text-align:left;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
 .sum div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.sum div:last-child{border-bottom:0}
 .empty{color:var(--muted);padding:16px 14px}
+.goal{border:1.5px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--blush)}.goal.done{border-color:var(--ok)}.goal .gtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700}.goal .gtop b{font-size:20px}.goal .gtop small{font-size:13px;color:var(--muted);font-weight:600}
+.gbar{height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 8px}.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.goal.done .gbar i{background:var(--ok)}.goal p{margin:0 0 4px;font-size:15px}.goal small{color:var(--muted);font-size:12px}
 .weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
 .tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;font-size:14px;padding:10px 6px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
 .kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.kp div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kp span{display:block;font-size:12px;color:var(--muted);font-weight:700}.kp b{font-size:22px}
@@ -139,15 +141,34 @@ h2{font-size:17px;margin:22px 0 4px}
     if (error || !data || !data.ok) { S.week = null; renderWeek(); err((data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.')); return; }
     S.week = data; renderWeek();
   }
+  const CHECKS = [['limpieza', '🧼', 'Limpieza', 'Mantén tu cabina limpia y ordenada al terminar cada servicio. También cuenta para tu meta.'],
+    ['reviews', '⭐', 'Reviews', 'Recuerda pedirle review a tus clientas al terminar su servicio.'],
+    ['fotos', '📸', 'Fotos y videos', 'Manda fotos y videos de tus trabajos para subir a redes.']];
+  const chk = v => v === 'O' ? '<span class="tg ok">✓ Cumplido</span>' : v === 'X' ? '<span class="tg no">No cumplido</span>' : v === '?' ? '<span class="tg pe">Por revisar</span>' : '';
+  function goalCard(w) {
+    const meta = Number(w.goal || 0), neto = Number((w.totals || {}).sales || 0), past = S.wofs < 0;
+    if (!meta) return '<div class="rq"><h3><span>🎯 Tu meta de la semana</span></h3><small>Todavía no tienes meta asignada esta semana.</small></div>';
+    const falta = Math.round((meta - neto) * 100) / 100, pctv = Math.max(0, Math.min(100, neto / meta * 100)), fs = Number(w.fullSet || 180), rf = Number(w.refill || 100);
+    let msg;
+    if (falta <= 0) msg = past ? `🎉 ¡Lograste tu meta! Quedaste $${(-falta).toFixed(2)} arriba.` : `🎉 ¡Ya lograste tu meta! Vas $${(-falta).toFixed(2)} arriba. ¡Sigue así!`;
+    else if (past) msg = `Te faltaron $${falta.toFixed(2)} para tu meta.`;
+    else if (falta <= rf) msg = `¡Estás a <b>un refill</b> de lograr tu meta! Te faltan $${falta.toFixed(2)}.`;
+    else if (falta <= fs) msg = `¡Estás a <b>un full set</b> de lograr tu meta! Te faltan $${falta.toFixed(2)}.`;
+    else { const n = Math.ceil(falta / fs); msg = `Te faltan <b>$${falta.toFixed(2)}</b>: unos <b>${n} full sets</b> o ${Math.ceil(falta / rf)} refills.`; }
+    return `<div class="goal ${falta <= 0 ? 'done' : ''}"><div class="gtop"><span>🎯 Tu meta ${past ? 'de esa semana' : 'de la semana'}</span><b>$${neto.toFixed(2)} <small>de $${meta.toFixed(2)}</small></b></div>
+      <div class="gbar"><i style="width:${pctv.toFixed(1)}%"></i></div><p>${msg}</p><small>La meta es en venta neta (precio menos descuentos), de viernes a jueves.</small></div>`;
+  }
   function renderWeek() {
     const w = S.week; let body = '';
     if (w) {
-      const t = w.totals || {}, byDay = {};
-      (w.rows || []).forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+      const t = w.totals || {}, d = w.detail;
       body = `<div class="weeknav2"><button class="chip" data-wk="-1">← Anterior</button><b>${esc(fdate(w.weekStart))} – ${esc(fdate(w.weekEnd))}</b><button class="chip" data-wk="1" ${S.wofs >= 0 ? 'disabled' : ''}>Siguiente →</button></div>
-        <div class="kp"><div><span>Servicios</span><b>${Number(t.count || 0)}</b></div><div><span>Ventas</span><b>${$$m(t.sales)}</b></div><div><span>Comisiones</span><b>${$$m(t.commission)}</b></div><div><span>Tips</span><b>${$$m(t.tips)}</b></div></div>
+        ${goalCard(w)}
+        <div class="kp"><div><span>Servicios</span><b>${Number(t.count || 0)}</b></div><div><span>Ventas (neto)</span><b>${$$m(t.sales)}</b></div><div><span>Comisiones</span><b>${$$m(t.commission)}</b></div><div><span>Tips</span><b>${$$m(t.tips)}</b></div></div>
         <div class="rq" style="border-color:var(--gold)"><h3><span>Total a recibir</span><b>${$$m(Number(t.commission || 0) + Number(t.tips || 0))}</b></h3><small>Comisiones + tips de la semana (viernes a jueves). No incluye descuentos de tu nota de insumos ni ajustes de administración.</small></div>
-        ${Object.keys(byDay).length ? Object.entries(byDay).map(([d, l]) => `<h2>${esc(fdate(d))}</h2>${l.map(r => `<div class="rq"><h3><span>${esc(r.service)}</span><small>${esc(r.client || '')}</small></h3><ul><li><span>Precio${Number(r.discount) ? ' (desc. ' + $$m(r.discount) + ')' : ''}</span><span>${$$m(Number(r.price) - Number(r.discount || 0))}</span></li><li><span>Tu comisión</span><b>${$$m(r.commission)}</b></li><li><span>Tip</span><span>${$$m(r.tip)}</span></li></ul></div>`).join('')}`).join('') : '<p class="sub" style="margin-top:14px">No hay servicios registrados en esta semana.</p>'}`;
+        <button class="btn ghost" id="reqdet" style="width:100%;margin-top:12px" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? '✓ Ya pediste el detalle de esta semana' : d === 'Enviado' ? 'Volver a pedir el detalle de la semana' : 'Solicitar detalle de la semana'}</button>
+        ${d === 'Enviado' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración ya te envió tu detalle de esta semana.</p>' : d === 'Pendiente' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración te enviará tu detalle con cada servicio.</p>' : ''}
+        <h2>Tus otras metas</h2>${CHECKS.map(([k, ic, lab, txt]) => `<div class="rq"><h3><span>${ic} ${lab}</span>${chk((w.checks || {})[k])}</h3><small>${txt}</small></div>`).join('')}`;
     }
     app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
       <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
@@ -156,6 +177,12 @@ h2{font-size:17px;margin:22px 0 4px}
     $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
     $('#seew').onclick = loadWeek; bindTabs();
     document.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.min(0, S.wofs + Number(b.dataset.wk)); loadWeek(); });
+    const rq = $('#reqdet'); if (rq) rq.onclick = async () => {
+      rq.disabled = true; rq.textContent = 'Enviando…';
+      const { data, error } = await sb.rpc('fm_request_week_detail', { p_artist: S.artist, p_pin: S.pin, p_offset: S.wofs });
+      if (error || !data || !data.ok) { rq.disabled = false; rq.textContent = 'Solicitar detalle de la semana'; $('#err').textContent = (data && data.error) || 'No se pudo enviar. Intenta de nuevo.'; return; }
+      S.week.detail = 'Pendiente'; renderWeek();
+    };
   }
 
   async function send() {
