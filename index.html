@@ -253,6 +253,8 @@ tbody tr.dupdel td{background:#FBECEE;text-decoration:line-through;text-decorati
 .panel.dupmaybe{border-left:4px solid #C9A227}
 .goalgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .bell .bdg2{position:absolute;bottom:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:99px;background:var(--gold);color:#3A2A2E;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
+.peedit td{vertical-align:top;padding:8px 6px}.pe-name{display:grid;gap:4px;width:150px}.pe-name .inp{width:100%}.peedit .inp{padding:7px 8px;font-size:13px;min-width:0}.peedit input.num{width:84px}.peedit input[type=date]{width:132px}.peedit select{max-width:170px}
+tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.pe-ch td{background:#30291A}}:root[data-theme="dark"] tbody tr.pe-ch td{background:#30291A}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -326,7 +328,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-17 22:43';
+window.FM_VERSION = '2026-10-17 23:14';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -6415,6 +6417,102 @@ Store.connectHooks.push(db => { db.collection('detailRequests').onSnapshot(snap 
   Notify.open = function () { O(); const n = Mode.reception ? 0 : Store.detailReqs.filter(r => r.status === 'Pendiente').length, m = $('.modal'); if (!n || !m) return;
     $('h3', m).insertAdjacentHTML('afterend', `<div class="banner">📩 ${n} lashista${n > 1 ? 's pidieron' : ' pidió'} su detalle de la semana. <button class="btn sm" data-x="godet">Ir a Payroll</button></div>`); $('[data-x=godet]', m).onclick = () => { UI.close(); UI.go('payroll'); }; };
   Notify.html = function (cls) { const h = H(cls), n = Mode.reception ? 0 : Store.detailReqs.filter(r => r.status === 'Pendiente').length; return n ? h.replace('</button>', `<span class="bdg2" title="Solicitudes de detalle">${n}</span></button>`) : h; };
+}
+
+/* =========================================================
+   PAYROLL → REVISAR Y EDITAR LA SEMANA DE UNA LASHISTA (solo administración).
+   Tabla editable con todos sus servicios: fecha, clienta, servicio, precio, descuento,
+   tip, comisión y pago. Se ve el antes y después, se guarda con clave y queda en la bitácora.
+   Desde aquí se descarga el estado de cuenta y se marca como enviado.
+   ========================================================= */
+const PayEdit = {
+  rowsOf(aid, from, to) { return Store.sales.filter(s => s.artistKey === aid && s.day >= from && s.day <= to).sort((a, b) => a.day - b.day || String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); },
+  draft(s) { return { id: s.id, locked: s.source !== 'app', split: (s.payments || []).length > 1, date: Dates.toISO(s.day), first: s.first || '', last: s.last || '', serviceId: s.serviceId || (Store.config.services.find(v => v.name === s.service) || {}).id || '', service: s.service,
+    price: s.price, discount: s.discount || 0, tip: s.tip || 0, commission: s.commission, manual: !!s.manual, rate: s.rate, method: s.method || '', artistId: s.artistKey, del: false, orig: s }; },
+  calc(d) { const c = Logic.calculateSale({ price: d.price, discount: d.discount, tip: d.tip, rate: d.rate, manualCommission: d.manual ? d.commission : null }); return { net: c.subtotal - c.discount, commission: c.commission, tip: c.tip }; },
+  changed(d) { if (d.isNew) return true; if (d.del) return true; const s = d.orig, c = this.calc(d);
+    return d.date !== Dates.toISO(s.day) || d.first !== (s.first || '') || d.last !== (s.last || '') || d.serviceId !== (s.serviceId || '') || num(d.price) !== s.price || num(d.discount) !== (s.discount || 0) || num(d.tip) !== (s.tip || 0) || Math.abs(c.commission - s.commission) > 0.004 || d.method !== (s.method || '') || d.artistId !== s.artistKey; },
+};
+Views.payrevisar = {
+  html() {
+    const p = UI.params || {}, aid = p.artist, from = p.from, to = p.to, a = Store.config.artists.find(x => x.id === aid) || { name: aid, rate: 0.4 };
+    if (!this.st || this.st.key !== [aid, from, to].join('|')) this.st = { key: [aid, from, to].join('|'), rows: PayEdit.rowsOf(aid, from, to).map(s => PayEdit.draft(s)) };
+    const rows = this.st.rows, svcs = Store.config.services.filter(v => v.active !== false || rows.some(r => r.serviceId === v.id)), methods = Store.config.methods.filter(m => m !== 'Depósito');
+    const before = PayEdit.rowsOf(aid, from, to), b = { n: before.length, net: r2(before.reduce((t, s) => t + s.price - s.discount, 0)), com: r2(before.reduce((t, s) => t + s.commission, 0)), tip: r2(before.reduce((t, s) => t + s.tip, 0)) };
+    const live = rows.filter(r => !r.del), c = live.map(r => PayEdit.calc(r)), n = { n: live.length, net: r2(c.reduce((t, x) => t + x.net, 0)), com: r2(c.reduce((t, x) => t + x.commission, 0)), tip: r2(c.reduce((t, x) => t + x.tip, 0)) };
+    const nch = rows.filter(r => PayEdit.changed(r)).length, dr = Store.detailReqs.find(x => x.artistId === aid && x.weekStart === Dates.toISO(from));
+    const kpi = (l, bv, nv, f) => `<div class="kpi"><div class="lab">${l}</div><div class="val">${f(nv)}</div><div class="sub">${Math.abs(nv - bv) > 0.004 ? `antes ${f(bv)} · <b style="color:var(--bad)">${nv - bv > 0 ? '+' : ''}${f(r2(nv - bv))}</b>` : 'sin cambios'}</div></div>`;
+    const sel = (k, i, opts, v, dis) => `<select class="inp" data-pe="${k}" data-i="${i}" ${dis ? 'disabled' : ''}>${opts}</select>`;
+    const line = (r, i) => { const x = PayEdit.calc(r), dis = r.locked || r.del, ch = PayEdit.changed(r);
+      return `<tr class="${r.del ? 'dupdel' : ch ? 'pe-ch' : ''}"><td><input class="inp" type="date" data-pe="date" data-i="${i}" value="${esc(r.date)}" ${dis ? 'disabled' : ''}></td>
+        <td><div class="pe-name"><input class="inp" data-pe="first" data-i="${i}" value="${esc(r.first)}" placeholder="Nombre" ${dis ? 'disabled' : ''}><input class="inp" data-pe="last" data-i="${i}" value="${esc(r.last)}" placeholder="Apellido" ${dis ? 'disabled' : ''}></div></td>
+        <td>${sel('serviceId', i, svcs.map(v => `<option value="${v.id}" ${v.id === r.serviceId ? 'selected' : ''}>${esc(v.name)}</option>`).join(''), r.serviceId, dis)}</td>
+        <td><input class="inp num" type="number" step="0.01" data-pe="price" data-i="${i}" value="${esc(r.price)}" ${dis || r.split ? 'disabled' : ''}></td>
+        <td><input class="inp num" type="number" step="0.01" data-pe="discount" data-i="${i}" value="${esc(r.discount)}" ${dis || r.split ? 'disabled' : ''}></td>
+        <td><input class="inp num" type="number" step="0.01" data-pe="tip" data-i="${i}" value="${esc(r.tip)}" ${dis || r.split ? 'disabled' : ''}></td>
+        <td><input class="inp num" type="number" step="0.01" data-pe="commission" data-i="${i}" value="${esc(r.manual ? r.commission : x.commission)}" ${dis ? 'disabled' : ''} title="${r.manual ? 'Comisión escrita a mano' : 'Automática: ' + pct(r.rate) + ' del neto'}"><span class="mutedc" style="font-size:11px;display:block">${r.manual ? 'manual' : pct(r.rate)}${r.manual && !dis ? ` · <button class="linkbtn" data-peauto="${i}">automática</button>` : ''}</span></td>
+        <td>${r.split ? `<span class="mutedc" style="font-size:12px">${esc(payText(r.orig))}</span>` : sel('method', i, `<option value="">Sin registrar</option>` + methods.map(m => `<option ${m === r.method ? 'selected' : ''}>${esc(m)}</option>`).join(''), r.method, dis)}</td>
+        <td class="r"><b>${money(r2(x.commission + x.tip), 1)}</b></td>
+        <td>${r.locked ? '<span class="mutedc" style="font-size:11.5px">Excel<br>(solo lectura)</span>' : `<button class="btn sm" data-pedel="${i}" title="${r.del ? 'Deshacer' : 'Eliminar'}">${r.del ? '↺' : '×'}</button>`}</td></tr>`; };
+    return `<div class="head"><div><h1>${esc(a.name)} · revisar semana</h1><p>${esc(Dates.fmt(from, { weekday: 'short', day: 'numeric', month: 'short' }))} – ${esc(Dates.fmt(to, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }))} · corrige lo que esté mal antes de pagar o de mandarle su detalle</p></div>
+        <div class="chips no-print"><button class="btn" data-peback>${ic('left')}Volver al Payroll</button><button class="btn" data-pepdf>${ic('dl')}Estado de cuenta</button>${dr && dr.status === 'Pendiente' ? '<button class="btn" data-pesent>Marcar detalle enviado</button>' : ''}</div></div>
+      ${dr && dr.status === 'Pendiente' ? `<div class="banner">📩 ${esc(a.name)} pidió el detalle de esta semana. Revisa, guarda los cambios, descarga su estado de cuenta y márcalo como enviado.</div>` : dr && dr.status === 'Enviado' ? `<div class="banner">Detalle enviado ${dr.sentAt ? 'el ' + esc(new Date(dr.sentAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' })) : ''}${dr.sentBy ? ' por ' + esc(dr.sentBy) : ''}. Si corriges algo, vuelve a descargar el estado de cuenta y mándaselo otra vez.</div>` : ''}
+      <section class="kpis" style="grid-template-columns:repeat(5,1fr)">${kpi('Servicios', b.n, n.n, intf)}${kpi('Ventas netas', b.net, n.net, v => money(v, 1))}${kpi('Comisión', b.com, n.com, v => money(v, 1))}${kpi('Tips', b.tip, n.tip, v => money(v, 1))}${kpi('A pagar', r2(b.com + b.tip), r2(n.com + n.tip), v => money(v, 1))}</section>
+      <div class="tablewrap peedit"><table><thead><tr><th>Fecha</th><th>Clienta</th><th>Servicio</th><th class="r">Precio</th><th class="r">Desc.</th><th class="r">Tip</th><th class="r">Comisión</th><th>Pago</th><th class="r">A pagar</th><th></th></tr></thead><tbody>${rows.map(line).join('')}</tbody></table></div>
+      <div class="chips" style="margin-top:12px;align-items:center"><button class="btn" data-peadd>${ic('plus')}Agregar servicio</button><span style="flex:1"></span>
+        <button class="btn" data-pereset ${nch ? '' : 'disabled'}>Descartar cambios</button><button class="btn primary" data-pesave ${nch && Store.writable() ? '' : 'disabled'}>Guardar ${nch ? nch + ' cambio' + (nch > 1 ? 's' : '') : 'cambios'}</button></div>
+      <p class="formula">Los renglones en amarillo tienen cambios sin guardar; los tachados se eliminarán. Si cambias el precio o el descuento, la comisión se recalcula con su porcentaje; si escribes la comisión a mano, queda como manual. Los pagos divididos se corrigen desde Ventas. Todo queda en la bitácora.</p>`;
+  },
+  mount(root) {
+    const p = UI.params || {}, st = this.st, rows = st.rows;
+    let tm; const rer = () => { clearTimeout(tm); tm = setTimeout(() => { const a = document.activeElement, k = a && a.dataset && a.dataset.pe, i = a && a.dataset && a.dataset.i, pos = a && a.selectionStart; UI.render(); if (k) { const n = $(`[data-pe="${k}"][data-i="${i}"]`); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} } } }, 450); };
+    root.addEventListener('input', e => { const k = e.target.dataset.pe, i = e.target.dataset.i; if (!k || i == null) return; const r = rows[+i];
+      if (k === 'commission') { r.manual = true; r.commission = e.target.value; } else r[k] = e.target.value;
+      if (k === 'serviceId' && r.isNew) { const v = Store.config.services.find(x => x.id === r.serviceId); if (v && !num(r.price)) r.price = v.price; }
+      UI.formDirty = true; rer(); });
+    root.addEventListener('change', e => { if (e.target.tagName === 'SELECT' && e.target.dataset.pe) { clearTimeout(tm); UI.render(); } });
+    $$('[data-peauto]', root).forEach(b => b.onclick = () => { const r = rows[+b.dataset.peauto]; r.manual = false; UI.render(); });
+    $$('[data-pedel]', root).forEach(b => b.onclick = () => { const i = +b.dataset.pedel, r = rows[i]; if (r.isNew) rows.splice(i, 1); else r.del = !r.del; UI.render(); });
+    $('[data-peadd]', root).onclick = () => { const a = Store.config.artists.find(x => x.id === p.artist) || {}; rows.push({ isNew: true, id: null, locked: false, split: false, date: Dates.toISO(Math.min(p.to, Dates.today())), first: '', last: '', serviceId: '', price: '', discount: 0, tip: 0, commission: 0, manual: false, rate: a.rate, method: '', artistId: p.artist, del: false }); UI.render(); };
+    $('[data-peback]', root).onclick = () => { this.st = null; UI.go('payroll'); };
+    $('[data-pereset]', root).onclick = () => { this.st = null; UI.formDirty = false; UI.render(); };
+    $('[data-pepdf]', root).onclick = () => { if (rows.some(r => PayEdit.changed(r))) UI.toast('Ojo: hay cambios sin guardar; el estado de cuenta sale con lo guardado.', true); Statement.pdf([p.artist], p.from, p.to); };
+    const sent = $('[data-pesent]', root); if (sent) sent.onclick = async () => { const r = Store.detailReqs.find(x => x.artistId === p.artist && x.weekStart === Dates.toISO(p.from)); const { id, ...data } = r;
+      try { await Store.db.doc('detailRequests/' + id).set({ ...data, status: 'Enviado', sentAt: new Date().toISOString(), sentBy: Mode.who() }); UI.toast('Marcado como enviado'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } };
+    $('[data-pesave]', root).onclick = async () => {
+      const ch = rows.filter(r => PayEdit.changed(r));
+      for (const r of ch) { if (r.del) continue;
+        if (!r.serviceId) return UI.toast('Elige el servicio en cada renglón.', true);
+        if (Dates.fromISO(r.date) == null) return UI.toast('Revisa las fechas.', true);
+        if (num(r.price) < 0 || num(r.discount) < 0 || num(r.tip) < 0 || num(r.discount) > num(r.price)) return UI.toast('Revisa los montos: no pueden ser negativos y el descuento no puede ser mayor al precio.', true); }
+      const e = await Claves.ask('Clave de administración', { admin: true, hint: `Vas a guardar ${ch.length} cambio(s) en el payroll de esta semana.` }); if (!e) return;
+      const btn = $('[data-pesave]', root); btn.disabled = true; let k = 0;
+      try {
+        for (const r of ch) {
+          if (r.del) { await Store.deleteSale(r.id); k++; continue; }
+          const s = r.orig || {};
+          await Store.saveSale({ date: r.date, artistId: r.artistId, serviceId: r.serviceId, price: r.price, discount: r.discount, tip: r.tip, method: r.split ? s.method : r.method, txn: s.txn || '', first: title(r.first), last: title(r.last), comments: s.comments || (r.isNew ? 'Agregado desde Payroll' : ''),
+            manualOn: r.manual, manualCommission: r.manual ? r.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '', origin: r.isNew ? 'payroll' : undefined, _by: e.name }, r.id || null);
+          k++;
+        }
+        this.st = null; UI.formDirty = false; UI.toast(`${k} cambio${k > 1 ? 's' : ''} guardado${k > 1 ? 's' : ''}`); UI.render();
+      } catch (er) { btn.disabled = false; UI.toast(`Se guardaron ${k} de ${ch.length}. Error: ${er.message || er.code}`, true); }
+    };
+  },
+};
+/* Payroll: tocar una lashista abre la revisión editable (administración) */
+{
+  const M = Views.payroll.mount;
+  Views.payroll.mount = function (root) {
+    M.call(this, root);
+    if (Mode.reception) return;
+    const [from, to] = this.range(), rows = Logic.calculatePayroll(Store.sales, from, to);
+    $$('[data-row]', root).forEach(tr => tr.onclick = () => { const r = rows[+tr.dataset.row]; if (!r) return; UI.go('payrevisar', { artist: r.key, from, to }); });
+    $$('[data-drpdf]', root).forEach(b => { const r = Store.detailReqs.find(x => x.id === b.dataset.drpdf); if (!r) return; b.insertAdjacentHTML('beforebegin', `<button class="btn sm" data-drrev="${r.id}">Revisar y editar</button>`); });
+    $$('[data-drrev]', root).forEach(b => b.onclick = () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drrev), ws = Dates.fromISO(r.weekStart); UI.go('payrevisar', { artist: r.artistId, from: ws, to: ws + 6 }); });
+  };
+  const H = Views.payroll.html;
+  Views.payroll.html = function () { return H.call(this).replace('<p>Semanas Fluffy de viernes a jueves, igual que en el Excel.</p>', '<p>Semanas Fluffy de viernes a jueves. Toca una lashista para revisar y corregir sus servicios.</p>'); };
 }
 
 /* =========================================================
