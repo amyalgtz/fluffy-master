@@ -251,6 +251,8 @@ label.field{position:relative}
 tbody tr.dupdel td{background:#FBECEE;text-decoration:line-through;text-decoration-color:rgba(179,38,30,.4)}tbody tr.dupdel td:first-child{text-decoration:none}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.dupdel td{background:#33202A}}:root[data-theme="dark"] tbody tr.dupdel td{background:#33202A}
 .panel.dupmaybe{border-left:4px solid #C9A227}
+.goalgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.bell .bdg2{position:absolute;bottom:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:99px;background:var(--gold);color:#3A2A2E;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -324,7 +326,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-16 15:11';
+window.FM_VERSION = '2026-10-17 22:43';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -6351,6 +6353,69 @@ Views.duplicados = {
   },
 };
 NAV.splice(NAV.findIndex(n => n.id === 'revision') + 1, 0, { id: 'duplicados', label: 'Duplicados', icon: 'rep', sub: true });
+
+/* =========================================================
+   METAS SEMANALES FIJAS POR LASHISTA (venta neta) + SOLICITUDES DE DETALLE desde el portal.
+   - Las metas fijas se usan en cualquier semana que no tenga una meta propia en Rendimiento.
+   - Las lashistas piden su detalle de la semana desde el portal; llega a Payroll.
+   ========================================================= */
+const GOAL_DEFAULTS = { ESTEFANIA: 2500, JOSELYN: 2500, JOSELIN: 2500, GRETER: 2800, KAREN: 2800, ANNIE: 2800, REYISI: 1600, REYSI: 1600 };
+const fixedGoal = a => { const g = (Store.config.weeklyGoals || {})[a.id]; return g != null && g !== '' ? num(g) : GOAL_DEFAULTS[String(a.name).toUpperCase()] || null; };
+// la meta es en venta NETA (precio menos descuento)
+Perf.weekSales = function (sales, ws) { const m = new Map(); for (const s of sales) if (s.day >= ws && s.day <= ws + 6) m.set(s.artistKey, r2((m.get(s.artistKey) || 0) + s.price - (s.discount || 0))); return m; };
+{
+  const G = Store.goalsFor.bind(Store);
+  Store.goalsFor = function (ws) {
+    const g = JSON.parse(JSON.stringify(G(ws) || {}));
+    Store.config.artists.filter(a => a.active !== false).forEach(a => { const f = fixedGoal(a); if (f && !(g[a.id] && num(g[a.id].meta))) g[a.id] = { ...(g[a.id] || {}), meta: f, _fixed: true }; });
+    return g;
+  };
+}
+/* Rendimiento → Metas semanales: metas fijas editables */
+{
+  const H = Views.rendimiento.html, M = Views.rendimiento.mount;
+  Views.rendimiento.html = function () {
+    const h = H.call(this); if (S.perf.tab !== 'metas' || Mode.reception) return h;
+    const arts = Store.config.artists.filter(a => a.active !== false).sort((a, b) => a.name.localeCompare(b.name));
+    const box = `<section class="panel"><h2>Metas fijas por lashista</h2><p class="hint">Venta neta semanal (precio menos descuentos, viernes a jueves). Se usan en cada semana que no tenga otra meta escrita arriba, y es lo que ve cada lashista en su portal.</p>
+      <div class="goalgrid">${arts.map(a => `<label class="field">${esc(a.name)}<input type="number" min="0" step="50" data-fg="${a.id}" value="${esc(fixedGoal(a) == null ? '' : fixedGoal(a))}" placeholder="Sin meta"></label>`).join('')}</div>
+      <div class="chips" style="margin-top:10px"><button class="btn primary" data-fgsave ${Store.writable() ? '' : 'disabled'}>Guardar metas fijas</button></div></section>`;
+    return h.replace(/(<\/div>\s*)$/, m0 => m0) + box;
+  };
+  Views.rendimiento.mount = function (root) {
+    M.call(this, root);
+    const b = $('[data-fgsave]', root); if (!b) return;
+    b.onclick = async () => { const wg = {}; $$('[data-fg]', root).forEach(i => { if (i.value !== '') wg[i.dataset.fg] = r2(i.value); });
+      try { await Store.saveConfig({ weeklyGoals: wg }); UI.toast('Metas fijas guardadas'); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } };
+  };
+}
+/* Solicitudes de detalle de la semana (portal) */
+Store.detailReqs = [];
+Store.connectHooks.push(db => { db.collection('detailRequests').onSnapshot(snap => { Store.detailReqs = snap.docs.map(d => ({ id: d.id, ...d.data() })); Store.invalidate(); }, () => {}); });
+{
+  const H = Views.payroll.html, M = Views.payroll.mount;
+  Views.payroll.html = function () {
+    const h = H.call(this), pend = Store.detailReqs.filter(r => r.status === 'Pendiente').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    if (!pend.length) return h;
+    const box = `<section class="panel latebox"><h2>📩 Solicitudes de detalle de la semana</h2><p class="hint">Lashistas que pidieron su detalle desde el portal. Descarga su estado de cuenta, mándaselo y márcalo como enviado.</p>
+      <ul class="rlist">${pend.map(r => { const ws = Dates.fromISO(r.weekStart); return `<li><div><b>${esc(r.artistName)}</b><br><span class="mutedc">${esc(weekLabel(ws))} · pidió ${esc(new Date(r.createdAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span></div>
+        <div class="ra"><button class="btn sm" data-drpdf="${r.id}">${ic('dl')}Estado de cuenta</button><button class="btn sm primary" data-drdone="${r.id}">Marcar enviado</button></div></li>`; }).join('')}</ul></section>`;
+    return h.replace(/(<div class="filters no-print")/, box + '$1');
+  };
+  Views.payroll.mount = function (root) {
+    M.call(this, root);
+    $$('[data-drpdf]', root).forEach(b => b.onclick = () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drpdf), ws = Dates.fromISO(r.weekStart); Statement.pdf([r.artistId], ws, ws + 6); });
+    $$('[data-drdone]', root).forEach(b => b.onclick = async () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drdone);
+      try { const { id, ...data } = r; await Store.db.doc('detailRequests/' + id).set({ ...data, status: 'Enviado', sentAt: new Date().toISOString(), sentBy: Mode.who() }); UI.toast('Marcado como enviado'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+  };
+}
+/* La campanita también avisa de solicitudes de detalle (solo administración) */
+{
+  const H = Notify.html.bind(Notify), O = Notify.open.bind(Notify);
+  Notify.open = function () { O(); const n = Mode.reception ? 0 : Store.detailReqs.filter(r => r.status === 'Pendiente').length, m = $('.modal'); if (!n || !m) return;
+    $('h3', m).insertAdjacentHTML('afterend', `<div class="banner">📩 ${n} lashista${n > 1 ? 's pidieron' : ' pidió'} su detalle de la semana. <button class="btn sm" data-x="godet">Ir a Payroll</button></div>`); $('[data-x=godet]', m).onclick = () => { UI.close(); UI.go('payroll'); }; };
+  Notify.html = function (cls) { const h = H(cls), n = Mode.reception ? 0 : Store.detailReqs.filter(r => r.status === 'Pendiente').length; return n ? h.replace('</button>', `<span class="bdg2" title="Solicitudes de detalle">${n}</span></button>`) : h; };
+}
 
 /* =========================================================
    VERSIÓN WEB — usuarios y roles reales.
