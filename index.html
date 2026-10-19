@@ -258,7 +258,7 @@ tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:no
 .pecell{border:0;background:none;padding:2px 4px;margin:-2px -4px;border-radius:6px;font:inherit;color:inherit;cursor:pointer;text-align:inherit;border-bottom:1px dashed var(--sand)}.pecell:hover{background:var(--blush);border-bottom-color:var(--gold)}.pecell.sub{font-size:12px;color:var(--muted)}
 .pemodal tr.tot td{font-weight:700;border-top:2px solid var(--line)}.peinline .inp{min-width:110px}.peinline .inp.num{width:100px}
 @media (pointer:coarse){.btn.sm{min-height:38px;padding-left:14px;padding-right:14px}.chip{min-height:36px}.linkbtn{padding:6px 0}.pecell{padding:6px 6px}}
-.btn.okdup{color:var(--ok);border-color:var(--ok);margin-left:6px}.btn.okdup:hover{background:rgba(46,125,79,.08)}
+.btn.okdup{color:var(--ok);border-color:var(--ok);margin-left:6px;vertical-align:middle}.dupname{font-weight:700}.btn.okdup:hover{background:rgba(46,125,79,.08)}
 .keepdep{border:1px dashed var(--ok);border-radius:10px;padding:6px 8px}
 .rxpanel{display:flex;flex-direction:column;gap:12px}.rxrow{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}.rxlab{width:96px;flex:none;font-size:12.5px;font-weight:700;color:var(--muted);padding-top:8px}
 .rxsvcs{max-height:132px;overflow:auto}.rxchart{display:flex;flex-direction:column;gap:6px}.rxbar{display:grid;grid-template-columns:minmax(120px,240px) 1fr 90px;gap:10px;align-items:center;font-size:13px}.rxbar .rxl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -337,7 +337,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-19 20:08';
+window.FM_VERSION = '2026-10-19 20:35';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -6281,7 +6281,8 @@ const Dups = {
       if (dd === 0 && a.artistKey === b.artistKey && svc(a) === svc(b) && net(a) === net(b) && this.sameName(a, b)) { note(a, b, 'mismo día, servicio y precio', true); continue; }
       if (a.payGroup === b.id || b.payGroup === a.id || (a.payGroup && a.payGroup === b.payGroup)) continue;   // servicios del mismo cobro
       // un complemento (wax, bottom, removal…) junto a su servicio principal el mismo día no es duplicado
-      if (dd === 0 && svc(a) !== svc(b) && (isAddonSvc({ name: a.service }) || isAddonSvc({ name: b.service }))) continue;
+      const extra = x => isAddonSvc({ name: x.service }) || /deposito|no show|before|after hours|bono|descuento|complimentary|propina/i.test(x.service || '');
+      if (svc(a) !== svc(b) && (extra(a) || extra(b))) continue;
       if (named(a) && named(b) && namesLike(a.first + ' ' + a.last, b.first + ' ' + b.last) && (a.artistKey === b.artistKey || svc(a) === svc(b) || net(a) === net(b))) {
         const why = [dd ? `${dd} día${dd > 1 ? 's' : ''} de diferencia` : '', svc(a) !== svc(b) ? 'servicio distinto' : '', a.artistKey !== b.artistKey ? 'lashista distinta' : '', net(a) !== net(b) ? 'precio distinto' : ''].filter(Boolean).join(' · ') || 'misma clienta y servicio';
         if (dd || svc(a) !== svc(b) || a.artistKey !== b.artistKey || net(a) !== net(b)) note(a, b, why, false); else note(a, b, 'misma clienta y servicio', true);
@@ -6326,7 +6327,7 @@ Views.duplicados = {
         ${table([{ label: 'Lashista' }, { label: 'Comisión ahora', r: 1 }, { label: 'Tips ahora', r: 1 }, { label: 'Total ahora', r: 1 }, { label: 'Comisión después', r: 1 }, { label: 'Tips después', r: 1 }, { label: 'Total después', r: 1 }, { label: 'Diferencia', r: 1, html: 1 }],
           now.map(a => { const b = aft.get(a.name) || { comision: 0, tips: 0 }, d = r2(pay(b) - pay(a)); return [a.name, money(a.comision, 1), money(a.tips, 1), money(pay(a), 1), money(b.comision, 1), money(b.tips, 1), money(pay(b), 1), d ? `<b style="color:var(--bad)">${money(d, 1)}</b>` : '—']; }),
           ['Total', money(r2(now.reduce((t, a) => t + a.comision, 0)), 1), money(r2(now.reduce((t, a) => t + a.tips, 0)), 1), money(r2(now.reduce((t, a) => t + pay(a), 0)), 1), money(r2(after.reduce((t, a) => t + a.comision, 0)), 1), money(r2(after.reduce((t, a) => t + a.tips, 0)), 1), money(r2(after.reduce((t, a) => t + pay(a), 0)), 1), ''])}</section>
-      ${sets.length ? sets.map(st => { const s0 = st.items[0]; return `<section class="panel ${st.strong ? '' : 'dupmaybe'}"><h2 style="font-size:16px">${st.strong ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Duplicado</span>' : '<span class="tag warn">Posible duplicado</span>'} ${esc(client(st.items.find(x => x.first) || s0))} · ${esc(Dates.fmt(s0.day, { weekday: 'short', day: 'numeric', month: 'short' }))}${st.items.some(x => x.day !== s0.day) ? ' – ' + esc(Dates.fmt(st.items[st.items.length - 1].day, { day: 'numeric', month: 'short' })) : ''} <span class="mutedc" style="font-weight:400">· ${st.items.length} cobros · ${esc(st.why)}</span></h2>
+      ${sets.length ? sets.map(st => { const s0 = st.items[0]; return `<section class="panel ${st.strong ? '' : 'dupmaybe'}"><h2 style="font-size:16px">${st.strong ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Duplicado</span>' : '<span class="tag warn">Posible duplicado</span>'} <span class="dupname">${esc(client(st.items.find(x => x.first) || s0))}</span> <button type="button" class="btn sm okdup" data-notdup="${st.items.map(x => x.id).join(',')}" title="Son cobros distintos de ${esc(client(st.items.find(x => x.first) || s0))}: no volver a marcarlos">✓ No es duplicado</button><br><span class="mutedc" style="font-weight:400;font-size:13.5px">${esc(Dates.fmt(s0.day, { weekday: 'short', day: 'numeric', month: 'short' }))}${st.items.some(x => x.day !== s0.day) ? ' – ' + esc(Dates.fmt(st.items[st.items.length - 1].day, { day: 'numeric', month: 'short' })) : ''} · ${st.items.length} cobros · ${esc(st.why)}</span></h2>
           <div class="tablewrap"><table><thead><tr><th></th><th>Clienta</th><th>Fecha · lashista · servicio</th><th>Precio</th><th>Comisión</th><th>Pago</th><th>Origen</th></tr></thead><tbody>${st.items.map(s => row(s, st)).join('')}</tbody></table></div>${!st.strong && st.items.some(x => sel.has(x.id) && Dups.fromExcel(x)) ? `<label class="check" style="margin-top:8px"><input type="checkbox" data-dfix="${st.keep}" ${this._fix.has(st.keep) ? 'checked' : ''}> Corregir la que se queda con los datos del Excel (fecha, lashista, servicio, precio y tip)</label>` : ''}</section>`; }).join('')
         : '<div class="tablewrap"><div class="empty"><b>Sin duplicados en este periodo</b>No hay cobros repetidos.</div></div>'}
       ${sets.length ? `<div class="chips" style="margin-top:6px"><button class="btn danger" data-ddel ${sel.size && Store.writable() && !Mode.reception ? '' : 'disabled'}>Eliminar ${intf(sel.size)} copias marcadas</button><button class="btn" data-dxls>${ic('dl')}Descargar lista</button></div>
@@ -6622,8 +6623,6 @@ const PayModal = {
   const H = Views.duplicados.html, Mo = Views.duplicados.mount;
   Views.duplicados.html = function () {
     let h = H.call(this);
-    (this._sets || []).forEach((st, k) => { const ids = st.items.map(x => x.id).join(',');
-      h = h.replace(/(<section class="panel( dupmaybe)?"><h2 style="font-size:16px">)(<span class="tag[^>]*>(?:Duplicado|Posible duplicado)<\/span>)/, `$1$3 <button type="button" class="btn sm okdup" data-notdup="${ids}">✓ No es duplicado</button>`); });
     if (Mode.reception) h = h.replace(/<button class="btn danger" data-ddel[^>]*>[^<]*<\/button>/, '<span class="formula" style="margin:0">Para eliminar copias pide a administración (requiere su clave).</span>');
     return h;
   };
