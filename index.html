@@ -255,6 +255,8 @@ tbody tr.dupdel td{background:#FBECEE;text-decoration:line-through;text-decorati
 .bell .bdg2{position:absolute;bottom:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;border-radius:99px;background:var(--gold);color:#3A2A2E;font-size:10.5px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
 .peedit td{vertical-align:top;padding:8px 6px}.pe-name{display:grid;gap:4px;width:150px}.pe-name .inp{width:100%}.peedit .inp{padding:7px 8px;font-size:13px;min-width:0}.peedit input.num{width:84px}.peedit input[type=date]{width:132px}.peedit select{max-width:170px}
 tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) tbody tr.pe-ch td{background:#30291A}}:root[data-theme="dark"] tbody tr.pe-ch td{background:#30291A}
+.pecell{border:0;background:none;padding:2px 4px;margin:-2px -4px;border-radius:6px;font:inherit;color:inherit;cursor:pointer;text-align:inherit;border-bottom:1px dashed var(--sand)}.pecell:hover{background:var(--blush);border-bottom-color:var(--gold)}.pecell.sub{font-size:12px;color:var(--muted)}
+.pemodal tr.tot td{font-weight:700;border-top:2px solid var(--line)}.peinline .inp{min-width:110px}.peinline .inp.num{width:100px}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -328,7 +330,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-17 23:14';
+window.FM_VERSION = '2026-10-19 14:33';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3431,7 +3433,7 @@ Views.agenda = {
     const sum = { tot: list.length, dep: list.filter(a => apptDeposit(a)).length, paid: list.filter(a => a.status === 'Pagada').length, pend: list.filter(a => a.status === 'Agendada').length };
     const groups = new Map(); list.forEach(a => { if (!groups.has(a.day)) groups.set(a.day, []); groups.get(a.day).push(a); });
     const rows = l => table([{ label: '#', r: 1, html: 1 }, { label: 'Hora' }, { label: 'Clienta', html: 1 }, { label: 'Lashista', html: 1 }, { label: 'Servicio', html: 1 }, { label: 'Depósito', html: 1 }, { label: 'Pago', html: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
-      l.map((a, k) => [`<span class="apnum">${k + 1}</span>`, a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
+      l.map((a, k) => [`<span class="apnum">${k + 1}</span>`, a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${(a.addons || []).length && typeof AddOns !== 'undefined' ? '+ ' + esc(AddOns.text(a)) + ' · ' : ''}${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
         a.status === 'Agendada' && Store.writable() ? `<button class="btn sm primary" data-pay="${a.id}">Cobrar</button>` : '']), null, { click: 1 });
     return `<div class="head"><div><h1>Agenda</h1><p>${intf(sum.tot)} citas · ${intf(sum.dep)} con depósito · ${intf(sum.paid)} pagadas · ${intf(sum.pend)} por cobrar</p></div><div class="chips"><button class="btn primary" data-newappt ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva cita</button></div></div>
       <div class="filters no-print" style="align-items:center">
@@ -5012,17 +5014,7 @@ const AddOns = {
   text: a => (a.addons || []).map(x => x.serviceName + (x.artistName && x.artistName !== a.artistName ? ` (${x.artistName})` : '')).join(', '),
 };
 
-/* Agenda: mostrar complementos y sumarlos a lo que resta por cobrar. */
-const _agHtmlAd = Views.agenda.html;
-Views.agenda.html = function () {
-  let h = _agHtmlAd.call(this);
-  (this._list || []).forEach(a => {
-    if (!(a.addons || []).length) return;
-    const re = new RegExp(`(data-row="\\d+">(?:(?!</tr>)[\\s\\S])*?${esc(a.serviceName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}<br><span class="mutedc" style="font-size:12px">)\\$`);
-    h = h.replace(re, `$1+ ${esc(AddOns.text(a))} · $`);
-  });
-  return h;
-};
+/* Agenda: los complementos se muestran en el renglón de su propia cita (agenda.js); aquí solo se suman a lo que resta. */
 const _payCellAd = payCell;
 payCell = function (a) {
   const h = _payCellAd(a);
@@ -6408,7 +6400,7 @@ Store.connectHooks.push(db => { db.collection('detailRequests').onSnapshot(snap 
     M.call(this, root);
     $$('[data-drpdf]', root).forEach(b => b.onclick = () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drpdf), ws = Dates.fromISO(r.weekStart); Statement.pdf([r.artistId], ws, ws + 6); });
     $$('[data-drdone]', root).forEach(b => b.onclick = async () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drdone);
-      try { const { id, ...data } = r; await Store.db.doc('detailRequests/' + id).set({ ...data, status: 'Enviado', sentAt: new Date().toISOString(), sentBy: Mode.who() }); UI.toast('Marcado como enviado'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+      try { const { id, ...data } = r; await Store.db.doc('detailRequests/' + id).set({ ...data, status: 'Enviado', sentAt: new Date().toISOString(), sentBy: Mode.who() }); UI.toast('Listo: ya lo puede ver en su portal'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } });
   };
 }
 /* La campanita también avisa de solicitudes de detalle (solo administración) */
@@ -6500,19 +6492,78 @@ Views.payrevisar = {
     };
   },
 };
-/* Payroll: tocar una lashista abre la revisión editable (administración) */
+/* Payroll: al tocar una lashista se abre la vista simple de siempre; cada dato se puede
+   corregir tocándolo (solo administración). La clave se pide una vez por ventana. */
+const PayModal = {
+  unlocked: null,
+  open(aid, from, to) {
+    const a = Store.config.artists.find(x => x.id === aid) || { name: aid }, list = PayEdit.rowsOf(aid, from, to);
+    const tot = { net: r2(list.reduce((t, s) => t + s.price - s.discount, 0)), com: r2(list.reduce((t, s) => t + s.commission, 0)), tip: r2(list.reduce((t, s) => t + s.tip, 0)) };
+    const dr = Store.detailReqs.find(x => x.artistId === aid && x.weekStart === Dates.toISO(from)), admin = !Mode.reception && Store.writable();
+    const cell = (s, f, shown, cls) => s.source === 'app' && admin ? `<td class="${cls || ''}"><button type="button" class="pecell" data-sid="${s.id}" data-f="${f}" title="Toca para corregir">${shown}</button></td>` : `<td class="${cls || ''}">${shown}</td>`;
+    UI.modal(`<h3>${esc(a.name)}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(from)} – ${Dates.fmt(to)} · Total a pagar <b>${money(r2(tot.com + tot.tip), 1)}</b></p>
+      ${dr && dr.status === 'Pendiente' ? `<div class="banner">📩 ${esc(a.name)} pidió el detalle de esta semana. Revisa, corrige si hace falta y márcalo como enviado: lo verá en su portal.</div>` : dr && dr.status === 'Enviado' ? `<div class="banner">Detalle enviado${dr.sentAt ? ' el ' + esc(new Date(dr.sentAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' })) : ''} · lo que corrijas aquí se actualiza solo en su portal.</div>` : ''}
+      <div class="tablewrap" style="max-height:58vh;overflow:auto"><table class="pemodal"><thead><tr><th>Fecha</th><th>Servicio</th><th class="r">Neto</th><th class="r">Comisión</th><th class="r">Tip</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>
+        ${list.map(s => `<tr>${cell(s, 'date', esc(Dates.fmt(s.day, { day: '2-digit', month: 'short' })))}
+          <td>${s.source === 'app' && admin ? `<button type="button" class="pecell" data-sid="${s.id}" data-f="serviceId">${esc(s.service)}</button><br><button type="button" class="pecell sub" data-sid="${s.id}" data-f="client">${esc(client(s) || 'Sin nombre')}</button>` : `${esc(s.service)}<br><span class="mutedc" style="font-size:12px">${esc(client(s))}</span>`}</td>
+          ${cell(s, 'net', money(s.price - s.discount, 1), 'r')}${cell(s, 'commission', money(s.commission, 1) + (s.manual ? '<span class="mutedc" style="font-size:10.5px"> manual</span>' : ''), 'r')}${cell(s, 'tip', money(s.tip, 1), 'r')}
+          ${admin ? `<td>${s.source === 'app' ? `<button type="button" class="btn sm" data-pdel="${s.id}" title="Eliminar">×</button>` : ''}</td>` : ''}</tr>`).join('')}
+        <tr class="tot"><td>Total</td><td>${intf(list.length)} servicios</td><td class="r">${money(tot.net, 1)}</td><td class="r">${money(tot.com, 1)}</td><td class="r">${money(tot.tip, 1)}</td>${admin ? '<td></td>' : ''}</tr></tbody></table></div>
+      ${admin ? '<p class="formula">Toca la fecha, el servicio, la clienta, el neto, la comisión o el tip para corregirlo. Al cambiar el neto, la comisión se recalcula con su porcentaje.</p>' : ''}
+      <div class="acts"><button class="btn" data-x="pdf">${ic('dl')}Estado de cuenta</button>${dr && dr.status === 'Pendiente' && admin ? '<button class="btn" data-x="sent">Marcar detalle enviado</button>' : ''}<button class="btn primary" data-x="c">Cerrar</button></div>`, m => {
+      m.classList.add('wide');
+      $('[data-x=c]', m).onclick = () => { this.unlocked = null; UI.close(); };
+      $('[data-x=pdf]', m).onclick = () => Statement.pdf([aid], from, to);
+      const sb = $('[data-x=sent]', m); if (sb) sb.onclick = async () => { const { id, ...data } = dr; try { await Store.db.doc('detailRequests/' + id).set({ ...data, status: 'Enviado', sentAt: new Date().toISOString(), sentBy: Mode.who() }); UI.toast('Listo: ya lo puede ver en su portal'); UI.close(); this.open(aid, from, to); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } };
+      $$('[data-pdel]', m).forEach(b => b.onclick = async () => { const s = Store.sales.find(x => x.id === b.dataset.pdel);
+        if (!await this.unlock()) return; if (!confirm(`¿Eliminar ${s.service} de ${client(s) || 'esta clienta'}?`)) return;
+        try { await Store.deleteSale(s.id); UI.toast('Servicio eliminado'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } UI.close(); this.open(aid, from, to); });
+      $$('.pecell', m).forEach(b => b.onclick = () => this.edit(b, aid, from, to));
+    });
+  },
+  async unlock() { if (this.unlocked) return true; const e = await Claves.ask('Clave de administración', { admin: true, hint: 'Para corregir el payroll escribe tu clave. Se pide una vez mientras esta ventana esté abierta.' }); if (!e) return false; this.unlocked = e.name; return true; },
+  edit(btn, aid, from, to) {
+    const s = Store.sales.find(x => x.id === btn.dataset.sid), f = btn.dataset.f; if (!s) return;
+    const td = btn.closest('td'), old = td.innerHTML;
+    const input = f === 'date' ? `<input type="date" class="inp" data-v value="${Dates.toISO(s.day)}">`
+      : f === 'serviceId' ? `<select class="inp" data-v>${Store.config.services.filter(v => v.active !== false || v.id === s.serviceId).map(v => `<option value="${v.id}" ${v.id === s.serviceId ? 'selected' : ''}>${esc(v.name)} · ${money(v.price)}</option>`).join('')}</select>`
+      : f === 'client' ? `<input class="inp" data-v="first" value="${esc(title(s.first || ''))}" placeholder="Nombre"><input class="inp" data-v2 value="${esc(title(s.last || ''))}" placeholder="Apellido" style="margin-top:4px">`
+      : `<input type="number" step="0.01" min="0" class="inp num" data-v value="${f === 'net' ? r2(s.price - s.discount) : f === 'commission' ? s.commission : s.tip}">`;
+    if ((s.payments || []).length > 1 && (f === 'net' || f === 'tip')) { UI.toast('Este cobro tiene pago dividido: corrige el precio o el tip desde Ventas.', true); return; }
+    td.innerHTML = `<div class="peinline">${input}<div class="chips" style="gap:4px;margin-top:4px"><button type="button" class="btn sm primary" data-ok>✓</button><button type="button" class="btn sm" data-no>✕</button></div></div>`;
+    const v = $('[data-v]', td); v.focus(); if (v.select) try { v.select(); } catch (e) {}
+    const cancel = () => { td.innerHTML = old; $$('.pecell', td).forEach(b => b.onclick = () => this.edit(b, aid, from, to)); };
+    const save = async () => {
+      const val = v.value, val2 = ($('[data-v2]', td) || {}).value;
+      if ((f === 'net' || f === 'commission' || f === 'tip') && (val === '' || num(val) < 0)) return UI.toast('Escribe un monto válido.', true);
+      if (f === 'date' && Dates.fromISO(val) == null) return UI.toast('Escribe una fecha válida.', true);
+      if (!await this.unlock()) return;
+      const form = { date: Dates.toISO(s.day), artistId: s.artistKey, serviceId: s.serviceId || (Store.config.services.find(x => x.name === s.service) || {}).id, price: s.price, discount: s.discount || '', tip: s.tip || '', method: s.method || '', txn: s.txn || '', first: s.first || '', last: s.last || '', comments: s.comments || '',
+        manualOn: s.manual, manualCommission: s.manual ? s.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '' };
+      if (f === 'date') form.date = val;
+      if (f === 'serviceId') { form.serviceId = val; const nv = Store.config.services.find(x => x.id === val), ov = Store.config.services.find(x => x.id === s.serviceId); if (nv && ov && Math.abs(s.price - ov.price) < 0.01 && (s.payments || []).length < 2 && confirm(`¿Cambiar también el precio a ${money(nv.price)} (precio de ${nv.name})?`)) form.price = nv.price; }
+      if (f === 'client') { form.first = title(val); form.last = title(val2 || ''); }
+      if (f === 'net') form.price = r2(num(val) + num(s.discount));
+      if (f === 'tip') form.tip = val;
+      if (f === 'commission') { form.manualOn = true; form.manualCommission = val; }
+      try { await Store.saveSale(form, s.id); UI.toast('Corregido'); UI.close(); this.open(aid, from, to); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); }
+    };
+    $('[data-ok]', td).onclick = save; $('[data-no]', td).onclick = cancel;
+    td.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.stopPropagation(); cancel(); } });
+  },
+};
 {
   const M = Views.payroll.mount;
   Views.payroll.mount = function (root) {
     M.call(this, root);
-    if (Mode.reception) return;
     const [from, to] = this.range(), rows = Logic.calculatePayroll(Store.sales, from, to);
-    $$('[data-row]', root).forEach(tr => tr.onclick = () => { const r = rows[+tr.dataset.row]; if (!r) return; UI.go('payrevisar', { artist: r.key, from, to }); });
-    $$('[data-drpdf]', root).forEach(b => { const r = Store.detailReqs.find(x => x.id === b.dataset.drpdf); if (!r) return; b.insertAdjacentHTML('beforebegin', `<button class="btn sm" data-drrev="${r.id}">Revisar y editar</button>`); });
-    $$('[data-drrev]', root).forEach(b => b.onclick = () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drrev), ws = Dates.fromISO(r.weekStart); UI.go('payrevisar', { artist: r.artistId, from: ws, to: ws + 6 }); });
+    $$('[data-row]', root).forEach(tr => tr.onclick = () => { const r = rows[+tr.dataset.row]; if (r) PayModal.open(r.key, from, to); });
+    if (Mode.reception) return;
+    $$('[data-drpdf]', root).forEach(b => { const r = Store.detailReqs.find(x => x.id === b.dataset.drpdf); if (!r) return; b.insertAdjacentHTML('beforebegin', `<button class="btn sm" data-drrev="${r.id}">Revisar y corregir</button>`); });
+    $$('[data-drrev]', root).forEach(b => b.onclick = () => { const r = Store.detailReqs.find(x => x.id === b.dataset.drrev), ws = Dates.fromISO(r.weekStart); PayModal.open(r.artistId, ws, ws + 6); });
   };
   const H = Views.payroll.html;
-  Views.payroll.html = function () { return H.call(this).replace('<p>Semanas Fluffy de viernes a jueves, igual que en el Excel.</p>', '<p>Semanas Fluffy de viernes a jueves. Toca una lashista para revisar y corregir sus servicios.</p>'); };
+  Views.payroll.html = function () { return H.call(this).replace('<p>Semanas Fluffy de viernes a jueves, igual que en el Excel.</p>', '<p>Semanas Fluffy de viernes a jueves. Toca una lashista para ver su detalle y corregir lo que haga falta.</p>'); };
 }
 
 /* =========================================================

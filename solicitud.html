@@ -158,6 +158,13 @@ h2{font-size:17px;margin:22px 0 4px}
     return `<div class="goal ${falta <= 0 ? 'done' : ''}"><div class="gtop"><span>🎯 Tu meta ${past ? 'de esa semana' : 'de la semana'}</span><b>$${neto.toFixed(2)} <small>de $${meta.toFixed(2)}</small></b></div>
       <div class="gbar"><i style="width:${pctv.toFixed(1)}%"></i></div><p>${msg}</p><small>La meta es en venta neta (precio menos descuentos), de viernes a jueves.</small></div>`;
   }
+  function detailList(w) {
+    const rows = w.rows || [], byDay = {};
+    rows.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+    const sent = w.sentAt ? new Date(w.sentAt).toLocaleString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+    return `<h2 id="detalle">📄 Tu detalle de la semana</h2><p class="sub">Revisado y enviado por administración${sent ? ' el ' + esc(sent) : ''}</p>
+      ${rows.length ? Object.entries(byDay).map(([d, l]) => `<div class="rq"><h3><span>${esc(fdate(d))}</span><small>${l.length} servicio${l.length > 1 ? 's' : ''}</small></h3><ul>${l.map(r => `<li><span>${esc(r.service)}<br><small>${esc(r.client || '')} · neto ${$$m(r.net)}</small></span><span style="text-align:right">${$$m(Number(r.commission) + Number(r.tip))}<br><small>comisión ${$$m(r.commission)}${Number(r.tip) ? ' · tip ' + $$m(r.tip) : ''}</small></span></li>`).join('')}</ul></div>`).join('') : '<p class="sub">No hay servicios en esta semana.</p>'}`;
+  }
   function renderWeek() {
     const w = S.week; let body = '';
     if (w) {
@@ -166,8 +173,9 @@ h2{font-size:17px;margin:22px 0 4px}
         ${goalCard(w)}
         <div class="kp"><div><span>Servicios</span><b>${Number(t.count || 0)}</b></div><div><span>Ventas (neto)</span><b>${$$m(t.sales)}</b></div><div><span>Comisiones</span><b>${$$m(t.commission)}</b></div><div><span>Tips</span><b>${$$m(t.tips)}</b></div></div>
         <div class="rq" style="border-color:var(--gold)"><h3><span>Total a recibir</span><b>${$$m(Number(t.commission || 0) + Number(t.tips || 0))}</b></h3><small>Comisiones + tips de la semana (viernes a jueves). No incluye descuentos de tu nota de insumos ni ajustes de administración.</small></div>
-        <button class="btn ghost" id="reqdet" style="width:100%;margin-top:12px" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? '✓ Ya pediste el detalle de esta semana' : d === 'Enviado' ? 'Volver a pedir el detalle de la semana' : 'Solicitar detalle de la semana'}</button>
-        ${d === 'Enviado' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración ya te envió tu detalle de esta semana.</p>' : d === 'Pendiente' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración te enviará tu detalle con cada servicio.</p>' : ''}
+        <button class="btn ghost" id="reqdet" style="width:100%;margin-top:12px" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? '✓ Ya pediste el detalle de esta semana' : d === 'Enviado' ? '¿Algo no cuadra? Pedir que lo revisen otra vez' : 'Solicitar detalle de la semana'}</button>
+        ${d === 'Pendiente' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración va a revisar tu semana. Cuando esté lista, tu detalle aparecerá aquí abajo.</p>' : ''}
+        ${d === 'Enviado' ? detailList(w) : ''}
         <h2>Tus otras metas</h2>${CHECKS.map(([k, ic, lab, txt]) => `<div class="rq"><h3><span>${ic} ${lab}</span>${chk((w.checks || {})[k])}</h3><small>${txt}</small></div>`).join('')}`;
     }
     app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
