@@ -268,6 +268,25 @@ tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:no
 .pickappt{border-color:var(--gold)}
 .banner.mismatch{border-color:var(--bad)}.mmrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 .tipbox{border:1px dashed var(--sand);border-radius:12px;padding:10px 12px}.tiplines{display:flex;flex-direction:column;gap:6px;margin-top:8px}.tipl{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}.tipl .inp{width:110px;flex:none}
+.agview{margin-right:6px}
+.calwrap{--calhead:52px;overflow:auto;max-height:calc(100vh - 290px);min-height:420px;border:1px solid var(--line);border-radius:14px;background:var(--bg);position:relative}
+.calgrid{display:grid;grid-template-columns:62px repeat(var(--cols),minmax(180px,1fr));position:relative;min-width:min-content}
+.calhead{height:var(--calhead);position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;padding:0 10px;font-size:14px}.calhead .mutedc{font-size:11.5px;margin-left:auto}
+.calhead .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.caltimes{position:sticky;left:0;z-index:6;background:var(--bg);border-right:1px solid var(--line)}.caltimes .calhead{z-index:7}
+.caltbody{position:relative}.caltbody span{position:absolute;right:8px;transform:translateY(-50%);font-size:11.5px;color:var(--muted);white-space:nowrap}.caltbody span:first-child{transform:none}
+.caltbody .calnowlbl{color:#D23A57;font-weight:700;background:var(--bg);padding:0 2px}
+.calcol{border-right:1px solid var(--line);min-width:180px}.calbody{position:relative;cursor:copy}
+.calhr{position:absolute;left:0;right:0;border-top:1px solid var(--line)}.calhh{position:absolute;left:0;right:0;border-top:1px dashed var(--line);opacity:.6}
+.calb{position:absolute;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:0;border-left:4px solid color-mix(in srgb,var(--c) 55%,#7a4a4a);border-radius:8px;background:color-mix(in srgb,var(--c) 45%,var(--bg));color:var(--ink);padding:5px 8px;font:inherit;font-size:12.5px;overflow:hidden;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.calb:hover{filter:brightness(.97);z-index:3}.calb .ct{font-size:11.5px;color:var(--muted);font-weight:600}.calb b{font-size:13px;line-height:1.2}.calb .cs{font-size:12px;color:var(--muted);line-height:1.25}
+.calb.paid{background:#DCEFD9;border-left-color:#2E7D4F}.calb.noshow{background:#FFF1C9;border-left-color:#C9A227}.calb.cancel{background:var(--sand-soft);opacity:.6;text-decoration:line-through}.calb.walk{background:#D6E3F3;border-left-color:#4A78B5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .calb.paid{background:#1F3326}:root:not([data-theme="light"]) .calb.noshow{background:#3A3220}:root:not([data-theme="light"]) .calb.walk{background:#1E2A3A}}
+:root[data-theme="dark"] .calb.paid{background:#1F3326}:root[data-theme="dark"] .calb.noshow{background:#3A3220}:root[data-theme="dark"] .calb.walk{background:#1E2A3A}
+.ci{font-style:normal;font-size:10px;font-weight:800;border-radius:99px;padding:0 5px;margin-left:3px;vertical-align:1px}.ci.ok{background:#2E7D4F;color:#fff}.ci.dep{background:var(--gold);color:#3A2A2E}.ci.ns{background:#C9A227;color:#fff}
+.calnow{position:absolute;left:62px;right:0;border-top:2px solid #D23A57;z-index:4;pointer-events:none}.calnow::before{content:"";position:absolute;left:-5px;top:-6px;width:10px;height:10px;border-radius:50%;background:#D23A57}
+.calempty{grid-column:2/-1;padding:40px;text-align:center;display:flex;flex-direction:column;gap:6px}
+@media (max-width:640px){.calgrid{grid-template-columns:52px repeat(var(--cols),minmax(150px,1fr))}.calnow{left:52px}.calwrap{max-height:calc(100vh - 230px)}}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -341,7 +360,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-20 12:56';
+window.FM_VERSION = '2026-10-20 18:17';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1393,9 +1412,10 @@ Views.servicios = {
       { name: 'name', label: 'Nombre del servicio', full: 1, validate: (v, all) => !v.trim() ? 'Escribe el nombre.' : '' },
       { name: 'code', label: 'Código' }, { name: 'price', label: 'Precio', type: 'number', step: '0.01', validate: v => v !== '' && num(v) >= 0 ? '' : 'Escribe un precio válido.' },
       { name: 'category', label: 'Categoría', list: cats, full: 1, validate: v => v.trim() ? '' : 'Escribe o elige una categoría.' },
+      { name: 'duration', label: 'Duración (minutos)', type: 'number', step: '5', validate: v => v === '' || (num(v) > 0 && num(v) <= 480) ? '' : 'Escribe minutos entre 5 y 480, o déjalo vacío.' },
       { name: 'active', label: 'Estado', type: 'check', hint: 'Activo (aparece al registrar ventas)', full: 1 }];
     const open = s => editorModal(s ? 'Editar servicio' : 'Agregar servicio', fields, s || { active: true }, async v => {
-      const rec = { id: s ? s.id : 's' + Date.now().toString(36), name: v.name.trim(), code: v.code.trim(), price: Math.round(num(v.price) * 100) / 100, category: v.category.trim(), active: v.active };
+      const rec = { id: s ? s.id : 's' + Date.now().toString(36), name: v.name.trim(), code: v.code.trim(), price: Math.round(num(v.price) * 100) / 100, category: v.category.trim(), duration: v.duration === '' || v.duration == null ? null : Math.round(num(v.duration)), active: v.active };
       if (Store.config.services.some(x => x.name.toLowerCase() === rec.name.toLowerCase() && x.id !== rec.id)) throw new Error('Ya existe un servicio con ese nombre.');
       await Store.saveConfig({ services: s ? Store.config.services.map(x => x.id === s.id ? rec : x) : Store.config.services.concat(rec) });
     });
@@ -6344,7 +6364,7 @@ Views.duplicados = {
       ${sets.length ? sets.map(st => { const s0 = st.items[0]; return `<section class="panel ${st.strong ? '' : 'dupmaybe'}"><h2 style="font-size:16px">${st.strong ? '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Duplicado</span>' : '<span class="tag warn">Posible duplicado</span>'} <span class="dupname">${esc(client(st.items.find(x => x.first) || s0))}</span> <button type="button" class="btn sm okdup" data-notdup="${st.items.map(x => x.id).join(',')}" title="Son cobros distintos de ${esc(client(st.items.find(x => x.first) || s0))}: no volver a marcarlos">✓ No es duplicado</button><br><span class="mutedc" style="font-weight:400;font-size:13.5px">${esc(Dates.fmt(s0.day, { weekday: 'short', day: 'numeric', month: 'short' }))}${st.items.some(x => x.day !== s0.day) ? ' – ' + esc(Dates.fmt(st.items[st.items.length - 1].day, { day: 'numeric', month: 'short' })) : ''} · ${st.items.length} cobros · ${esc(st.why)}</span></h2>
           <div class="tablewrap"><table><thead><tr><th></th><th>Clienta</th><th>Fecha · lashista · servicio</th><th>Precio</th><th>Comisión</th><th>Pago</th><th>Origen</th></tr></thead><tbody>${st.items.map(s => row(s, st)).join('')}</tbody></table></div>${!st.strong && st.items.some(x => sel.has(x.id) && Dups.fromExcel(x)) ? `<label class="check" style="margin-top:8px"><input type="checkbox" data-dfix="${st.keep}" ${this._fix.has(st.keep) ? 'checked' : ''}> Corregir la que se queda con los datos del Excel (fecha, lashista, servicio, precio y tip)</label>` : ''}</section>`; }).join('')
         : '<div class="tablewrap"><div class="empty"><b>Sin duplicados en este periodo</b>No hay cobros repetidos.</div></div>'}
-      ${sets.length ? `<div class="chips" style="margin-top:6px"><button class="btn danger" data-ddel ${sel.size && Store.writable() && !Mode.reception ? '' : 'disabled'}>Eliminar ${intf(sel.size)} copias marcadas</button><button class="btn" data-dxls>${ic('dl')}Descargar lista</button></div>
+      ${sets.length ? `<div class="chips" style="margin-top:6px"><button class="btn danger" data-ddel ${sel.size && Store.writable() ? '' : 'disabled'}>Eliminar ${intf(sel.size)} copias marcadas</button><button class="btn" data-dxls>${ic('dl')}Descargar lista</button></div>
         <p class="formula"><b>Duplicado:</b> mismo día, lashista, servicio y precio. <b>Posible duplicado:</b> la misma clienta con 1 o 2 días de diferencia, o con el servicio, el precio o la lashista cambiados (por ejemplo, Volume capturado como Wispy). Se queda la copia ligada a una cita o capturada por recepción; en los posibles solo se marca la que subió el Excel. En los posibles, la que se queda se corrige con los datos del Excel (casilla marcada) para que quede la fecha y el servicio correctos. Revisa cada grupo: si de verdad fueron dos visitas, desmarca.</p>` : ''}`;
   },
   mount(root) {
@@ -6637,7 +6657,10 @@ const PayModal = {
   const H = Views.duplicados.html, Mo = Views.duplicados.mount;
   Views.duplicados.html = function () {
     let h = H.call(this);
-    if (Mode.reception) h = h.replace(/<button class="btn danger" data-ddel[^>]*>[^<]*<\/button>/, '<span class="formula" style="margin:0">Para eliminar copias pide a administración (requiere su clave).</span>');
+    if (Mode.reception) h = h.replace(/<section class="panel"><h2>Cómo queda el payroll<\/h2>[\s\S]*?<\/section>/, '')
+      .replace(/<div class="kpi"><div class="lab">Payroll de la semana<\/div>[\s\S]*?<\/div><\/div>/, '').replace('grid-template-columns:repeat(3,1fr)', 'grid-template-columns:repeat(2,1fr)')
+      .replace(/<th>Comisión<\/th>/g, '').replace(/<td>\$[\d,]+\.\d\d<\/td>(?=<td>[^<]*(?:Zelle|Efectivo|Tarjeta|Sin método|Cash|Apple|Venmo|PayPal|Otro|Paquete|Depósito|[^<]*\+))/g, '');
+    if (Mode.reception) h = h.replace('<p class="formula"><b>Duplicado:</b>', '<p class="formula">Para eliminar copias se pide la clave de administración. <b>Duplicado:</b>');
     return h;
   };
   Views.duplicados.mount = function (root) {
@@ -7070,6 +7093,115 @@ const aName = id => (Store.config.artists.find(a => a.id === id) || {}).name || 
       };
     });
   });
+}
+
+/* =========================================================
+   AGENDA → VISTA CALENDARIO (como Booksy): una columna por lashista, horas a la izquierda,
+   cada cita como un bloque del tamaño de su duración, línea roja de la hora actual.
+   Tocar una cita abre su detalle; tocar un espacio vacío agenda ahí (con esa lashista y hora).
+   ========================================================= */
+S.ag.view = (() => { try { return localStorage.getItem('fm-ag-view-2') || 'lista'; } catch (e) { return 'lista'; } })();
+const CAL = { start: 9 * 60, end: 21 * 60, ppm: 1.3,
+  dur(a) { // minutos: duración del servicio (si la tiene) o estimada por tipo, + 30 por complemento
+    const svc = Store.config.services.find(x => x.id === a.serviceId) || {}, n = String(a.serviceName || svc.name || '').toLowerCase(), c = String(svc.category || '').toLowerCase();
+    let m = num(a.duration) || num(svc.duration) || (/full set/.test(n) || /full set/.test(c) ? 120 : /mini/.test(n) || /3 weeks/.test(n) ? 60 : /refill|fill/.test(n) ? 90 : /lift|lamination/.test(n) ? 60 : /removal|wax|tint|henna|bottom|thread/.test(n) ? 30 : 60);
+    return m + 30 * (a.addons || []).length;
+  },
+  mins: t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; },
+  hm: m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
+  label: m => { const h = Math.floor(m / 60), mm = m % 60; return `${((h + 11) % 12) + 1}${mm ? ':' + String(mm).padStart(2, '0') : ''} ${h < 12 ? 'AM' : 'PM'}`; },
+  colors: ['#E9C9C3', '#F3D9C0', '#D7E8D3', '#D6E3F3', '#E6D9F2', '#F4E1A8', '#CFE7E6', '#F2D3E3'],
+};
+function calHtml(day) {
+  const appts = Store.appointments.filter(a => a.day === day && a.status !== 'Cancelada' || (a.day === day && a.status === 'Cancelada' && S.ag.showCancel));
+  const linked = new Set(Store.appointments.flatMap(a => [a.saleId].concat(a.extraSaleIds || [])).filter(Boolean));
+  const walk = Store.sales.filter(s => s.source === 'app' && s.day === day && !linked.has(s.id) && !s.payGroup && !s.visitOf);
+  const ids = [...new Set(appts.map(a => a.artistId).concat(walk.map(s => s.artistKey)))];
+  const arts = (S.ag.allCols ? Store.config.artists.filter(a => a.active !== false).map(a => a.id).concat(ids) : ids).filter((v, i, l) => v && l.indexOf(v) === i)
+    .map(id => Store.config.artists.find(a => a.id === id) || { id, name: id }).sort((a, b) => a.name.localeCompare(b.name));
+  const times = appts.map(a => CAL.mins(a.time)).filter(x => x != null);
+  const st = Math.min(CAL.start, ...times.map(t => Math.floor(t / 60) * 60)), en = Math.max(CAL.end, ...appts.map(a => (CAL.mins(a.time) || 0) + CAL.dur(a)).map(t => Math.ceil(t / 60) * 60)), H = (en - st) * CAL.ppm;
+  const hours = []; for (let m = st; m <= en; m += 60) hours.push(m);
+  const colIdx = new Map(Store.config.artists.map((a, i) => [a.id, i]));
+  const block = (b, lane, lanes) => { const top = (b.start - st) * CAL.ppm, h = Math.max(22, b.dur * CAL.ppm - 3), w = 100 / lanes;
+    return `<button type="button" class="calb ${b.cls}" style="top:${top}px;height:${h}px;left:calc(${lane * w}% + 3px);width:calc(${w}% - 6px);--c:${b.color}" ${b.appt ? `data-calappt="${b.appt}"` : `data-calsale="${b.sale}"`}>
+      <span class="ct">${esc(CAL.label(b.start))} – ${esc(CAL.label(b.start + b.dur))}${b.icons}</span><b>${esc(b.who)}</b><span class="cs">${esc(b.what)}</span></button>`; };
+  const cols = arts.map(ar => {
+    const bl = appts.filter(a => a.artistId === ar.id && CAL.mins(a.time) != null).map(a => { const d = apptDeposit(a);
+      return { start: CAL.mins(a.time), dur: CAL.dur(a), appt: a.id, who: apptClient(a), what: a.serviceName + ((a.addons || []).length && typeof AddOns !== 'undefined' ? ' + ' + AddOns.text(a) : ''),
+        cls: a.status === 'Pagada' ? 'paid' : a.status === 'No-show' ? 'noshow' : a.status === 'Cancelada' ? 'cancel' : '', color: CAL.colors[(colIdx.get(ar.id) || 0) % CAL.colors.length],
+        icons: (a.status === 'Pagada' ? ' <i class="ci ok">$</i>' : '') + (d ? ` <i class="ci dep" title="Depósito ${money(d.amount)}">D</i>` : '') + (a.status === 'No-show' ? ' <i class="ci ns">no-show</i>' : '') }; })
+      .concat(walk.filter(s => s.artistKey === ar.id).map(s => { const t = new Date(s.createdAt || 0), m = t.getHours() * 60 + t.getMinutes();
+        return { start: Math.max(st, m - 60), dur: 60, sale: s.id, who: client(s) || 'Sin nombre', what: s.service + ' · cobro sin cita', cls: 'walk', color: '#D6E3F3', icons: ' <i class="ci ok">$</i>' }; }))
+      .sort((a, b) => a.start - b.start);
+    // carriles para citas que se enciman
+    const lanes = []; bl.forEach(b => { let i = lanes.findIndex(end => end <= b.start); if (i < 0) { i = lanes.length; lanes.push(0); } lanes[i] = b.start + b.dur; b.lane = i; });
+    const nl = Math.max(1, lanes.length);
+    return `<div class="calcol"><div class="calhead"><span class="dot" style="background:${CAL.colors[(colIdx.get(ar.id) || 0) % CAL.colors.length]}"></span><b>${esc(ar.name)}</b><span class="mutedc">${bl.filter(b => b.appt).length} citas</span></div>
+      <div class="calbody" data-calcol="${ar.id}" style="height:${H}px">${hours.map(m => `<div class="calhr" style="top:${(m - st) * CAL.ppm}px"></div><div class="calhh" style="top:${(m + 30 - st) * CAL.ppm}px"></div>`).join('')}${bl.map(b => block(b, b.lane, nl)).join('')}</div></div>`;
+  }).join('');
+  const now = new Date(), nm = now.getHours() * 60 + now.getMinutes(), showNow = day === Dates.today() && nm >= st && nm <= en;
+  return `<div class="calwrap" data-calst="${st}"><div class="calgrid" style="--cols:${Math.max(1, arts.length)}">
+      <div class="caltimes"><div class="calhead"></div><div class="caltbody" style="height:${H}px">${hours.map(m => `<span style="top:${(m - st) * CAL.ppm}px">${CAL.label(m)}</span>`).join('')}${showNow ? `<span class="calnowlbl" style="top:${(nm - st) * CAL.ppm}px">${esc(CAL.label(nm))}</span>` : ''}</div></div>
+      ${arts.length ? cols : `<div class="calempty"><b>Sin citas este día</b><span class="mutedc">Toca “Nueva cita” para agendar.</span></div>`}
+      ${showNow ? `<div class="calnow" style="top:calc(var(--calhead) + ${(nm - st) * CAL.ppm}px)"></div>` : ''}</div></div>
+    <div class="chips no-print" style="margin-top:10px"><label class="check"><input type="checkbox" data-calall ${S.ag.allCols ? 'checked' : ''}> Mostrar a todas las lashistas</label><label class="check"><input type="checkbox" data-calcan ${S.ag.showCancel ? 'checked' : ''}> Mostrar canceladas</label></div>
+    <div class="aglegend"><span><i class="sw" style="background:#E9C9C3"></i>Agendada</span><span><i class="sw" style="background:#DCEFD9"></i>Pagada ($)</span><span><i class="sw" style="background:#FFF1C9"></i>No-show</span><span><i class="sw" style="background:#D6E3F3"></i>Cobro sin cita</span><span>Toca un espacio vacío para agendar ahí.</span></div>`;
+}
+{
+  const H = Views.agenda.html, M = Views.agenda.mount;
+  Views.agenda.html = function () {
+    let h = H.call(this); const f = S.ag;
+    const sw = `<div class="segmented small agview no-print" title="Cambiar vista"><button type="button" data-agv="lista" class="${f.view !== 'cal' ? 'on' : ''}">Lista</button><button type="button" data-agv="cal" class="${f.view === 'cal' ? 'on' : ''}">Calendario</button></div>`;
+    h = h.replace('<div class="chips"><button class="btn" data-agpdf', `<div class="chips">${sw}<button class="btn" data-agpdf`);
+    if (f.view !== 'cal') return h;
+    if (f.range !== 'dia') { f.range = 'dia'; f.day = f.day == null ? Dates.today() : f.day; return Views.agenda.html.call(this); }
+    const i = h.search(/<div class="tablewrap">|<section class="panel"/); if (i < 0) return h + calHtml(f.day);
+    return h.slice(0, i) + calHtml(f.day) + `<div class="aglistzone" hidden>` + h.slice(i) + '</div>';
+  };
+  Views.agenda.mount = function (root) {
+    M.call(this, root); const f = S.ag;
+    $$('[data-agv]', root).forEach(b => b.onclick = () => { f.view = b.dataset.agv; try { localStorage.setItem('fm-ag-view-2', f.view); } catch (e) {} if (f.view === 'cal') { f.range = 'dia'; if (f.day == null) f.day = Dates.today(); } UI.render(); });
+    if (f.view !== 'cal') return;
+    const ca = $('[data-calall]', root); if (ca) ca.onchange = () => { f.allCols = ca.checked; UI.render(); };
+    const cc = $('[data-calcan]', root); if (cc) cc.onchange = () => { f.showCancel = cc.checked; UI.render(); };
+    $$('[data-calappt]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const a = Store.appointments.find(x => x.id === b.dataset.calappt); if (a) apptDetail(a); });
+    $$('[data-calsale]', root).forEach(b => b.onclick = e => { e.stopPropagation(); const s = Store.sales.find(x => x.id === b.dataset.calsale); if (s) saleDetail(s); });
+    const st = +($('[data-calst]', root) || {}).dataset?.calst || CAL.start;
+    $$('[data-calcol]', root).forEach(c => c.onclick = e => { if (e.target.closest('.calb') || !Store.writable()) return; const r = c.getBoundingClientRect(), m = Math.round(((e.clientY - r.top) / CAL.ppm + st) / 15) * 15;
+      apptForm(null, { date: Dates.toISO(f.day), time: CAL.hm(Math.max(0, Math.min(23 * 60 + 45, m))), artistId: c.dataset.calcol }); });
+    // al abrir hoy, desplaza hasta la hora actual
+    const w = $('.calwrap', root), now = $('.calnow', root); if (w && now && !this._scrolled) { this._scrolled = true; w.scrollTop = Math.max(0, now.offsetTop - 160); }
+  };
+}
+/* Duración en la cita (si no se elige, se usa la del servicio) */
+{
+  const AF = apptForm;
+  apptForm = function (a, preset) {
+    AF(a, preset); const m = $('.modal'), t = m && $('[data-a=time]', m); if (!t || $('[data-a=duration]', m)) return;
+    const cur = a ? num(a.duration) : 0, opts = []; for (let x = 15; x <= 240; x += 15) opts.push(x);
+    const fmt = x => x < 60 ? x + ' min' : Math.floor(x / 60) + ' h' + (x % 60 ? ' ' + (x % 60) + ' min' : '');
+    t.closest('label').insertAdjacentHTML('afterend', `<label class="field">Duración<select data-a="duration"><option value="">Según el servicio</option>${opts.map(x => `<option value="${x}" ${cur === x ? 'selected' : ''}>${fmt(x)}</option>`).join('')}</select></label>`);
+  };
+  const SA = Store.saveAppointment;
+  Store.saveAppointment = function (data, id) { const sel = $('.modal [data-a=duration]'); if (sel && data && 'time' in data) data = { ...data, duration: sel.value === '' ? null : +sel.value }; return SA.call(this, data, id); };
+}
+
+/* =========================================================
+   RECEPCIÓN: botón de modo nocturno / claro (menú lateral y "Más" en el celular).
+   ========================================================= */
+const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches); };
+const themeLabel = () => isDark() ? '☀︎ Modo claro' : '☾ Modo nocturno';
+{
+  const R = UI.renderNav;
+  UI.renderNav = function () {
+    R(); if (!Mode.reception) return;
+    const f = $('#side .side-foot'); if (f && !$('[data-theme-toggle]', f)) f.insertAdjacentHTML('beforeend', `<br><button data-theme-toggle data-themelbl>${themeLabel()}</button>`);
+  };
+  const H = Views.mas.html;
+  Views.mas.html = function () { const h = H.call(this); if (!Mode.reception || h.includes('data-theme-toggle')) return h; return h.replace(/<\/nav>/, `<a data-theme-toggle data-themelbl>${ic('cfg')}${themeLabel()}</a></nav>`); };
+  // al cambiar, actualiza el texto del botón
+  document.addEventListener('click', e => { if (!e.target.closest('[data-theme-toggle]')) return; setTimeout(() => $$('[data-themelbl]').forEach(b => { const svg = b.querySelector('svg'); b.textContent = themeLabel(); if (svg) b.prepend(svg); }), 0); });
 }
 
 /* =========================================================
