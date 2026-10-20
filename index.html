@@ -264,6 +264,9 @@ tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:no
 .rxsvcs{max-height:132px;overflow:auto}.rxchart{display:flex;flex-direction:column;gap:6px}.rxbar{display:grid;grid-template-columns:minmax(120px,240px) 1fr 90px;gap:10px;align-items:center;font-size:13px}.rxbar .rxl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rxbar .rxt{height:14px;border-radius:99px;background:var(--line);overflow:hidden}.rxbar .rxt i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.rxbar b{text-align:right}
 @media (max-width:640px){.rxlab{width:100%;padding-top:0}.rxbar{grid-template-columns:110px 1fr 70px}}
+.visitbox{border:1.5px solid var(--gold);border-radius:14px;padding:12px 14px;margin:0 0 16px;background:var(--blush)}.visitbox .vh{display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px}.visitbox .vl{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}.visitbox .vl.me{font-weight:700}
+.pickappt{border-color:var(--gold)}
+.banner.mismatch{border-color:var(--bad)}.mmrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -337,7 +340,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-19 20:35';
+window.FM_VERSION = '2026-10-20 03:01';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -788,7 +791,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [] };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '' };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -820,7 +823,7 @@ const Store = {
       cashierName: prev ? (prev.cashierName || '') : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
       txn: String(form.txn || '').trim(), origin: prev ? (prev.origin || '') : (form.origin || ''),
-      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [],
+      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '', visitOf: form.visitOf || (prev && prev.visitOf) || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [],
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
     doc.createdBy = prev ? prev.createdBy || '' : uid;
@@ -4029,15 +4032,24 @@ Views.nueva.mount = function (root) {
   };
 };
 
+/* Reparte el tip en partes proporcionales al monto de cada servicio; los centavos que sobran van al servicio más grande. */
+function splitTip(tip, nets) {
+  tip = r2(tip); const tot = nets.reduce((t, n) => t + Math.max(0, n), 0);
+  if (!(tip > 0) || !(tot > 0)) return nets.map((n, i) => i === 0 ? tip : 0);
+  const sh = nets.map(n => Math.floor(Math.max(0, n) / tot * tip * 100) / 100), rest = r2(tip - sh.reduce((t, x) => t + x, 0));
+  const big = nets.indexOf(Math.max(...nets)); sh[big] = r2(sh[big] + rest); return sh;
+}
 const _saveSaleX = Store.saveSale;
 Store.saveSale = async function (form, id) {
   const extras = !id && !form._isExtra ? (form.extras || []).filter(x => x.serviceId) : [];
-  const saleId = await _saveSaleX.call(this, { ...form, extras: undefined }, id);
+  // el tip se reparte proporcional: (monto del servicio ÷ total sin tip) × tip
+  const shares = extras.length ? splitTip(num(form.tip), [num(form.price) - num(form.discount)].concat(extras.map(x => num(x.price) - num(x.discount)))) : null;
+  const saleId = await _saveSaleX.call(this, { ...form, extras: undefined, tip: shares ? shares[0] : form.tip }, id);
   if (extras.length) {
     const ids = [];
-    for (const x of extras) {
-      ids.push(await _saveSaleX.call(this, { date: form.date, artistId: x.artistId, serviceId: x.serviceId, price: x.price, discount: x.discount || 0, tip: 0, method: form.method === 'Paquete prepagado' ? '' : form.method,
-        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', payGroup: (form.payments || []).length > 1 ? saleId : '', manualOn: false, manualCommission: '', _isExtra: true }, null));
+    for (const [k, x] of extras.entries()) {
+      ids.push(await _saveSaleX.call(this, { date: form.date, artistId: x.artistId, serviceId: x.serviceId, price: x.price, discount: x.discount || 0, tip: shares[k + 1], method: form.method === 'Paquete prepagado' ? '' : form.method,
+        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', visitOf: saleId, payGroup: (form.payments || []).length > 1 ? saleId : '', manualOn: false, manualCommission: '', _isExtra: true }, null));
     }
     if (form._appt) { const ap = this.appointments.find(a => a.id === form._appt); if (ap) await this.saveAppointment({ extraSaleIds: (ap.extraSaleIds || []).concat(ids) }, ap.id); }
   }
@@ -6800,6 +6812,202 @@ function rxChart(rows, by) {
       pdfTable(doc, 104, '', head, body.map(r => [r[0], intf(r[1]), money(r[2], 1), r[3] + '%', money(r[4], 1), money(r[5], 1), money(r[6], 1), money(r[7], 1), money(r[8], 1)]), [1, 2, 3, 4, 5, 6, 7, 8]);
       Pdf.save(doc, `Reporte_${f.by}_${rng}`);
     });
+  };
+}
+
+/* =========================================================
+   1) NOTA DE LA VISITA: un cobro con varios servicios (cada uno con su lashista) se muestra completo:
+      Wet Full Set (KAREN) + Brow Lamination (ESTEFANIA) + Lash Removal (REYISI) = total de la visita.
+      Cada servicio sigue siendo su propia venta para que el payroll pague a cada lashista lo suyo.
+   2) COBRAR SOLO CON CITA: un servicio se cobra desde su cita. Si la clienta llegó sin cita,
+      se crea la cita al momento del cobro. Una cita ya pagada no se puede volver a cobrar.
+   ========================================================= */
+const Visit = {
+  // servicios de la misma visita: ligados por visitOf/payGroup, o (cobros viejos) misma clienta, mismo día, registrados con ≤ 3 min de diferencia
+  of(s) {
+    if (!s || s.source !== 'app') return s ? [s] : [];
+    const root = s.visitOf || s.payGroup || s.id, t0 = Date.parse(s.createdAt || '') || 0;
+    const nm = x => ((x.first || '') + ' ' + (x.last || '')).trim();
+    const l = Store.sales.filter(x => x.source === 'app' && x.day === s.day && (x.id === s.id || x.id === root || x.visitOf === root || x.payGroup === root || (x.visitOf && x.visitOf === s.id) ||
+      (!x.visitOf && !s.visitOf && nm(x) && nm(s) && namesLike(nm(x), nm(s)) && Math.abs((Date.parse(x.createdAt || '') || 0) - t0) <= 180000)));
+    return l.sort((a, b) => (a.id === root ? -1 : b.id === root ? 1 : 0) || String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
+  },
+  html(s) {
+    const l = this.of(s); if (l.length < 2) return '';
+    const tot = r2(l.reduce((t, x) => t + x.price - x.discount + x.tip, 0)), dep = r2(l.reduce((t, x) => t + (x.depositAmount || 0), 0));
+    return `<div class="visitbox"><div class="vh"><b>🧾 Esta visita incluye ${l.length} servicios</b><span>${money(tot, 1)}</span></div>
+      ${l.map(x => `<div class="vl ${x.id === s.id ? 'me' : ''}"><span>${esc(x.service)} <span class="mutedc">· ${esc(x.artistName)}</span>${x.id === s.id ? ' <span class="tag">este</span>' : ''}</span><span>${money(r2(x.price - x.discount + x.tip), 1)}</span></div>`).join('')}
+      ${dep ? `<div class="vl"><span class="mutedc">Depósito aplicado</span><span>− ${money(dep, 1)}</span></div>` : ''}
+      <p class="formula" style="margin:6px 0 0">Cada servicio se guarda aparte para pagarle a cada lashista su comisión. Para corregir otro servicio de la visita, ábrelo en Ventas.</p></div>`;
+  },
+};
+/* Detalle de venta y edición: mostrar la visita completa */
+{
+  const D = saleDetail;
+  saleDetail = function (s) { D(s); const m = $('.modal'), v = Visit.html(s); if (!m || !v) return; const dl = $('.dl', m); if (dl) dl.insertAdjacentHTML('afterend', v); };
+  const H = Views.nueva.html;
+  Views.nueva.html = function () {
+    const h = H.call(this); if (!UI.params.edit || S.cobro.tipo !== 'servicio') return h;
+    const s = Store.appSales.find(x => x.id === UI.params.edit), v = Visit.html(s);
+    return v ? h.replace('<div class="sale-layout">', v + '<div class="sale-layout">') : h;
+  };
+}
+/* Ventas: total de la visita en el detalle del día (Hoja del día ya suma cada servicio) */
+
+/* 2 ---------- cobrar solo con cita ---------- */
+const requireAppt = () => Store.config.requireAppt !== false && !window.__fmNoReqAppt;
+const openAppts = () => { const t = Dates.today(); return Store.appointments.filter(a => a.status === 'Agendada' && a.day <= t && a.day >= t - 2).sort((a, b) => b.day - a.day || (a.time || '').localeCompare(b.time || '')); };
+{
+  const C = chargeAppt;
+  chargeAppt = function (a) {
+    if (a && a.status === 'Pagada') { const s = a.saleId && Store.sales.find(x => x.id === a.saleId); UI.toast('Esta cita ya está cobrada. Si hay que corregir algo, edita su cobro.', true); if (s) saleDetail(s); return; }
+    return C(a);
+  };
+  const H = Views.nueva.html, M = Views.nueva.mount;
+  Views.nueva.html = function () {
+    const h = H.call(this), f = this.form;
+    if (S.cobro.tipo !== 'servicio' || UI.params.edit || !f || f._appt || !requireAppt() || (typeof apptMatch === 'function' && apptMatch(f))) return h;
+    const list = openAppts();
+    const box = `<section class="panel pickappt"><h2>¿De qué cita es este cobro?</h2><p class="hint">Los servicios se cobran desde su cita para que no se dupliquen en ventas ni en el payroll.</p>
+      ${list.length ? `<ul class="rlist">${list.slice(0, 20).map(a => `<li><div><b>${esc(a.time || '—')} · ${esc(apptClient(a))}</b>${a.day !== Dates.today() ? ` <span class="tag warn">${esc(Dates.fmt(a.day, { weekday: 'short', day: 'numeric' }))}</span>` : ''}<br><span class="mutedc">${esc(a.artistName)} · ${esc(a.serviceName)}${(a.addons || []).length && typeof AddOns !== 'undefined' ? ' + ' + esc(AddOns.text(a)) : ''}</span></div><div class="ra"><button type="button" class="btn sm primary" data-pickappt="${a.id}">Cobrar esta cita</button></div></li>`).join('')}</ul>` : '<p class="mutedc">No hay citas pendientes de hoy ni de los dos días anteriores.</p>'}
+      <div class="chips" style="margin-top:10px"><button type="button" class="btn ${f._walkin ? 'primary' : ''}" data-walkin>${f._walkin ? '✓ Llegó sin cita: se creará su cita al guardar' : 'Llegó sin cita: crear su cita y cobrar'}</button></div></section>`;
+    return h.replace('<div class="sale-layout">', box + '<div class="sale-layout">');
+  };
+  Views.nueva.mount = function (root) {
+    M.call(this, root);
+    $$('[data-pickappt]', root).forEach(b => b.onclick = () => { const a = Store.appointments.find(x => x.id === b.dataset.pickappt); if (a) chargeAppt(a); });
+    const w = $('[data-walkin]', root); if (w) w.onclick = () => { this.form._walkin = !this.form._walkin; UI.render(); };
+    const form = $('[data-form]', root); if (!form || S.cobro.tipo !== 'servicio' || UI.params.edit) return;
+    const orig = form.onsubmit;
+    form.onsubmit = async e => {
+      const f = this.form;
+      if (requireAppt() && !f._appt && !f._walkin && !(typeof apptMatch === 'function' && apptMatch(f))) { e.preventDefault(); UI.toast('Elige arriba la cita que vas a cobrar, o toca “Llegó sin cita”.', true); const p = $('.pickappt', root); if (p) p.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      const walk = f._walkin && !f._appt, snap = { ...f }; Store._saleOk = false; Store._lastMainSale = null;
+      const r = await orig(e);
+      if (walk && Store._saleOk && Store._lastMainSale) {
+        const svc = Store.config.services.find(x => x.id === snap.serviceId) || {}, art = Store.config.artists.find(x => x.id === snap.artistId) || {}, now = new Date();
+        try { await Store.saveAppointment({ date: snap.date, time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, first: title(snap.first || ''), last: title(snap.last || ''), artistId: art.id || '', artistName: art.name || '', serviceId: svc.id || '', serviceName: svc.name || '', price: num(snap.price),
+            depositId: '', status: 'Pagada', walkIn: true, saleId: Store._lastMainSale, paidMethod: snap.method || '', paidAt: now.toISOString(), paidByName: Mode.who(), history: [{ at: now.toISOString(), by: Mode.who(), what: 'Cita creada al cobrar (llegó sin cita)' }] }); } catch (er) { UI.toast('El cobro se guardó, pero no se pudo crear la cita: ' + (er.message || er.code), true); }
+      }
+      return r;
+    };
+  };
+  const SS = Store.saveSale;
+  Store.saveSale = async function (form, id) { const r = await SS.call(this, form, id); if (!id) Store._lastMainSale = r; return r; };
+}
+/* Configuración: activar o desactivar la regla */
+{
+  const H = Views.config.html, M = Views.config.mount;
+  Views.config.html = function () {
+    const h = H.call(this); if (Mode.reception) return h;
+    return h + `<section class="panel"><h2>Cobros solo con cita</h2><p class="hint">Cuando está activo, un servicio solo se cobra desde su cita (o creando la cita al momento, si la clienta llegó sin cita). Evita que el mismo servicio se registre dos veces.</p>
+      <label class="check"><input type="checkbox" data-reqappt ${requireAppt() ? 'checked' : ''} ${Store.writable() ? '' : 'disabled'}> Pedir la cita al cobrar un servicio</label></section>`;
+  };
+  Views.config.mount = function (root) { M.call(this, root); const c = $('[data-reqappt]', root); if (c) c.onchange = async () => { try { await Store.saveConfig({ requireAppt: c.checked }); UI.toast(c.checked ? 'Ahora los servicios se cobran desde su cita' : 'Se puede cobrar sin cita'); } catch (e) { c.checked = !c.checked; UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } }; };
+}
+/* Resumen del cobro: "Ingreso Fluffy" incluye los servicios adicionales (cada uno con el % de su lashista) */
+{
+  const R = Views.nueva.receipt;
+  Views.nueva.receipt = function () {
+    let h = R.call(this); const f = this.form; if (!f || !(f.extras || []).some(x => x.serviceId)) return h;
+    const rate = id => num((Store.config.artists.find(a => a.id === id) || {}).rate);
+    const mainNet = num(f.price) - num(f.discount), mainCom = f.manualOn && f.manualCommission !== '' ? num(f.manualCommission) : r2(mainNet * rate(f.artistId));
+    const ex = f.extras.filter(x => x.serviceId).map(x => { const n = num(x.price) - num(x.discount); return { n, c: r2(n * rate(x.artistId || f.artistId)) }; });
+    const fluffy = r2(mainNet - mainCom + ex.reduce((t, x) => t + x.n - x.c, 0));
+    return h.replace(/(<div class="rline total"><span>Ingreso Fluffy<\/span><span>)[^<]*(<\/span>)/, (m0, a, b) => a + money(fluffy, 1) + b);
+  };
+}
+/* Cita pagada cuyo cobro no coincide (por ejemplo, el complemento lo hizo KAREN pero el cobro quedó con ESTEFANIA) */
+const moveSaleTo = async (s, artistId, serviceId) => {
+  const svc = serviceId || s.serviceId || (Store.config.services.find(x => x.name === s.service) || {}).id;
+  await Store.saveSale({ date: Dates.toISO(s.day), artistId, serviceId: svc, price: s.price, discount: s.discount || '', tip: s.tip || '', method: s.method || '', txn: s.txn || '', first: s.first || '', last: s.last || '', comments: s.comments || '',
+    manualOn: false, manualCommission: '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '', visitOf: s.visitOf || '' }, s.id);
+};
+function apptMismatches(a) {
+  if (a.status !== 'Pagada' || !a.saleId) return [];
+  const main = Store.sales.find(x => x.id === a.saleId); if (!main) return [];
+  const visit = Visit.of(main).concat((a.extraSaleIds || []).map(id => Store.sales.find(x => x.id === id)).filter(Boolean)), used = new Set(), out = [];
+  if (main.artistKey !== a.artistId && a.artistId) out.push({ s: main, want: a.artistId, wantName: a.artistName, what: a.serviceName });
+  used.add(main.id);
+  (a.addons || []).forEach(ad => {
+    const s = visit.find(x => !used.has(x.id) && String(x.service).toLowerCase() === String(ad.serviceName).toLowerCase()); if (!s) return; used.add(s.id);
+    const want = ad.artistId || a.artistId, wantName = ad.artistName || a.artistName;
+    if (want && s.artistKey !== want) out.push({ s, want, wantName, what: ad.serviceName });
+  });
+  return out;
+}
+{
+  const D = apptDetail;
+  apptDetail = function (a) {
+    D(a); const m = $('.modal'), mm = apptMismatches(a); if (!m || !mm.length || !Store.writable()) return;
+    const dl = $('.dl', m); if (!dl) return;
+    dl.insertAdjacentHTML('beforebegin', `<div class="banner mismatch"><b>⚠︎ El cobro no coincide con la cita</b>${mm.map((x, i) => `<div class="mmrow"><span>${esc(x.what)}: la cita dice <b>${esc(x.wantName)}</b>, el cobro está con <b>${esc(x.s.artistName)}</b></span><button class="btn sm primary" data-mmfix="${i}">Pasar el cobro a ${esc(x.wantName)}</button></div>`).join('')}<p class="formula" style="margin:6px 0 0">La comisión se recalcula con el porcentaje de la lashista correcta y se mueve en el payroll.</p></div>`);
+    $$('[data-mmfix]', m).forEach(b => b.onclick = async () => { const x = mm[+b.dataset.mmfix]; b.disabled = true;
+      try { await moveSaleTo(x.s, x.want); UI.toast(`${x.what} pasó a ${x.wantName}`); UI.close(); apptDetail(Store.appointments.find(y => y.id === a.id) || a); } catch (e) { b.disabled = false; UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+  };
+}
+/* Payroll: también se puede cambiar la lashista de un servicio */
+{
+  const O = PayModal.open.bind(PayModal);
+  PayModal.open = function (aid, from, to) {
+    O(aid, from, to); const m = $('.modal'); if (!m || Mode.reception || !Store.writable()) return;
+    $$('.pecell[data-f=client]', m).forEach(b => b.insertAdjacentHTML('afterend', `<br><button type="button" class="pecell sub" data-sid="${b.dataset.sid}" data-f="artist">Lashista: ${esc((Store.sales.find(x => x.id === b.dataset.sid) || {}).artistName || '')} ✎</button>`));
+    $$('.pecell[data-f=artist]', m).forEach(b => b.onclick = () => {
+      const s = Store.sales.find(x => x.id === b.dataset.sid), td = b.closest('td'), old = td.innerHTML;
+      td.innerHTML = `<div class="peinline"><select class="inp" data-v>${Store.config.artists.filter(x => x.active !== false || x.id === s.artistKey).map(x => `<option value="${x.id}" ${x.id === s.artistKey ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><div class="chips" style="gap:4px;margin-top:4px"><button type="button" class="btn sm primary" data-ok>✓</button><button type="button" class="btn sm" data-no>✕</button></div></div>`;
+      $('[data-no]', td).onclick = () => { UI.close(); this.open(aid, from, to); };
+      $('[data-ok]', td).onclick = async () => { const v = $('[data-v]', td).value; if (v === s.artistKey) { UI.close(); return this.open(aid, from, to); } if (!await this.unlock()) return;
+        try { await moveSaleTo(s, v); const n = (Store.config.artists.find(x => x.id === v) || {}).name; UI.toast(`${s.service} pasó a ${n}`); UI.close(); this.open(aid, from, to); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } };
+    });
+  };
+}
+/* TIP PROPORCIONAL ---------- resumen del cobro, visitas anteriores y corrección en Payroll */
+{
+  const R = Views.nueva.receipt;
+  Views.nueva.receipt = function () {
+    const h = R.call(this), f = this.form; if (!f || !num(f.tip) || !(f.extras || []).some(x => x.serviceId)) return h;
+    const ex = f.extras.filter(x => x.serviceId), nets = [num(f.price) - num(f.discount)].concat(ex.map(x => num(x.price) - num(x.discount))), sh = splitTip(num(f.tip), nets);
+    const name = id => (Store.config.artists.find(a => a.id === id) || {}).name || '—', svc = id => (Store.config.services.find(v => v.id === id) || {}).name || '';
+    const lines = [{ a: f.artistId, s: f.serviceId }].concat(ex.map(x => ({ a: x.artistId || f.artistId, s: x.serviceId }))).map((x, i) => `<div class="rline"><span>· ${esc(name(x.a))} <span class="mutedc">(${esc(svc(x.s))})</span></span><span>${money(sh[i], 1)}</span></div>`).join('');
+    return h.replace(/(<div class="rline[^"]*"><span>Tip<\/span><span>[^<]*<\/span><\/div>)/, (m0) => m0 + `<div class="tipsplit"><div class="mutedc" style="font-size:12px;margin:2px 0">Tip repartido según el monto de cada servicio:</div>${lines}</div>`);
+  };
+}
+const TipFix = {
+  // visitas con varias lashistas donde todo el tip quedó en un solo servicio
+  needs(l) {
+    if (l.length < 2 || new Set(l.map(x => x.artistKey)).size < 2) return null;
+    const tip = r2(l.reduce((t, x) => t + x.tip, 0)); if (!(tip > 0) || l.filter(x => x.tip > 0).length !== 1 || l.some(x => x.method === 'Paquete prepagado')) return null;
+    const sh = splitTip(tip, l.map(x => x.price - x.discount));
+    return l.some((x, i) => Math.abs(x.tip - sh[i]) >= 0.01) ? { l, sh, tip } : null;
+  },
+  forRange(from, to) { const seen = new Set(), out = []; Store.sales.filter(s => s.source === 'app' && s.day >= from && s.day <= to && !s.visitOf).forEach(s => { if (seen.has(s.id)) return; const l = Visit.of(s); l.forEach(x => seen.add(x.id)); const n = this.needs(l); if (n) out.push(n); }); return out; },
+  async apply(fx) { for (const [i, s] of fx.l.entries()) if (Math.abs(s.tip - fx.sh[i]) >= 0.01) await Store.saveSale({ date: Dates.toISO(s.day), artistId: s.artistKey, serviceId: s.serviceId || (Store.config.services.find(v => v.name === s.service) || {}).id, price: s.price, discount: s.discount || '', tip: fx.sh[i], method: s.method || '', txn: s.txn || '', first: s.first || '', last: s.last || '', comments: s.comments || '',
+    manualOn: s.manual, manualCommission: s.manual ? s.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '', visitOf: s.visitOf || '' }, s.id); },
+};
+{
+  const V = Visit.html.bind(Visit);
+  Visit.html = function (s) {
+    let h = V(s); if (!h) return h; const fx = TipFix.needs(this.of(s)); if (!fx || Mode.reception) return h;
+    return h.replace('<p class="formula" style="margin:6px 0 0">', `<div class="banner" style="margin:8px 0 0">El tip de ${money(fx.tip, 1)} quedó todo en un servicio. Repartido según el monto: ${fx.l.map((x, i) => `${esc(x.artistName)} ${money(fx.sh[i], 1)}`).join(' · ')} <button type="button" class="btn sm primary" data-tipfix="${s.id}">Repartir el tip</button></div><p class="formula" style="margin:6px 0 0">`);
+  };
+  document.addEventListener('click', async e => { const b = e.target.closest('[data-tipfix]'); if (!b) return; const s = Store.sales.find(x => x.id === b.dataset.tipfix), fx = s && TipFix.needs(Visit.of(s)); if (!fx) return;
+    b.disabled = true; try { await TipFix.apply(fx); UI.toast('Tip repartido entre las lashistas'); UI.close(); } catch (er) { b.disabled = false; UI.toast('No se pudo: ' + (er.message || er.code), true); } });
+  const H = Views.payroll.html, M = Views.payroll.mount;
+  Views.payroll.html = function () {
+    const h = H.call(this); if (Mode.reception) return h; const [from, to] = this.range(), l = TipFix.forRange(from, to); this._tipfix = l; if (!l.length) return h;
+    return h.replace(/(<div class="filters no-print")/, `<div class="banner">💡 ${l.length} visita${l.length > 1 ? 's' : ''} con complementos de otra lashista tiene${l.length > 1 ? 'n' : ''} todo el tip en un solo servicio. <button class="btn sm primary" data-tipfixall>Revisar y repartir</button></div>$1`);
+  };
+  Views.payroll.mount = function (root) {
+    M.call(this, root); const b = $('[data-tipfixall]', root); if (!b) return;
+    b.onclick = () => { const l = this._tipfix;
+      UI.modal(`<h3>Repartir tips de visitas con complementos</h3><p style="color:var(--muted);margin:0 0 12px">Cada lashista recibe una parte del tip según el monto de su servicio: (monto del servicio ÷ total sin tip) × tip.</p>
+        <div class="tablewrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th>Visita</th><th>Lashista · servicio</th><th class="r">Monto</th><th class="r">Tip ahora</th><th class="r">Tip repartido</th></tr></thead><tbody>
+        ${l.map(fx => fx.l.map((x, i) => `<tr>${i ? '<td></td>' : `<td rowspan="1"><b>${esc(client(x))}</b><br><span class="mutedc" style="font-size:12px">${esc(Dates.fmt(x.day, { day: '2-digit', month: 'short' }))} · tip ${money(fx.tip)}</span></td>`}<td>${esc(x.artistName)} · ${esc(x.service)}</td><td class="r">${money(r2(x.price - x.discount), 1)}</td><td class="r">${money(x.tip, 1)}</td><td class="r"><b>${money(fx.sh[i], 1)}</b></td></tr>`).join('')).join('')}</tbody></table></div>
+        <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Repartir ${l.length} visita${l.length > 1 ? 's' : ''}</button></div>`, m => {
+        $('[data-x=no]', m).onclick = UI.close;
+        $('[data-x=ok]', m).onclick = async () => { const e = await Claves.ask('Clave de administración', { admin: true, hint: 'Vas a repartir los tips de estas visitas en el payroll.' }); if (!e) return;
+          const ok = $('[data-x=ok]', m); ok.disabled = true; let n = 0; try { for (const fx of l) { await TipFix.apply(fx); n++; } UI.close(); UI.toast(`${n} visita${n > 1 ? 's' : ''} con el tip repartido`); } catch (er) { ok.disabled = false; UI.toast(`Se repartieron ${n}. Error: ${er.message || er.code}`, true); } };
+      }); };
   };
 }
 
