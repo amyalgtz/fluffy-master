@@ -267,6 +267,7 @@ tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:no
 .visitbox{border:1.5px solid var(--gold);border-radius:14px;padding:12px 14px;margin:0 0 16px;background:var(--blush)}.visitbox .vh{display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px}.visitbox .vl{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}.visitbox .vl.me{font-weight:700}
 .pickappt{border-color:var(--gold)}
 .banner.mismatch{border-color:var(--bad)}.mmrow{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.tipbox{border:1px dashed var(--sand);border-radius:12px;padding:10px 12px}.tiplines{display:flex;flex-direction:column;gap:6px;margin-top:8px}.tipl{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px}.tipl .inp{width:110px;flex:none}
 #gate{position:fixed;inset:0;background:var(--bg);z-index:80;overflow:auto;padding:env(safe-area-inset-top,0px) 20px 20px}.gate{max-width:400px;margin:10vh auto 0}.gate .field{margin-top:4px}
 .pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
 .empty{padding:46px 20px;text-align:center;color:var(--muted)}
@@ -340,7 +341,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-20 03:01';
+window.FM_VERSION = '2026-10-20 12:56';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4043,7 +4044,8 @@ const _saveSaleX = Store.saveSale;
 Store.saveSale = async function (form, id) {
   const extras = !id && !form._isExtra ? (form.extras || []).filter(x => x.serviceId) : [];
   // el tip se reparte proporcional: (monto del servicio ÷ total sin tip) × tip
-  const shares = extras.length ? splitTip(num(form.tip), [num(form.price) - num(form.discount)].concat(extras.map(x => num(x.price) - num(x.discount)))) : null;
+  const man = form.tipMode === 'manual' && Array.isArray(form.tipMan) && form.tipMan.length === extras.length + 1 ? form.tipMan.map(v => r2(v || 0)) : null;
+  const shares = extras.length ? (man || splitTip(num(form.tip), [num(form.price) - num(form.discount)].concat(extras.map(x => num(x.price) - num(x.discount))))) : null;
   const saleId = await _saveSaleX.call(this, { ...form, extras: undefined, tip: shares ? shares[0] : form.tip }, id);
   if (extras.length) {
     const ids = [];
@@ -7009,6 +7011,65 @@ const TipFix = {
           const ok = $('[data-x=ok]', m); ok.disabled = true; let n = 0; try { for (const fx of l) { await TipFix.apply(fx); n++; } UI.close(); UI.toast(`${n} visita${n > 1 ? 's' : ''} con el tip repartido`); } catch (er) { ok.disabled = false; UI.toast(`Se repartieron ${n}. Error: ${er.message || er.code}`, true); } };
       }); };
   };
+}
+/* TIP A MANO ---------- en Cobrar (antes de guardar) y en visitas ya cobradas */
+const tipLines = f => { const ex = (f.extras || []).filter(x => x.serviceId); return [{ a: f.artistId, s: f.serviceId, n: num(f.price) - num(f.discount) }].concat(ex.map(x => ({ a: x.artistId || f.artistId, s: x.serviceId, n: num(x.price) - num(x.discount) }))); };
+const aName = id => (Store.config.artists.find(a => a.id === id) || {}).name || '—', sName = id => (Store.config.services.find(v => v.id === id) || {}).name || '';
+{
+  const H = Views.nueva.html, M = Views.nueva.mount, R = Views.nueva.receipt;
+  Views.nueva.html = function () {
+    const h = H.call(this), f = this.form; if (!f || S.cobro.tipo !== 'servicio' || UI.params.edit) return h;
+    const L = tipLines(f); if (L.length < 2) return h;
+    if (f.tipMode === 'manual' && (!Array.isArray(f.tipMan) || f.tipMan.length !== L.length)) f.tipMan = splitTip(num(f.tip), L.map(x => x.n)).map(String);
+    const man = f.tipMode === 'manual';
+    const box = `<div class="full tipbox"><div class="splitswitch"><span>Reparto del tip</span><div class="segmented small"><button type="button" data-tm="auto" class="${man ? '' : 'on'}">Automático (según el monto)</button><button type="button" data-tm="manual" class="${man ? 'on' : ''}">A mano</button></div></div>
+      ${man ? `<div class="tiplines">${L.map((x, i) => `<label class="tipl"><span>${esc(aName(x.a))} <span class="mutedc">· ${esc(sName(x.s))}</span></span><input class="inp num" type="number" min="0" step="0.01" inputmode="decimal" data-tml="${i}" value="${esc(f.tipMan[i])}"></label>`).join('')}</div><div class="splitleft" data-tmleft></div>` : ''}</div>`;
+    return h.replace(/(<label class="field">Tip<input[^>]*name="tip"[^>]*>(?:<span class="err"><\/span>)?<\/label>)/, (m0) => m0 + box);
+  };
+  Views.nueva.mount = function (root) {
+    M.call(this, root); const f = this.form, box = $('.tipbox', root); if (!box) return;
+    const left = () => { const el = $('[data-tmleft]', root); if (!el) return; const sum = r2((f.tipMan || []).reduce((t, v) => t + num(v), 0)), tip = r2(num(f.tip));
+      el.innerHTML = Math.abs(sum - tip) < 0.01 ? `<span style="color:var(--ok);font-weight:700">✓ Suman ${money(sum, 1)}, igual que el tip</span>` : `Suman <b>${money(sum, 1)}</b> y el tip es <b>${money(tip, 1)}</b> <button type="button" class="linkbtn" data-tmuse>Usar ${money(sum, 1)} como tip</button>`;
+      const u = $('[data-tmuse]', root); if (u) u.onclick = () => { f.tip = String(sum); const t = $('[name=tip]', root); if (t) t.value = sum; UI.render(); }; };
+    $$('[data-tm]', box).forEach(b => b.onclick = () => { const m = b.dataset.tm; if ((f.tipMode || 'auto') === m) return; f.tipMode = m; if (m === 'manual') f.tipMan = splitTip(num(f.tip), tipLines(f).map(x => x.n)).map(String); UI.render(); });
+    $$('[data-tml]', box).forEach(i => i.oninput = () => { f.tipMan[+i.dataset.tml] = i.value; left(); const rec = $('[data-receipt]', root); if (rec) rec.innerHTML = this.receipt(); });
+    left();
+    const form = $('[data-form]', root), orig = form && form.onsubmit; if (!form) return;
+    form.onsubmit = async e => { if (f.tipMode === 'manual') { const sum = r2((f.tipMan || []).reduce((t, v) => t + num(v), 0)); if (Math.abs(sum - r2(num(f.tip))) >= 0.01) { e.preventDefault(); UI.toast(`El reparto del tip suma ${money(sum, 1)} y el tip es ${money(num(f.tip), 1)}. Ajústalo o toca "Usar como tip".`, true); return; } } return orig(e); };
+  };
+  Views.nueva.receipt = function () {
+    let h = R.call(this); const f = this.form; if (!f || f.tipMode !== 'manual' || !Array.isArray(f.tipMan)) return h;
+    const L = tipLines(f); if (L.length < 2) return h;
+    return h.replace(/<div class="tipsplit">[\s\S]*?<\/div><\/div>|<div class="tipsplit">[\s\S]*?(?=<div class="rline total|<p class="formula")/, `<div class="tipsplit"><div class="mutedc" style="font-size:12px;margin:2px 0">Tip repartido a mano:</div>${L.map((x, i) => `<div class="rline"><span>· ${esc(aName(x.a))} <span class="mutedc">(${esc(sName(x.s))})</span></span><span>${money(num(f.tipMan[i]), 1)}</span></div>`).join('')}</div>`);
+  };
+}
+/* Visita ya cobrada: "Editar tips" con el total de la visita a la vista */
+{
+  const V = Visit.html.bind(Visit);
+  Visit.html = function (s) {
+    const h = V(s); if (!h || Mode.reception || !Store.writable()) return h;
+    return h.replace('<p class="formula" style="margin:6px 0 0">Cada servicio', `<div class="chips" style="margin-top:8px"><button type="button" class="btn sm" data-tipedit="${s.id}">Editar tips de la visita</button></div><p class="formula" style="margin:6px 0 0">Cada servicio`);
+  };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-tipedit]'); if (!b) return; const s = Store.sales.find(x => x.id === b.dataset.tipedit); if (!s) return;
+    const l = Visit.of(s), tot = r2(l.reduce((t, x) => t + x.tip, 0)), st = { v: l.map(x => String(x.tip)) };
+    UI.close();
+    UI.modal(`<h3>Tips de la visita de ${esc(client(s))}</h3><p style="color:var(--muted);margin:0 0 12px">Tip total de la visita: <b>${money(tot, 1)}</b>. Escribe cuánto le toca a cada lashista.</p>
+      <div class="tiplines">${l.map((x, i) => `<label class="tipl"><span>${esc(x.artistName)} <span class="mutedc">· ${esc(x.service)} · ${money(r2(x.price - x.discount), 1)}</span></span><input class="inp num" type="number" min="0" step="0.01" inputmode="decimal" data-tv="${i}" value="${esc(x.tip)}"></label>`).join('')}</div>
+      <div class="chips" style="margin-top:8px;align-items:center"><button type="button" class="btn sm" data-tvauto>Repartir ${money(tot, 1)} según el monto</button><span class="splitleft" data-tvleft></span></div>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar tips</button></div>`, m => {
+      const left = () => { const sum = r2(st.v.reduce((t, v) => t + num(v), 0)); $('[data-tvleft]', m).innerHTML = Math.abs(sum - tot) < 0.01 ? `<span style="color:var(--ok);font-weight:700">✓ Suman ${money(sum, 1)}</span>` : `Suman <b>${money(sum, 1)}</b> (antes ${money(tot, 1)}): se guardará el nuevo total`; };
+      $$('[data-tv]', m).forEach(i => i.oninput = () => { st.v[+i.dataset.tv] = i.value; left(); });
+      $('[data-tvauto]', m).onclick = () => { const sh = splitTip(tot, l.map(x => x.price - x.discount)); st.v = sh.map(String); $$('[data-tv]', m).forEach((i, k) => { i.value = sh[k]; }); left(); };
+      left();
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=ok]', m).onclick = async () => {
+        if (st.v.some(v => v === '' || num(v) < 0)) return UI.toast('Revisa los montos: no pueden quedar vacíos ni ser negativos.', true);
+        const e2 = await Claves.ask('Clave de administración', { admin: true, hint: 'Vas a cambiar los tips de esta visita en el payroll.' }); if (!e2) return;
+        try { await TipFix.apply({ l, sh: st.v.map(v => r2(v)) }); UI.close(); UI.toast('Tips guardados'); } catch (er) { UI.toast('No se pudo: ' + (er.message || er.code), true); }
+      };
+    });
+  });
 }
 
 /* =========================================================
