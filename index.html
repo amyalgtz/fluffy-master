@@ -360,7 +360,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-20 18:17';
+window.FM_VERSION = '2026-10-21 17:10';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -7358,6 +7358,89 @@ Views.insumos.mount = function (root) {
     const { error } = await FM.sb.rpc('fm_remove_artist_pin', { p_artist: a.id }); if (error) return UI.toast(error.message, true);
     this._pins = null; UI.render(); });
 };
+
+/* =========================================================
+   CORTES DE RECEPCIÓN (administración): ver cada corte de caja guardado por la recepcionista
+   en turno —fondo, efectivo, salidas, lo contado y la diferencia— y elegir si imprimirlo.
+   ========================================================= */
+S.cortes = { from: Dates.today() - 13, to: Dates.today() };
+const Cortes = {
+  list(from, to) { return Store.dayNotes.filter(n => n.type === 'corte' && n.date && Dates.fromISO(n.date) >= from && Dates.fromISO(n.date) <= to).sort((a, b) => b.date.localeCompare(a.date)); },
+  difTag(d) { d = num(d); return Math.abs(d) < 0.01 ? '<span class="tag app">✓ Cuadró</span>' : d > 0 ? `<span class="tag warn">Sobró ${money(d, 1)}</span>` : `<span class="tag" style="color:var(--bad);border-color:var(--bad)">Faltó ${money(-d, 1)}</span>`; },
+  when: ts => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—',
+  pdf(c) {
+    const day = Dates.fromISO(c.date), doc = Pdf.doc(false); if (!doc || !doc.autoTable) return UI.toast('El generador de PDF no cargó.', true);
+    Pdf.header(doc, 'Corte de caja', `${Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · hizo el corte: ${c.byName || '—'} (${this.when(c.savedAt)})`);
+    const res = [['Fondo inicial', money(num(c.fondo), 1)], ['+ Efectivo cobrado', money(num(c.cobrado), 1)]].concat((c.salidas || []).map(x => ['- ' + (x.desc || 'Salida'), '-' + money(num(x.amount), 1)]))
+      .concat([['Debe haber en caja', money(num(c.debe), 1)], ['Contado en caja', money(num(c.contado), 1)], ['Diferencia', Math.abs(num(c.diferencia)) < 0.01 ? 'Cuadró' : (num(c.diferencia) > 0 ? 'Sobró ' : 'Faltó ') + money(Math.abs(num(c.diferencia)), 1)]]);
+    let y = pdfTable(doc, 104, 'Corte guardado', ['Concepto', 'Monto'], res, [1]);
+    if (c.nota) { doc.setFontSize(9); doc.text('Nota: ' + c.nota, 40, y - 8, { maxWidth: 520 }); y += 14; }
+    const ent = CashLog.entries(day);
+    y = pdfTable(doc, y, 'Detalle del efectivo del día', ['Hora', 'Concepto', 'Clienta / lashista', 'Detalle', 'Efectivo', 'Cobró'], ent.map(e => [hhmm(e.ts), e.kind, e.who, e.detail + (e.note ? ' (' + e.note + ')' : ''), money(e.amount, 1), e.by]).concat([['', 'Total', '', '', money(r2(ent.reduce((t, e) => t + e.amount, 0)), 1), '']]), [4]);
+    if ((c.history || []).length) y = pdfTable(doc, y, 'Cortes anteriores de ese día', ['Guardado', 'Por', 'Contado', 'Diferencia'], c.history.map(hh => [this.when(hh.at), hh.by || '—', money(num(hh.contado), 1), money(num(hh.diferencia), 1)]), [2, 3]);
+    doc.setFontSize(9); doc.text('Contó: ______________________     Revisó: ______________________', 40, Math.min(y + 10, doc.internal.pageSize.getHeight() - 40));
+    Pdf.save(doc, 'Corte_de_caja_' + c.date);
+  },
+  view(c) {
+    const day = Dates.fromISO(c.date), now = CashLog.total(day), changed = Math.abs(now - num(c.cobrado)) >= 0.01;
+    const line = (l, v, cls) => `<div class="corteline ${cls || ''}"><span>${l}</span><b>${v}</b></div>`;
+    UI.modal(`<h3>Corte de caja · ${esc(Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>
+      <p style="color:var(--muted);margin:0 0 12px">Lo hizo <b>${esc(c.byName || '—')}</b> el ${esc(this.when(c.savedAt))}${(c.history || []).length ? ` · lo guardó ${c.history.length + 1} veces` : ''}</p>
+      ${changed ? `<div class="banner" style="border-color:var(--bad)">Después de este corte cambió el efectivo del día: ahora es <b>${money(now, 1)}</b> (en el corte decía ${money(num(c.cobrado), 1)}). Revisa el detalle del día.</div>` : ''}
+      <div class="cortebox">
+        ${line('Fondo inicial', money(num(c.fondo), 1))}${line('+ Efectivo cobrado', money(num(c.cobrado), 1))}
+        ${(c.salidas || []).length ? (c.salidas || []).map(x => line('− ' + esc(x.desc || 'Salida'), '− ' + money(num(x.amount), 1))).join('') : line('− Salidas de efectivo', '$0.00')}
+        ${line('Debe haber en caja', money(num(c.debe), 1), 'total')}${line('Contado en caja', money(num(c.contado), 1))}
+        <div class="corteline"><span>Diferencia</span>${this.difTag(c.diferencia)}</div>
+        ${c.nota ? `<p class="formula" style="margin-top:8px">Nota de recepción: “${esc(c.nota)}”</p>` : ''}</div>
+      ${(c.history || []).length ? `<details style="margin-top:10px"><summary class="linkbtn" style="cursor:pointer">Ver cortes anteriores de ese día</summary>${table([{ label: 'Guardado' }, { label: 'Por' }, { label: 'Contado', r: 1 }, { label: 'Diferencia', r: 1 }], c.history.map(hh => [this.when(hh.at), hh.by || '—', money(num(hh.contado), 1), money(num(hh.diferencia), 1)]))}</details>` : ''}
+      <div class="acts"><button class="btn" data-x="day">Ver el detalle del día</button><button class="btn" data-x="c">Cerrar</button><button class="btn primary" data-x="pdf">${ic('dl')}Imprimir</button></div>`, m => {
+      $('[data-x=c]', m).onclick = UI.close;
+      $('[data-x=pdf]', m).onclick = () => this.pdf(c);
+      $('[data-x=day]', m).onclick = () => { UI.close(); S.caja.day = day; S.caja.tab = 'hacer'; Views.caja.st = null; UI.go('caja'); };
+    });
+  },
+};
+{
+  const H = Views.caja.html, M = Views.caja.mount;
+  Views.caja.html = function () {
+    if (Mode.reception) return H.call(this);
+    const tab = S.caja.tab || 'hacer';
+    const tabs = `<div class="tabs no-print" role="tablist" style="margin-bottom:14px"><button role="tab" class="${tab === 'hacer' ? 'on' : ''}" data-ctab="hacer">Corte del día</button><button role="tab" class="${tab === 'recep' ? 'on' : ''}" data-ctab="recep">Cortes de recepción</button></div>`;
+    if (tab !== 'recep') return H.call(this).replace(/(<\/div><\/div>)/, '$1' + tabs);
+    const f = S.cortes, l = Cortes.list(f.from, f.to);
+    const days = []; for (let d = f.to; d >= f.from; d--) days.push(d);
+    const withSales = new Set(Store.sales.filter(s => s.source === 'app' && s.day >= f.from && s.day <= f.to).map(s => s.day));
+    const missing = days.filter(d => withSales.has(d) && !l.some(c => c.date === Dates.toISO(d)) && d < Dates.today());
+    const sum = k => r2(l.reduce((t, c) => t + num(c[k]), 0)), bad = l.filter(c => Math.abs(num(c.diferencia)) >= 0.01);
+    return `<div class="head"><div><h1>Corte de caja</h1><p>Cortes que guardó la recepcionista en turno. Toca uno para verlo y decide si lo imprimes.</p></div>
+        <div class="chips no-print"><input type="date" class="inp" style="width:auto" data-cfrom value="${Dates.toISO(f.from)}"><span>a</span><input type="date" class="inp" style="width:auto" data-cto value="${Dates.toISO(f.to)}"></div></div>
+      ${tabs}
+      <section class="kpis" style="grid-template-columns:repeat(4,1fr)"><div class="kpi lead"><div class="lab">Cortes guardados</div><div class="val">${intf(l.length)}</div><div class="sub">${missing.length ? `${missing.length} día${missing.length > 1 ? 's' : ''} con ventas sin corte` : 'ningún día sin corte'}</div></div>
+        <div class="kpi"><div class="lab">Efectivo cobrado</div><div class="val">${money(sum('cobrado'))}</div><div class="sub">en esos cortes</div></div>
+        <div class="kpi"><div class="lab">Cuadraron</div><div class="val">${intf(l.length - bad.length)}</div><div class="sub">de ${intf(l.length)}</div></div>
+        <div class="kpi"><div class="lab">Diferencia total</div><div class="val ${sum('diferencia') < 0 ? 'neg' : ''}">${money(sum('diferencia'), 1)}</div><div class="sub">${bad.length ? `${bad.length} con diferencia` : 'todo cuadró'}</div></div></section>
+      ${missing.length ? `<div class="banner">Días con cobros pero <b>sin corte guardado</b>: ${missing.map(d => `<button class="linkbtn" data-cmiss="${d}">${esc(Dates.fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }))}</button>`).join(' · ')}</div>` : ''}
+      ${l.length ? `<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Hizo el corte</th><th class="r">Fondo</th><th class="r">Efectivo</th><th class="r">Salidas</th><th class="r">Debe haber</th><th class="r">Contado</th><th>Diferencia</th><th>Nota</th><th></th></tr></thead><tbody>
+        ${l.map((c, i) => `<tr class="click" data-cview="${i}"><td><b>${esc(Dates.fmt(Dates.fromISO(c.date), { weekday: 'short', day: 'numeric', month: 'short' }))}</b></td><td>${esc(c.byName || '—')}<br><span class="mutedc" style="font-size:12px">${esc(Cortes.when(c.savedAt))}${(c.history || []).length ? ` · ${c.history.length + 1} veces` : ''}</span></td>
+          <td class="r">${money(num(c.fondo), 1)}</td><td class="r">${money(num(c.cobrado), 1)}</td><td class="r">${(c.salidas || []).length ? '− ' + money(r2((c.salidas || []).reduce((t, x) => t + num(x.amount), 0)), 1) : '—'}</td><td class="r"><b>${money(num(c.debe), 1)}</b></td><td class="r">${money(num(c.contado), 1)}</td>
+          <td>${Cortes.difTag(c.diferencia)}</td><td style="white-space:normal;font-size:12.5px;max-width:160px">${esc(c.nota || '')}</td><td><button class="btn sm" data-cprint="${i}" title="Imprimir">${ic('dl')}Imprimir</button></td></tr>`).join('')}
+        </tbody></table></div>` : '<div class="tablewrap"><div class="empty"><b>Sin cortes en estas fechas</b>Cuando recepción guarde un corte de caja, aparecerá aquí.</div></div>'}`;
+  };
+  Views.caja.mount = function (root) {
+    if (Mode.reception || (S.caja.tab || 'hacer') !== 'recep') { M.call(this, root); }
+    $$('[data-ctab]', root).forEach(b => b.onclick = () => { S.caja.tab = b.dataset.ctab; UI.render(); });
+    if (Mode.reception || S.caja.tab !== 'recep') return;
+    const f = S.cortes, l = Cortes.list(f.from, f.to);
+    const a = $('[data-cfrom]', root), z = $('[data-cto]', root);
+    a.onchange = () => { const v = Dates.fromISO(a.value); if (v != null) { f.from = v; UI.render(); } };
+    z.onchange = () => { const v = Dates.fromISO(z.value); if (v != null) { f.to = v; UI.render(); } };
+    $$('[data-cview]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('[data-cprint]')) return; Cortes.view(l[+tr.dataset.cview]); });
+    $$('[data-cprint]', root).forEach(b => b.onclick = e => { e.stopPropagation(); Cortes.pdf(l[+b.dataset.cprint]); });
+    $$('[data-cmiss]', root).forEach(b => b.onclick = () => { S.caja.day = +b.dataset.cmiss; S.caja.tab = 'hacer'; Views.caja.st = null; UI.render(); });
+  };
+}
+
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
