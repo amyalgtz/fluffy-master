@@ -353,6 +353,9 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 .remcard{position:fixed;right:20px;top:20px;z-index:9999;width:min(380px,calc(100vw - 32px));background:var(--bg);border:2px solid var(--gold);border-radius:16px;box-shadow:0 18px 40px rgba(0,0,0,.25);padding:16px 18px;animation:remin .25s ease-out}
 .remcard .remt{font-weight:800;font-size:16px;margin:0 26px 6px 0}.remcard ol{margin:6px 0 12px 18px;padding:0;font-size:14px;line-height:1.6}.remx{position:absolute;right:10px;top:8px;border:0;background:none;font-size:24px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px}
 @keyframes remin{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+.msgcard{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}.msgcard .mh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.msgcard .mh .mutedc{margin-left:auto;font-size:12px}.msgcard .mt{margin:6px 0;font-size:14.5px}
+.mreply{background:var(--blush);border-radius:10px;padding:8px 10px;font-size:13.5px;margin-top:6px}.mact{display:flex;flex-direction:column;gap:6px;margin-top:8px}.msgbanner{border-color:var(--gold)}
+.bell .bdg3{position:absolute;left:-8px;bottom:-6px;min-width:20px;height:18px;padding:0 4px;border-radius:99px;background:#4A78B5;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
 </style>
 </head>
 <body>
@@ -367,7 +370,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-23 13:20';
+window.FM_VERSION = '2026-10-24 16:10';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -7700,6 +7703,58 @@ const CloseReminder = {
   },
 };
 setInterval(() => CloseReminder.check(), 20000); setTimeout(() => CloseReminder.check(), 4000);
+
+
+/* =========================================================
+   NOTAS DE LASHISTAS (desde su portal): llegan a la campanita, a Payroll (sobre su semana)
+   y a Insumos (sobre solicitudes). Administración contesta y la lashista ve la respuesta.
+   ========================================================= */
+Store.artistMsgs = [];
+Store.connectHooks.push(db => { db.collection('artistMessages').onSnapshot(snap => { Store.artistMsgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); Store.invalidate(); }, () => {}); });
+const Msgs = {
+  pending(topic) { return Store.artistMsgs.filter(m => m.status !== 'Resuelto' && (!topic || m.topic === topic)); },
+  tag: m => m.status === 'Resuelto' ? '<span class="tag app">Resuelto</span>' : m.status === 'Visto' ? '<span class="tag">Visto</span>' : '<span class="tag warn">Nueva</span>',
+  when: ts => ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }) : '',
+  async save(m, patch) { const { id, ...data } = m; await Store.db.doc('artistMessages/' + id).set({ ...data, ...patch }); },
+  open(topic) {
+    const admin = !Mode.reception && Store.writable(), st = { show: 'abiertas' };
+    const draw = mm => {
+      const l = Store.artistMsgs.filter(m => (!topic || m.topic === topic) && (st.show === 'todas' || m.status !== 'Resuelto'));
+      $('[data-mlist]', mm).innerHTML = l.length ? l.map(m => `<div class="msgcard"><div class="mh"><b>${esc(m.artistName || '')}</b> ${this.tag(m)}<span class="mutedc">${esc(this.when(m.createdAt))} · ${m.topic === 'insumos' ? 'Insumos' : m.topic === 'semana' ? 'Su semana' : 'Otro'}</span></div>
+        ${m.ref ? `<div class="mutedc" style="font-size:12.5px">Sobre: ${esc(m.ref)}</div>` : ''}<p class="mt">“${esc(m.text)}”</p>
+        ${m.reply ? `<div class="mreply"><b>Respuesta${m.repliedBy ? ' de ' + esc(m.repliedBy) : ''}:</b> ${esc(m.reply)}</div>` : ''}
+        ${admin && m.status !== 'Resuelto' ? `<div class="mact"><textarea class="inp" rows="2" data-mrep="${m.id}" placeholder="Respuesta para ${esc(m.artistName || 'la lashista')} (la ve en su portal)"></textarea>
+          <div class="chips"><button class="btn sm" data-mseen="${m.id}" ${m.status === 'Visto' ? 'disabled' : ''}>Marcar como visto</button><button class="btn sm primary" data-mres="${m.id}">Responder y resolver</button>
+          ${m.topic === 'semana' ? `<button class="btn sm" data-mpay="${m.id}">Abrir su semana en Payroll</button>` : m.topic === 'insumos' ? `<button class="btn sm" data-mins="${m.id}">Ir a Insumos</button>` : ''}</div></div>` : ''}</div>`).join('')
+        : `<div class="empty"><b>${st.show === 'todas' ? 'Sin notas' : 'No hay notas pendientes'}</b></div>`;
+      $$('[data-mseen]', mm).forEach(b => b.onclick = async () => { const m = Store.artistMsgs.find(x => x.id === b.dataset.mseen); await this.save(m, { status: 'Visto', seenBy: Mode.who(), seenAt: new Date().toISOString() }); m.status = 'Visto'; draw(mm); });
+      $$('[data-mres]', mm).forEach(b => b.onclick = async () => { const m = Store.artistMsgs.find(x => x.id === b.dataset.mres), txt = ($(`[data-mrep="${m.id}"]`, mm).value || '').trim();
+        b.disabled = true; try { await this.save(m, { status: 'Resuelto', reply: txt || 'Revisado ✓', repliedBy: Mode.who(), repliedAt: new Date().toISOString() }); Object.assign(m, { status: 'Resuelto', reply: txt || 'Revisado ✓' }); UI.toast('Respuesta enviada a su portal'); draw(mm); } catch (e) { b.disabled = false; UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+      $$('[data-mpay]', mm).forEach(b => b.onclick = () => { const m = Store.artistMsgs.find(x => x.id === b.dataset.mpay), ws = Dates.fluffyWeekStart(Dates.fromISO(String(m.createdAt).slice(0, 10)) || Dates.today()); UI.close(); UI.go('payroll'); setTimeout(() => { if (typeof PayModal !== 'undefined') PayModal.open(m.artistId, ws, ws + 6); }, 150); });
+      $$('[data-mins]', mm).forEach(b => b.onclick = () => { UI.close(); S.ins.tab = 'hechas'; UI.go('insumos'); });
+    };
+    UI.modal(`<h3>✉️ Notas de lashistas${topic === 'insumos' ? ' · insumos' : topic === 'semana' ? ' · su semana' : ''}</h3>
+      <div class="segmented small" style="margin:4px 0 12px"><button type="button" class="on" data-msh="abiertas">Pendientes</button><button type="button" data-msh="todas">Todas</button></div>
+      <div data-mlist style="max-height:60vh;overflow:auto"></div><div class="acts"><button class="btn" data-x="c">Cerrar</button></div>`, mm => {
+      mm.classList.add('wide'); $('[data-x=c]', mm).onclick = UI.close;
+      $$('[data-msh]', mm).forEach(b => b.onclick = () => { st.show = b.dataset.msh; $$('[data-msh]', mm).forEach(x => x.classList.toggle('on', x === b)); draw(mm); });
+      draw(mm);
+    });
+  },
+  banner(topic) { const n = this.pending(topic).length; return n ? `<div class="banner msgbanner">✉️ ${n} nota${n > 1 ? 's' : ''} de lashistas ${topic === 'insumos' ? 'sobre insumos' : topic === 'semana' ? 'sobre su semana' : ''} <button class="btn sm primary" data-msgopen="${topic || ''}">Ver y contestar</button></div>` : ''; },
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-msgopen]'); if (b) Msgs.open(b.dataset.msgopen || ''); });
+{
+  const H = Views.payroll.html; Views.payroll.html = function () { const h = H.call(this); if (Mode.reception) return h; const b = Msgs.banner('semana'); return b ? h.replace(/(<div class="filters no-print")/, b + '$1') : h; };
+  const I = Views.insumos.html; Views.insumos.html = function () { const h = I.call(this), b = Msgs.banner('insumos'); return b ? h.replace(/(<div class="tabs no-print" role="tablist">)/, b + '$1') : h; };
+  // campanita: cuenta también las notas pendientes (administración)
+  const NH = Notify.html.bind(Notify), NO = Notify.open.bind(Notify);
+  Notify.html = function (cls) { const h = NH(cls); if (Mode.reception) return h; const n = Msgs.pending().length; return n ? h.replace('</button>', `<span class="bdg3" title="Notas de lashistas">✉${n}</span></button>`) : h; };
+  Notify.open = function () { NO(); const m = $('.modal'), n = Mode.reception ? 0 : Msgs.pending().length; if (!m || !n) return; $('h3', m).insertAdjacentHTML('afterend', `<div class="banner">✉️ ${n} nota${n > 1 ? 's' : ''} de lashistas sin contestar. <button class="btn sm" data-msgopen="">Ver notas</button></div>`); };
+  // aviso cuando llega una nota nueva (administración)
+  let seen = null; Store.onChange(() => { if (Mode.reception) return; const ids = Store.artistMsgs.map(m => m.id); if (seen === null) { seen = new Set(ids); return; } const fresh = Store.artistMsgs.filter(m => !seen.has(m.id) && m.status !== 'Resuelto'); ids.forEach(i => seen.add(i));
+    if (fresh.length) { const m = fresh[0]; UI.toast(`✉️ Nota de ${m.artistName}: “${String(m.text).slice(0, 60)}${m.text.length > 60 ? '…' : ''}”`); if (Notify.ding) try { Notify.ding(); } catch (e) {} } });
+}
 
 
 window.FM_BOOT = function () {

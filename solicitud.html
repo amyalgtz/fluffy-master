@@ -46,6 +46,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .empty{color:var(--muted);padding:16px 14px}
 .goal{border:1.5px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--blush)}.goal.done{border-color:var(--ok)}.goal .gtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700}.goal .gtop b{font-size:20px}.goal .gtop small{font-size:13px;color:var(--muted);font-weight:600}
 .gbar{height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 8px}.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.goal.done .gbar i{background:var(--ok)}.goal p{margin:0 0 4px;font-size:15px}.goal small{color:var(--muted);font-size:12px}
+.compose{margin-top:22px;border:1.5px solid var(--gold);border-radius:16px;padding:12px 14px}.compose h2{margin-top:0}.compose textarea{resize:vertical}.okmsg{color:var(--ok);font-weight:700;margin:0 0 6px}
+.linkb{border:0;background:none;color:var(--pink-deep);font:inherit;font-size:12.5px;font-weight:700;padding:6px 0 0;cursor:pointer;text-decoration:underline}.ntxt{margin:4px 0;font-size:14px}.nreply{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--blush);font-size:13.5px}
 .weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
 .tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;font-size:14px;padding:10px 6px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
 .kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.kp div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kp span{display:block;font-size:12px;color:var(--muted);font-weight:700}.kp b{font-size:22px}
@@ -63,7 +65,7 @@ h2{font-size:17px;margin:22px 0 4px}
   const cfg = window.FM_CONFIG || {}, app = $('#app');
   if (!cfg.url || !cfg.anonKey || /TU-PROYECTO|PEGA/.test(cfg.url + cfg.anonKey)) { app.innerHTML = '<p class="err">Falta configurar el sistema.</p>'; return; }
   const sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false } });
-  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false, week: null, wofs: 0 };
+  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false, week: null, wofs: 0, notes: null, cref: '' };
   try { S.artist = localStorage.getItem('fm-req-artist') || ''; } catch (e) {}
   const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
   const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Portal de lashistas</h1><p class="sub">Fluffy Lashes · pide insumos, revisa tus solicitudes y tu semana.</p></div></div>`;
@@ -100,6 +102,31 @@ h2{font-size:17px;margin:22px 0 4px}
 
   const dmy = iso => { if (!iso) return ''; const d = new Date(String(iso).length <= 10 ? iso + 'T12:00:00' : iso); return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }); };
   const tag = st => st === 'Entregado' ? '<span class="tg ok">Entregado</span>' : st === 'Sin stock' ? '<span class="tg no">Sin stock</span>' : '<span class="tg pe">Pendiente</span>';
+  const TOPIC = { insumos: 'Insumos', semana: 'Mi semana', otro: 'Otro' };
+  async function loadNotes(re) { const { data } = await sb.rpc('fm_my_notes', { p_artist: S.artist, p_pin: S.pin }); if (data && data.ok) { S.notes = data.notes || []; if (re) re(); } }
+  function notesList(topic) {
+    const l = (S.notes || []).filter(n => !topic || n.topic === topic); if (!l.length) return '';
+    return `<h2>Tus notas a administración</h2>${l.map(n => `<div class="rq"><h3><span>${esc(n.ref || TOPIC[n.topic] || 'Nota')}</span>${n.status === 'Resuelto' ? '<span class="tg ok">Resuelto</span>' : n.status === 'Visto' ? '<span class="tg pe">Visto</span>' : '<span class="tg pe">Enviada</span>'}</h3>
+      <p class="ntxt">“${esc(n.text)}”</p><small>${esc(dmy(n.createdAt))}</small>${n.reply ? `<div class="nreply"><b>Administración:</b> ${esc(n.reply)}</div>` : ''}</div>`).join('')}`;
+  }
+  function composer(topic, opts, types) {
+    return `<div class="compose" id="compose"><h2>✉️ Mandar nota a administración</h2><p class="sub">Si algo no está bien, avísale a administración. Te contestan aquí mismo.</p>
+      ${types ? `<label for="ntype">¿Qué pasa?</label><select id="ntype">${types.map(t => `<option>${esc(t)}</option>`).join('')}</select>` : ''}
+      <label for="nref">¿Sobre qué?</label><select id="nref">${opts.map(o => `<option value="${esc(o)}" ${S.cref === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+      <label for="ntext">Tu nota</label><textarea id="ntext" rows="3" maxlength="800" placeholder="${topic === 'semana' ? 'Ej. el tip de Olessia fue de $30, no de $20' : 'Ej. el CC del 13 de oct no lo pedí'}"></textarea>
+      <p class="err" id="nerr"></p><button class="btn" id="nsend" style="width:100%">Enviar a administración</button></div>`;
+  }
+  function bindComposer(topic, re) {
+    const b = $('#nsend'); if (!b) return;
+    b.onclick = async () => { const txt = $('#ntext').value.trim(), ty = $('#ntype') ? $('#ntype').value : '', ref = [ty, $('#nref').value].filter(Boolean).join(' · ');
+      if (!txt) return ($('#nerr').textContent = 'Escribe tu nota.');
+      b.disabled = true; b.textContent = 'Enviando…';
+      const { data, error } = await sb.rpc('fm_send_artist_note', { p_artist: S.artist, p_pin: S.pin, p_topic: topic, p_ref: ref, p_text: txt });
+      if (error || !data || !data.ok) { b.disabled = false; b.textContent = 'Enviar a administración'; $('#nerr').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo enviar. Intenta de nuevo.'); return; }
+      S.cref = ''; await loadNotes(); re(); const c = $('#compose'); if (c) c.insertAdjacentHTML('afterbegin', '<p class="okmsg">✓ Tu nota se envió a administración.</p>'); };
+    document.querySelectorAll('[data-noteref]').forEach(x => x.onclick = () => { S.cref = x.dataset.noteref; const sel = $('#nref'); if (sel) sel.value = S.cref; const t = $('#ntext'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
+  }
+  const reqRef = r => `Solicitud del ${dmy(r.requestDate)}: ${(r.items || []).map(i => i.name + ' × ' + Number(i.qty)).join(', ')}`.slice(0, 190);
   function renderMine() {
     const m = S.mine, ym = new Date().toISOString().slice(0, 7);
     let body = '';
@@ -110,7 +137,7 @@ h2{font-size:17px;margin:22px 0 4px}
       body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Solicitudes (75 días)</span><b>${m.requests.length}</b></div></div>
         <p class="sub">El monto es a precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
         ${m.notes.length ? `<h2>Tus notas</h2>${m.notes.map(n => `<div class="rq"><h3><span>Nota #${esc(n.invoice)} · ${esc(n.month)}</span>${n.status === 'Pagada' ? '<span class="tg ok">Pagada</span>' : `<span class="tg pe">${esc(n.status)}</span>`}</h3>${Number(n.paid) ? `<small>Pagos registrados: $${Number(n.paid).toFixed(2)}</small>` : '<small>Sin pagos registrados</small>'}</div>`).join('')}` : ''}
-        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
+        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul><button class="linkb" data-noteref="${esc(reqRef(r))}">✉️ Mandar nota sobre esta solicitud</button>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
     }
     app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
       <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
@@ -118,6 +145,7 @@ h2{font-size:17px;margin:22px 0 4px}
     $('#art').onchange = e => { S.artist = e.target.value; S.mine = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderMine(); };
     $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
     bindTabs();
+    if (m) { const opts = ['General (insumos o nota del mes)'].concat(m.requests.map(reqRef)); document.querySelector('#app').insertAdjacentHTML('beforeend', composer('insumos', opts, null) + notesList('insumos')); bindComposer('insumos', renderMine); }
     $('#see').onclick = async () => {
       if (!S.artist) return ($('#err').textContent = 'Elige tu nombre.');
       if (!/^\d{4,8}$/.test(S.pin)) return ($('#err').textContent = 'Escribe tu clave (4 a 8 números).');
@@ -125,7 +153,7 @@ h2{font-size:17px;margin:22px 0 4px}
       const { data, error } = await sb.rpc('fm_my_requests', { p_artist: S.artist, p_pin: S.pin });
       S.loading = false;
       if (error || !data || !data.ok) { S.mine = null; renderMine(); $('#err').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); return; }
-      S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] }; renderMine();
+      S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] }; renderMine(); loadNotes(renderMine);
     };
   }
 
@@ -139,7 +167,7 @@ h2{font-size:17px;margin:22px 0 4px}
     const { data, error } = await sb.rpc('fm_my_week', { p_artist: S.artist, p_pin: S.pin, p_offset: S.wofs });
     S.loading = false;
     if (error || !data || !data.ok) { S.week = null; renderWeek(); err((data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.')); return; }
-    S.week = data; renderWeek();
+    S.week = data; renderWeek(); loadNotes(renderWeek);
   }
   const CHECKS = [['limpieza', '🧼', 'Limpieza', 'Mantén tu cabina limpia y ordenada al terminar cada servicio. También cuenta para tu meta.'],
     ['reviews', '⭐', 'Reviews', 'Recuerda pedirle review a tus clientas al terminar su servicio.'],
@@ -163,7 +191,7 @@ h2{font-size:17px;margin:22px 0 4px}
     rows.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
     const sent = w.sentAt ? new Date(w.sentAt).toLocaleString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
     return `<h2 id="detalle">📄 Tu detalle de la semana</h2><p class="sub">Revisado y enviado por administración${sent ? ' el ' + esc(sent) : ''}</p>
-      ${rows.length ? Object.entries(byDay).map(([d, l]) => `<div class="rq"><h3><span>${esc(fdate(d))}</span><small>${l.length} servicio${l.length > 1 ? 's' : ''}</small></h3><ul>${l.map(r => `<li><span>${esc(r.service)}<br><small>${esc(r.client || '')} · neto ${$$m(r.net)}</small></span><span style="text-align:right">${$$m(Number(r.commission) + Number(r.tip))}<br><small>comisión ${$$m(r.commission)}${Number(r.tip) ? ' · tip ' + $$m(r.tip) : ''}</small></span></li>`).join('')}</ul></div>`).join('') : '<p class="sub">No hay servicios en esta semana.</p>'}`;
+      ${rows.length ? Object.entries(byDay).map(([d, l]) => `<div class="rq"><h3><span>${esc(fdate(d))}</span><small>${l.length} servicio${l.length > 1 ? 's' : ''}</small></h3><ul>${l.map(r => `<li><span>${esc(r.service)}<br><small>${esc(r.client || '')} · neto ${$$m(r.net)}</small><br><button class="linkb" data-noteref="${esc(fdate(r.date) + ' · ' + r.service + ' · ' + (r.client || ''))}">✉️ nota</button></span><span style="text-align:right">${$$m(Number(r.commission) + Number(r.tip))}<br><small>comisión ${$$m(r.commission)}${Number(r.tip) ? ' · tip ' + $$m(r.tip) : ''}</small></span></li>`).join('')}</ul></div>`).join('') : '<p class="sub">No hay servicios en esta semana.</p>'}`;
   }
   function renderWeek() {
     const w = S.week; let body = '';
@@ -183,6 +211,8 @@ h2{font-size:17px;margin:22px 0 4px}
       <p class="err" id="err"></p><button class="btn" id="seew" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : w ? 'Actualizar' : 'Ver mi semana'}</button>${body}`;
     $('#art').onchange = e => { S.artist = e.target.value; S.week = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderWeek(); };
     $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
+    if (w) { const opts = [`Semana ${fdate(w.weekStart)} – ${fdate(w.weekEnd)}`].concat((w.rows || []).map(r => fdate(r.date) + ' · ' + r.service + ' · ' + (r.client || '')));
+      document.querySelector('#app').insertAdjacentHTML('beforeend', composer('semana', opts, ['Falta una clienta o servicio', 'Tip incorrecto', 'Servicio o precio incorrecto', 'Comisión incorrecta', 'Otro']) + notesList('semana')); bindComposer('semana', renderWeek); }
     $('#seew').onclick = loadWeek; bindTabs();
     document.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.min(0, S.wofs + Number(b.dataset.wk)); loadWeek(); });
     const rq = $('#reqdet'); if (rq) rq.onclick = async () => {
