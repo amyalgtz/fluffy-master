@@ -346,6 +346,13 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 }
 @media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi{padding:14px 12px 14px 0;border-left:0!important;padding-left:0!important}.kpi:nth-child(n+3){border-top:1px solid var(--line)}.kpi:nth-child(even){padding-left:14px!important;border-left:1px solid var(--line)!important}}
 @media print{.side,.bottom,.mobile-top,.no-print,.btn,.chips,.filters,.tabs{display:none!important}.app{display:block}main{overflow:visible}.page{padding:0;max-width:none}th{position:static}}
+.agfil .field{display:flex;flex-direction:column;gap:4px;min-width:160px}.agfil .field span{font-size:12.5px;font-weight:700;color:var(--muted)}
+.blkbox{border:1px dashed var(--line);border-radius:12px;padding:6px 12px;margin:0 0 12px;background:repeating-linear-gradient(135deg,transparent 0 8px,rgba(0,0,0,.03) 8px 16px)}.blkrow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;font-size:13.5px}.blkrow+.blkrow{border-top:1px solid var(--line)}
+.calblk{position:absolute;left:0;right:0;z-index:1;background:repeating-linear-gradient(135deg,rgba(120,110,110,.16) 0 8px,rgba(120,110,110,.05) 8px 16px);border-top:2px solid rgba(120,110,110,.45);pointer-events:none;max-height:100%}.calblk span{position:sticky;top:0;display:block;font-size:11px;font-weight:700;color:var(--muted);padding:3px 6px}
+.ordlist{list-style:none;margin:0;padding:0}.ordlist li{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.remcard{position:fixed;right:20px;top:20px;z-index:9999;width:min(380px,calc(100vw - 32px));background:var(--bg);border:2px solid var(--gold);border-radius:16px;box-shadow:0 18px 40px rgba(0,0,0,.25);padding:16px 18px;animation:remin .25s ease-out}
+.remcard .remt{font-weight:800;font-size:16px;margin:0 26px 6px 0}.remcard ol{margin:6px 0 12px 18px;padding:0;font-size:14px;line-height:1.6}.remx{position:absolute;right:10px;top:8px;border:0;background:none;font-size:24px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px}
+@keyframes remin{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
 </style>
 </head>
 <body>
@@ -360,7 +367,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-21 17:10';
+window.FM_VERSION = '2026-10-23 13:20';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1150,14 +1157,14 @@ Views.dia = {
   html() {
     const d = S.dia.day, r = Logic.calculateDailySales(Store.sales, d);
     const byA = Logic.calculatePayroll(r.list, d, d);
-    const parts = r.list.flatMap(s => { if (s.payGroup) return []; const tot = s.price - s.discount + s.tip, dep = Math.min(s.depositAmount || 0, tot);
+    const parts = r.list.flatMap(s => { if (s.payGroup) return []; return (() => { const tot = s.price - s.discount + s.tip, dep = Math.min(s.depositAmount || 0, tot);
       if ((s.payments || []).length > 1) return (dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }] : []).concat(s.payments.map(p => ({ m: p.method, v: num(p.amount) })));
       const mth = s.method === 'Paquete prepagado' ? 'Paquete prepagado (ya cobrado)' : (s.method || 'Sin registrar');
-      return dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }, { m: mth, v: tot - dep }] : [{ m: mth, v: tot }]; })
+      return dep ? [{ m: (s.depositMethod || 'Sin registrar') + ' (depósito)', v: dep }, { m: mth, v: tot - dep }] : [{ m: mth, v: tot }]; })().map(x => ({ ...x, t: s.visitOf || s.id })); })
       .concat((Store.packages || []).filter(p => p.day === d).flatMap(p => (p.payments || []).length > 1 ? p.payments.map(q => ({ m: q.method + ' (paquete vendido)', v: num(q.amount) })) : [{ m: p.method + ' (paquete vendido)', v: num(p.total) + num(p.tipTotal) }]))
       .concat((Store.moves || []).filter(x => x.type === 'Venta en salón' && Dates.fromISO(x.date) === d).flatMap(x => x.payGroup ? (x.payLead ? (x.payments || []).map(q => ({ m: q.method + ' (producto)', v: num(q.amount) })) : []) : [{ m: (x.method || 'Sin registrar') + ' (producto)', v: num(x.qty) * num(x.unitPrice) }]))
       .concat((Store.notePayments || []).filter(x => x.day === d).map(x => ({ m: x.method + ' (pago de lashista)', v: num(x.amount) }))).filter(x => x.v);
-    const byM = Logic.groupBy(parts, x => x.m, x => x.v);
+    const byM = Logic.groupBy(parts, x => x.m, x => x.v).map(g => ({ ...g, count: new Set(parts.filter(x => x.m === g.key).map((x, i) => x.t || ('u' + i))).size }));
     return `<div class="head"><div><h1>Hoja del día</h1><p>${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</p></div>
       <div class="chips no-print"><button class="btn sm" data-d="-1" aria-label="Día anterior">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-day value="${Dates.toISO(d)}"><button class="btn sm" data-d="1" aria-label="Día siguiente">${ic('right')}</button><button class="btn sm" data-d="0">Hoy</button></div></div>
       <section class="kpis">
@@ -3274,7 +3281,7 @@ Views.config.mount = function (root) {
 const APPT_STATUS = { Agendada: '<span class="tag">Agendada</span>', Pagada: '<span class="tag app">Pagada</span>', 'No-show': '<span class="tag warn">No-show</span>', Cancelada: '<span class="tag off">Cancelada</span>' };
 Store.appointments = [];
 Store.connectHooks.push(db => db.collection('appointments').onSnapshot(s => {
-  Store.appointments = s.docs.map(d => ({ id: d.id, ...d.data(), _raw: d.data(), day: Dates.fromISO(d.data().date) })); Store.invalidate();
+  Store._apptSnap = true; Store.appointments = s.docs.map(d => ({ id: d.id, ...d.data(), _raw: d.data(), day: Dates.fromISO(d.data().date) })); Store._apptSnap = false; Store.invalidate();
 }, () => {}));
 Store.saveAppointment = async function (data, id) {
   if (!this.writable()) throw new Error('No tienes permiso para guardar en esta vista.');
@@ -7118,7 +7125,7 @@ function calHtml(day) {
   const walk = Store.sales.filter(s => s.source === 'app' && s.day === day && !linked.has(s.id) && !s.payGroup && !s.visitOf);
   const ids = [...new Set(appts.map(a => a.artistId).concat(walk.map(s => s.artistKey)))];
   const arts = (S.ag.allCols ? Store.config.artists.filter(a => a.active !== false).map(a => a.id).concat(ids) : ids).filter((v, i, l) => v && l.indexOf(v) === i)
-    .map(id => Store.config.artists.find(a => a.id === id) || { id, name: id }).sort((a, b) => a.name.localeCompare(b.name));
+    .map(id => Store.config.artists.find(a => a.id === id) || { id, name: id }).sort((a, b) => { const ix = x => { const i = Store.config.artists.findIndex(y => y.id === x.id); return i < 0 ? 999 : i; }; return ix(a) - ix(b); });
   const times = appts.map(a => CAL.mins(a.time)).filter(x => x != null);
   const st = Math.min(CAL.start, ...times.map(t => Math.floor(t / 60) * 60)), en = Math.max(CAL.end, ...appts.map(a => (CAL.mins(a.time) || 0) + CAL.dur(a)).map(t => Math.ceil(t / 60) * 60)), H = (en - st) * CAL.ppm;
   const hours = []; for (let m = st; m <= en; m += 60) hours.push(m);
@@ -7440,6 +7447,259 @@ const Cortes = {
     $$('[data-cmiss]', root).forEach(b => b.onclick = () => { S.caja.day = +b.dataset.cmiss; S.caja.tab = 'hacer'; Views.caja.st = null; UI.render(); });
   };
 }
+
+
+/* =========================================================
+   SIN MÉTODO REGISTRADO: muestra exactamente qué cobros del día quedaron sin forma de pago
+   (servicios, depósitos aplicados, productos, paquetes y pagos de lashistas) y deja asignarlo ahí mismo.
+   ========================================================= */
+const NoMethod = {
+  items(day) {
+    const iso = Dates.toISO(day), out = [];
+    Store.sales.filter(s => s.source === 'app' && s.day === day && !s.payGroup && s.method !== 'Paquete prepagado').forEach(s => {
+      const tot = r2(s.price - s.discount + s.tip), dep = Math.min(s.depositAmount || 0, tot), split = (s.payments || []).length > 1;
+      if (!split && !String(s.method || '').trim() && r2(tot - dep) > 0) out.push({ kind: 'Servicio', key: 'sale:' + s.id, s, who: client(s) || 'Sin nombre', detail: `${s.service} · ${s.artistName}`, amount: r2(tot - dep), time: s.createdAt, by: s.cashierName || '' });
+      if (dep > 0 && !String(s.depositMethod || '').trim()) out.push({ kind: 'Depósito aplicado', key: 'dep:' + s.id, s, dep: s.depositId, who: client(s) || 'Sin nombre', detail: `depósito usado en ${s.service}`, amount: dep, time: s.createdAt, by: s.cashierName || '' });
+    });
+    (Store.moves || []).filter(x => x.type === 'Venta en salón' && x.date === iso && !x.payGroup && !String(x.method || '').trim()).forEach(x => out.push({ kind: 'Producto', key: 'move:' + x.id, x, who: x.client || 'Clienta', detail: `${x.name || x.code} × ${num(x.qty)}`, amount: r2(num(x.qty) * num(x.unitPrice)), time: x.createdAt, by: x.byName || '' }));
+    (Store.packages || []).filter(p => p.day === day && !(p.payments || []).length && !String(p.method || '').trim()).forEach(p => out.push({ kind: 'Paquete', key: 'pkg:' + p.id, p, who: title(((p.first || '') + ' ' + (p.last || '')).trim()), detail: `${p.serviceName} × ${p.sessions}`, amount: r2(num(p.total) + num(p.tipTotal)), time: p.createdAt, by: p.createdByName || '' }));
+    (Store.notePayments || []).filter(p => p.day === day && !String(p.method || '').trim()).forEach(p => out.push({ kind: 'Pago de lashista', key: 'np:' + p.id, np: p, who: p.artistName, detail: `nota de insumos #${p.invoice}`, amount: num(p.amount), time: p.createdAt, by: p.byName || '' }));
+    return out.sort((a, b) => String(a.time || '').localeCompare(String(b.time || '')));
+  },
+  async assign(it, method, txn) {
+    if (it.s && it.kind === 'Servicio') { const s = it.s;
+      return Store.saveSale({ date: Dates.toISO(s.day), artistId: s.artistKey, serviceId: s.serviceId || (Store.config.services.find(v => v.name === s.service) || {}).id, price: s.price, discount: s.discount || '', tip: s.tip || '', method, txn: txn || s.txn || '', first: s.first || '', last: s.last || '', comments: s.comments || '',
+        manualOn: s.manual, manualCommission: s.manual ? s.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '', visitOf: s.visitOf || '' }, s.id); }
+    if (it.kind === 'Depósito aplicado') { if (it.dep) await Store.saveDeposit({ method, txn: txn || '' }, it.dep); return; }
+    const ref = it.x ? 'inventoryMoves/' + it.x.id : it.p ? 'packages/' + it.p.id : 'notePayments/' + it.np.id, d = Store.db.doc(ref);
+    return d.update ? d.update({ method, txn: txn || '' }) : null;
+  },
+  open(day) {
+    const list = this.items(day), methods = Store.config.methods.filter(m => m !== 'Depósito' && m !== 'Paquete prepagado'), tot = r2(list.reduce((t, x) => t + x.amount, 0));
+    UI.modal(`<h3>Cobros sin forma de pago</h3><p style="color:var(--muted);margin:0 0 12px">${esc(Dates.fmt(day, { weekday: 'long', day: 'numeric', month: 'long' }))} · ${list.length} cobro${list.length === 1 ? '' : 's'} · ${money(tot, 1)}. Elige cómo pagó cada uno y toca Guardar.</p>
+      ${list.length ? `<div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Hora</th><th>Qué es</th><th>Clienta / lashista</th><th class="r">Monto</th><th>Forma de pago</th><th>TXN</th></tr></thead><tbody>
+        ${list.map((x, i) => `<tr><td>${esc(hhmm(x.time))}<br><span class="mutedc" style="font-size:11.5px">${esc(x.by)}</span></td><td><b>${esc(x.kind)}</b><br><span class="mutedc" style="font-size:12px">${esc(x.detail)}</span></td><td>${esc(x.who)}</td><td class="r"><b>${money(x.amount, 1)}</b></td>
+          <td><select class="inp" data-nmm="${i}" style="min-width:150px"><option value="">Elige</option>${methods.map(m => `<option>${esc(m)}</option>`).join('')}</select></td><td><input class="inp" data-nmt="${i}" placeholder="TXN (opcional)" style="min-width:110px"></td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="empty"><b>No hay cobros sin forma de pago este día</b></div>'}
+      <p class="err" data-nmerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+      <div class="acts"><button class="btn" data-x="c">Cerrar</button>${list.length && Store.writable() ? '<button class="btn primary" data-x="ok">Guardar</button>' : ''}</div>`, m => {
+      m.classList.add('wide');
+      $('[data-x=c]', m).onclick = UI.close;
+      const ok = $('[data-x=ok]', m); if (!ok) return;
+      ok.onclick = async () => {
+        const todo = list.map((x, i) => ({ x, mth: $(`[data-nmm="${i}"]`, m).value, txn: $(`[data-nmt="${i}"]`, m).value.trim() })).filter(t => t.mth);
+        if (!todo.length) return ($('[data-nmerr]', m).textContent = 'Elige la forma de pago de al menos un cobro.');
+        ok.disabled = true; let n = 0;
+        try { for (const t of todo) { await this.assign(t.x, t.mth, t.txn); n++; } UI.close(); UI.toast(`${n} cobro${n > 1 ? 's' : ''} con forma de pago`); }
+        catch (e) { ok.disabled = false; $('[data-nmerr]', m).textContent = `Se guardaron ${n}. No se pudo el siguiente: ${e.message || e.code}`; }
+      };
+    });
+  },
+};
+{
+  const H = Views.dia.html, M = Views.dia.mount;
+  Views.dia.html = function () {
+    let h = H.call(this); const n = NoMethod.items(S.dia.day).length; if (!n) return h;
+    h = h.replace(/(<div class="cajabox none"><span>Sin método registrado<\/span><b>[^<]*<\/b><small>)[^<]*(<\/small>)/, (m0, a, b) => a + `${n} cobro${n > 1 ? 's' : ''} sin forma de pago · <button class="linkbtn" data-nmopen>Ver cuáles y asignar</button>` + b);
+    return h.replace('<h2>Por método de pago</h2>', `<h2>Por método de pago</h2><div class="banner" style="margin:6px 0 10px">⚠︎ ${n} cobro${n > 1 ? 's' : ''} sin forma de pago. <button class="btn sm primary" data-nmopen>Ver cuáles y asignar</button></div>`);
+  };
+  Views.dia.mount = function (root) { M.call(this, root); $$('[data-nmopen]', root).forEach(b => b.onclick = () => NoMethod.open(S.dia.day)); };
+  // también en el corte de caja (si hay cobros sin método, el efectivo puede no cuadrar)
+  const HC = Views.caja.html, MC = Views.caja.mount;
+  Views.caja.html = function () { const h = HC.call(this); if ((S.caja.tab || 'hacer') === 'recep' && !Mode.reception) return h; const n = NoMethod.items(S.caja.day).length; if (!n) return h;
+    return h.replace('<section class="kpis"', `<div class="banner">⚠︎ ${n} cobro${n > 1 ? 's' : ''} de este día no tiene${n > 1 ? 'n' : ''} forma de pago; si alguno fue en efectivo, no aparece en el corte. <button class="btn sm primary" data-nmopen>Ver cuáles y asignar</button></div><section class="kpis"`); };
+  Views.caja.mount = function (root) { MC.call(this, root); $$('[data-nmopen]', root).forEach(b => b.onclick = () => NoMethod.open(S.caja.day)); };
+}
+
+
+/* =========================================================
+   UN TICKET = UN PAGO: los servicios de un mismo cobro comparten forma de pago y TXN
+   (salvo pago dividido). Asignar o corregir el método de uno corrige todo el ticket.
+   ========================================================= */
+const ticketOf = s => (typeof Visit !== 'undefined' ? Visit.of(s) : [s]).filter(x => x.source === 'app');
+{
+  // Sin método: un renglón por ticket
+  const I = NoMethod.items.bind(NoMethod);
+  NoMethod.items = function (day) {
+    const l = I(day), out = [], seen = new Set();
+    l.forEach(it => {
+      if (it.kind !== 'Servicio') return out.push(it);
+      const t = ticketOf(it.s), root = t[0] ? t[0].id : it.s.id; if (seen.has(root)) return; seen.add(root);
+      const sales = t.filter(x => !String(x.method || '').trim() && !((x.payments || []).length > 1));
+      const sv = sales.length ? sales : [it.s];
+      out.push({ ...it, kind: sv.length > 1 ? `Ticket · ${sv.length} servicios` : 'Servicio', sales: sv, detail: sv.map(x => `${x.service} · ${x.artistName}`).join(' + '), amount: r2(sv.reduce((s2, x) => s2 + x.price - x.discount + x.tip - Math.min(x.depositAmount || 0, x.price - x.discount + x.tip), 0)) });
+    });
+    return out;
+  };
+  const A = NoMethod.assign.bind(NoMethod);
+  NoMethod.assign = async function (it, method, txn) {
+    if (it.sales && it.sales.length) { Store._tkProp = true; try { for (const s of it.sales) await A({ ...it, s, kind: 'Servicio' }, method, txn); } finally { Store._tkProp = false; } return; }
+    return A(it, method, txn);
+  };
+}
+{
+  // Al corregir el método o el TXN de un servicio, se corrige todo su ticket
+  const SS = Store.saveSale;
+  Store.saveSale = async function (form, id) {
+    const prev = id && !Store._tkProp ? this.appSales.find(x => x.id === id) : null;
+    const r = await SS.call(this, form, id);
+    if (prev && !((form.payments || []).length > 1) && !((prev.payments || []).length > 1) && ((prev.method || '') !== (form.method || '') || (prev.txn || '') !== (form.txn || ''))) {
+      const sib = ticketOf(prev).filter(x => x.id !== id && (x.method || '') === (prev.method || '') && !((x.payments || []).length > 1));
+      if (sib.length) { Store._tkProp = true;
+        try { for (const s of sib) await SS.call(this, { date: Dates.toISO(s.day), artistId: s.artistKey, serviceId: s.serviceId || (Store.config.services.find(v => v.name === s.service) || {}).id, price: s.price, discount: s.discount || '', tip: s.tip || '', method: form.method || '', txn: form.txn || '', first: s.first || '', last: s.last || '', comments: s.comments || '',
+            manualOn: s.manual, manualCommission: s.manual ? s.commission : '', packageId: s.packageId || '', packageSession: s.packageSession || 0, depositId: s.depositId || '', payments: s.payments, payGroup: s.payGroup || '', visitOf: s.visitOf || '' }, s.id);
+          UI.toast(`Forma de pago actualizada en los ${sib.length + 1} servicios del ticket`); }
+        finally { Store._tkProp = false; } }
+    }
+    return r;
+  };
+}
+
+
+/* =========================================================
+   1) Depósitos: método "Booksy".
+   2) La app abre en Agenda.
+   3) Agenda: bloquear horarios (falta de disponibilidad) por lashista o de todo el salón.
+   4) Orden de las lashistas (Configuración → Lashistas → Ordenar).
+   5) Agenda: filtrar por lashista y por servicio.
+   6) Recepción: recordatorio de cierre (L–V 6:45 y 6:50 pm; sábado 5:45 y 5:50 pm).
+   ========================================================= */
+if (!DEPOSIT_METHODS.includes('Booksy')) DEPOSIT_METHODS.splice(DEPOSIT_METHODS.length - 1, 0, 'Booksy');
+if (UI.route === 'dashboard') UI.route = 'agenda';
+if (!RECEP_ROUTES.includes('agenda')) RECEP_ROUTES.push('agenda');
+
+/* ---------- bloqueos: se guardan como citas tipo "bloqueo" y no cuentan como citas ---------- */
+{
+  let _appts = Store.appointments || [];
+  Store.blocks = [];
+  Object.defineProperty(Store, 'appointments', { configurable: true,
+    get() { const l = _appts; if (!Store._agFilter) return l; const f = S.ag; return l.filter(a => (!f.fa || a.artistId === f.fa || (a.addons || []).some(x => x.artistId === f.fa)) && (!f.fs || a.serviceId === f.fs || (a.addons || []).some(x => x.serviceId === f.fs))); },
+    set(v) { const all = v || []; _appts = all.filter(a => a.kind !== 'bloqueo'); const nb = all.filter(a => a.kind === 'bloqueo'); if (Store._apptSnap || nb.length) Store.blocks = nb; } });
+}
+const blkMins = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+const blkLabel = b => b.allDay ? 'Todo el día' : `${CAL.label(blkMins(b.time))} – ${CAL.label(blkMins(b.endTime))}`;
+const blocksFor = (day, artistId) => Store.blocks.filter(b => b.day === day && (!artistId || !b.artistId || b.artistId === artistId));
+function blockForm(preset) {
+  const p = preset || {}, arts = Store.config.artists.filter(a => a.active !== false);
+  UI.modal(`<h3>Falta de disponibilidad</h3><p style="color:var(--muted);margin:0 0 12px">Bloquea un horario en la agenda: vacaciones, cita médica, capacitación, salón cerrado…</p>
+    <div class="formgrid"><label class="field">Lashista<select data-b="artistId"><option value="">Todas (salón cerrado)</option>${arts.map(a => `<option value="${a.id}" ${p.artistId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label class="field">Fecha<input type="date" data-b="date" value="${esc(p.date || Dates.toISO(S.ag.day != null ? S.ag.day : Dates.today()))}"></label>
+      <label class="field">Hasta la fecha (opcional)<input type="date" data-b="dateTo" value=""></label>
+      <label class="check" style="align-self:end"><input type="checkbox" data-b="allDay"> Todo el día</label>
+      <label class="field">Desde<input type="time" data-b="time" value="${esc(p.time || '14:00')}" step="900"></label><label class="field">Hasta<input type="time" data-b="endTime" value="${esc(p.endTime || '16:00')}" step="900"></label>
+      <label class="field full">Motivo<input data-b="notes" placeholder="Ej. cita médica, vacaciones, capacitación"></label></div>
+    <p class="err" data-berr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, m => {
+    const v = k => $(`[data-b="${k}"]`, m), all = v('allDay');
+    const tog = () => { ['time', 'endTime'].forEach(k => { v(k).disabled = all.checked; v(k).closest('label').classList.toggle('muted-field', all.checked); }); }; all.onchange = tog; tog();
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const err = t => { $('[data-berr]', m).textContent = t; }, d0 = Dates.fromISO(v('date').value), d1 = v('dateTo').value ? Dates.fromISO(v('dateTo').value) : d0;
+      if (d0 == null || d1 == null || d1 < d0) return err('Revisa las fechas.'); if (d1 - d0 > 31) return err('Máximo 31 días a la vez.');
+      if (!all.checked && !(blkMins(v('endTime').value) > blkMins(v('time').value))) return err('La hora final debe ser después de la inicial.');
+      const a = arts.find(x => x.id === v('artistId').value);
+      try { for (let d = d0; d <= d1; d++) await Store.db.collection('appointments').doc().set({ kind: 'bloqueo', status: 'Bloqueo', date: Dates.toISO(d), allDay: all.checked, time: all.checked ? '00:00' : v('time').value, endTime: all.checked ? '23:59' : v('endTime').value,
+          artistId: a ? a.id : '', artistName: a ? a.name : 'Todas', notes: v('notes').value.trim(), createdAt: new Date().toISOString(), createdByName: Mode.who() });
+        UI.close(); UI.toast(d1 > d0 ? `Bloqueados ${d1 - d0 + 1} días` : 'Horario bloqueado'); } catch (e) { err('No se pudo guardar: ' + (e.message || e.code)); }
+    };
+  });
+}
+async function deleteBlock(b) { if (!await UI.confirm('Quitar bloqueo', `${esc(b.artistName)} · ${esc(Dates.fmt(b.day, { weekday: 'short', day: 'numeric', month: 'short' }))} · ${esc(blkLabel(b))}`, 'Quitar')) return;
+  try { await Store.db.doc('appointments/' + b.id).delete(); Store.blocks = Store.blocks.filter(x => x.id !== b.id); UI.toast('Bloqueo quitado'); UI.render(); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } }
+/* avisa si se agenda encima de un bloqueo */
+{
+  const SA = Store.saveAppointment;
+  Store.saveAppointment = async function (data, id) {
+    if (data && data.kind !== 'bloqueo' && data.date && data.time && 'artistId' in data && !(data.status && data.status !== 'Agendada')) {
+      const day = Dates.fromISO(data.date), t = blkMins(data.time), hit = blocksFor(day, data.artistId).find(b => b.allDay || (t >= blkMins(b.time) && t < blkMins(b.endTime)));
+      if (hit && !confirm(`${hit.artistName === 'Todas' ? 'El salón' : hit.artistName} no está disponible ese día ${hit.allDay ? '(todo el día)' : 'de ' + blkLabel(hit)}${hit.notes ? ' · ' + hit.notes : ''}.\n\n¿Agendar de todos modos?`)) throw new Error('Cita no guardada: horario no disponible.');
+    }
+    return SA.call(this, data, id);
+  };
+}
+/* ---------- Agenda: filtros, botón de bloqueo y bloqueos en la lista y en el calendario ---------- */
+S.ag.fa = S.ag.fa || ''; S.ag.fs = S.ag.fs || '';
+{
+  const L = Views.agenda.list;
+  Views.agenda.list = function () { Store._agFilter = true; try { return L.call(this); } finally { Store._agFilter = false; } };
+  const C = calHtml;
+  calHtml = function (day) {
+    Store._agFilter = true; let h; try { h = C(day); } finally { Store._agFilter = false; }
+    const st = +((/data-calst="(\d+)"/.exec(h) || [])[1] || CAL.start);
+    blocksFor(day).forEach(b => {
+      const top = b.allDay ? 0 : (blkMins(b.time) - st) * CAL.ppm, hgt = b.allDay ? 99999 : (blkMins(b.endTime) - blkMins(b.time)) * CAL.ppm;
+      const div = `<div class="calblk" style="top:${Math.max(0, top)}px;height:${hgt}px" title="${esc(b.notes || 'No disponible')}"><span>No disponible${b.notes ? ' · ' + esc(b.notes) : ''}</span></div>`;
+      h = b.artistId ? h.replace(`data-calcol="${b.artistId}" style="height:`, m0 => m0) .replace(new RegExp(`(data-calcol="${b.artistId}" style="height:[^"]*">)`), `$1${div}`) : h.replace(/(data-calcol="[^"]+" style="height:[^"]*">)/g, `$1${div}`);
+    });
+    return h;
+  };
+  const H = Views.agenda.html, M = Views.agenda.mount;
+  Views.agenda.html = function () {
+    let h = H.call(this); const f = S.ag;
+    const arts = Store.config.artists.filter(a => a.active !== false), svcs = Store.config.services.filter(s => s.active !== false).slice().sort((a, b) => a.name.localeCompare(b.name));
+    const fil = `<div class="chips agfil no-print"><label class="field"><span>Lashista</span><select data-agfa><option value="">Todas</option>${arts.map(a => `<option value="${a.id}" ${f.fa === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+      <label class="field"><span>Servicio</span><select data-agfs><option value="">Todos</option>${svcs.map(s => `<option value="${s.id}" ${f.fs === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
+      ${f.fa || f.fs ? '<button class="btn sm" data-agfclr>Quitar filtros</button>' : ''}</div>`;
+    h = h.replace(/(<label class="field" style="max-width:none[^>]*>Buscar)/, fil + '$1');
+    if (Store.writable()) h = h.replace('<button class="btn primary" data-newappt', `<button class="btn" data-newblk>${ic('cal')}No disponible</button><button class="btn primary" data-newappt`);
+    const from = f.range === 'dia' ? f.day : Dates.today(), to = f.range === 'dia' ? f.day : Dates.today() + 13;
+    const bl = Store.blocks.filter(b => b.day >= from && b.day <= to && (!f.fa || !b.artistId || b.artistId === f.fa)).sort((a, b) => a.day - b.day || (a.time || '').localeCompare(b.time || ''));
+    if (bl.length) { const box = `<div class="blkbox">${bl.map(b => `<div class="blkrow"><span><b>🚫 ${esc(b.artistId ? b.artistName : 'Salón cerrado')}</b> · ${f.range === 'dia' ? '' : esc(Dates.fmt(b.day, { weekday: 'short', day: 'numeric', month: 'short' })) + ' · '}${esc(blkLabel(b))}${b.notes ? ' · ' + esc(b.notes) : ''}</span>${Store.writable() ? `<button class="btn sm" data-delblk="${b.id}">Quitar</button>` : ''}</div>`).join('')}</div>`;
+      const i = h.search(/<div class="calwrap"|<div class="tablewrap">|<section class="panel"/); h = i < 0 ? h + box : h.slice(0, i) + box + h.slice(i); }
+    return h;
+  };
+  Views.agenda.mount = function (root) {
+    M.call(this, root); const f = S.ag;
+    const a = $('[data-agfa]', root), s = $('[data-agfs]', root), c = $('[data-agfclr]', root), nb = $('[data-newblk]', root);
+    if (a) a.onchange = () => { f.fa = a.value; UI.render(); }; if (s) s.onchange = () => { f.fs = s.value; UI.render(); }; if (c) c.onclick = () => { f.fa = ''; f.fs = ''; UI.render(); };
+    if (nb) nb.onclick = () => blockForm({ artistId: f.fa });
+    $$('[data-delblk]', root).forEach(b => b.onclick = () => deleteBlock(Store.blocks.find(x => x.id === b.dataset.delblk)));
+  };
+}
+/* ---------- orden de lashistas ---------- */
+function artistOrderForm() {
+  let list = Store.config.artists.slice();
+  UI.modal(`<h3>Orden de las lashistas</h3><p style="color:var(--muted);margin:0 0 12px">Este orden se usa en las listas para elegir lashista, en la Agenda y en el calendario.</p><div data-ord></div>
+    <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar orden</button></div>`, m => {
+    const draw = () => { $('[data-ord]', m).innerHTML = `<ol class="ordlist">${list.map((a, i) => `<li class="${a.active === false ? 'mutedc' : ''}"><span>${i + 1}. ${esc(a.name)}${a.active === false ? ' (inactiva)' : ''}</span><span><button class="btn sm" data-up="${i}" ${i ? '' : 'disabled'} aria-label="Subir">▲</button> <button class="btn sm" data-dn="${i}" ${i < list.length - 1 ? '' : 'disabled'} aria-label="Bajar">▼</button></span></li>`).join('')}</ol>`;
+      $$('[data-up]', m).forEach(b => b.onclick = () => { const i = +b.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); });
+      $$('[data-dn]', m).forEach(b => b.onclick = () => { const i = +b.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); }); };
+    draw();
+    $('[data-x=no]', m).onclick = UI.close;
+    $('[data-x=ok]', m).onclick = async () => { try { await Store.saveConfig({ artists: list }); UI.close(); UI.toast('Orden guardado'); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } };
+  });
+}
+{
+  const H = Views.lashistas.html, M = Views.lashistas.mount;
+  Views.lashistas.html = function () { const h = H.call(this); return Mode.reception || !Store.writable() ? h : h.replace(/(<div class="head"><div>[\s\S]*?<\/div>)/, `$1<div class="chips no-print"><button class="btn" data-artorder>↕ Ordenar lashistas</button></div>`); };
+  Views.lashistas.mount = function (root) { M.call(this, root); const b = $('[data-artorder]', root); if (b) b.onclick = artistOrderForm; };
+}
+/* ---------- recordatorio de cierre (solo recepción) ---------- */
+const CloseReminder = {
+  slots() { const d = new Date().getDay(); return d >= 1 && d <= 5 ? [[18, 45, 15, '7:00 pm'], [18, 50, 10, '7:00 pm']] : d === 6 ? [[17, 45, 15, '6:00 pm'], [17, 50, 10, '6:00 pm']] : []; },
+  check() {
+    if (!Mode.reception || !Mode.operator) return;
+    const now = new Date(), mins = now.getHours() * 60 + now.getMinutes(), key0 = `fm-rem-${now.getFullYear()}${now.getMonth() + 1}${now.getDate()}`;
+    for (const [hh, mm, left, close] of this.slots()) { const t = hh * 60 + mm, key = `${key0}-${hh}${mm}`;
+      if (mins >= t && mins < t + 5) { try { if (localStorage.getItem(key)) continue; localStorage.setItem(key, '1'); } catch (e) {} this.show(left, close); break; } }
+  },
+  show(left, close) {
+    $$('.remcard').forEach(x => x.remove());
+    const sat = new Date().getDay() === 6, next = Dates.today() + 1;
+    const el = document.createElement('div'); el.className = 'remcard'; el.setAttribute('role', 'alertdialog');
+    el.innerHTML = `<button class="remx" aria-label="Cerrar">×</button><div class="remt">⏰ Faltan ${left} minutos para cerrar (${close})</div>
+      <ol><li>Haz el <b>corte de caja</b>.</li><li>Verifica los <b>depósitos</b>.</li><li>Revisa la <b>agenda de ${sat ? 'los próximos días' : 'mañana'}</b>.</li></ol>
+      <div class="chips"><button class="btn sm primary" data-rgo="caja">Corte de caja</button><button class="btn sm" data-rgo="depositos">Depósitos</button><button class="btn sm" data-rgo="agenda">Agenda de ${sat ? 'próximos días' : 'mañana'}</button></div>`;
+    document.body.appendChild(el);
+    if (typeof Notify !== 'undefined' && Notify.ding) try { Notify.ding(); } catch (e) {}
+    $('.remx', el).onclick = () => el.remove();
+    $$('[data-rgo]', el).forEach(b => b.onclick = () => { const r = b.dataset.rgo; el.remove();
+      if (r === 'agenda') { if (sat) { S.ag.range = '14'; } else { S.ag.range = 'dia'; S.ag.day = next; } }
+      if (r === 'caja') { S.caja.day = Dates.today(); S.caja.tab = 'hacer'; }
+      UI.go(r); });
+  },
+};
+setInterval(() => CloseReminder.check(), 20000); setTimeout(() => CloseReminder.check(), 4000);
 
 
 window.FM_BOOT = function () {
