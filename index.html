@@ -370,7 +370,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-24 21:40';
+window.FM_VERSION = '2026-10-24 23:30';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4790,6 +4790,8 @@ const SaleCompare = {
     const rows = ex.map(r => ({ r, nk: nameKey2(r.first, r.last), ft: firstTok(r.first) }));
     const tries = [
       ['Coincide', (s, x) => s.day === x.r.day && s.artistKey === x.r.artistId && svcEq(s, x.r) && Math.abs(s.price - x.r.price) < .01 && Math.abs(s.tip - x.r.tip) < .01 && Math.abs(s.discount - x.r.discount) < .01 && nameKey2(s.first, s.last) === x.nk],
+      ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk && svcEq(s, x.r) && s.artistKey === x.r.artistId],
+      ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk && svcEq(s, x.r)],
       ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk && (svcEq(s, x.r) || s.artistKey === x.r.artistId)],
       ['Diferente', (s, x) => s.day === x.r.day && x.nk && nameKey2(s.first, s.last) === x.nk],
       ['Diferente', (s, x) => s.day === x.r.day && x.ft && firstTok(s.first) === x.ft && (s.artistKey === x.r.artistId || svcEq(s, x.r))],
@@ -4835,7 +4837,7 @@ const SaleCompare = {
 SaleImport.open = function () {
   let wb = null, fileName = '', items = [];
   const t = Dates.today(), ws = Dates.fluffyWeekStart(t);
-  UI.modal(`<h3>Subir y comparar ventas desde Excel</h3>
+  UI.modal(`<h3>Comparar ventas con el Excel</h3>
     <p style="color:var(--muted);margin:0 0 14px">Compara tu archivo FLUFFY MASTER (hoja HOJA PRINCIPAL) con lo que está en la app en las fechas que elijas. El Excel se toma como correcto: puedes agregar lo que falta y corregir lo que está distinto.</p>
     <div class="chips" style="margin-bottom:12px;align-items:flex-end">
       <label class="btn primary" style="cursor:pointer">${ic('dl')}Elegir archivo<input type="file" accept=".xlsx,.xls,.csv" data-sfile hidden></label>
@@ -4856,16 +4858,17 @@ SaleImport.open = function () {
       if (res.error) { prev.innerHTML = `<div class="banner">${esc(res.error)}</div>`; ok.disabled = true; return; }
       items = SaleCompare.run(res, from, to);
       const c = k => items.filter(i => i.status === k).length;
-      const tag = i => ({ 'Coincide': '<span class="tag app">Coincide</span>', 'Diferente': '<span class="tag warn">Distinto</span>', 'Falta': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Falta en la app</span>', 'Solo en la app': '<span class="tag">Solo en la app</span>', 'Con error': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Con error</span>' })[i.status];
+      const tag = i => i.ticket ? '<span class="tag app">Coincide por ticket</span>' : ({ 'Coincide': '<span class="tag app">Coincide</span>', 'Diferente': '<span class="tag warn">Distinto</span>', 'Falta': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Falta en la app</span>', 'Solo en la app': '<span class="tag">Solo en la app</span>', 'Con error': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Con error</span>' })[i.status];
       const action = (i, k) => i.status === 'Coincide' ? '' : i.status === 'Con error' ? `<span class="mutedc" style="font-size:12px">${esc(i.r.errors.join(' · '))}</span>` : i.locked ? '<span class="mutedc" style="font-size:12px">histórico, no se edita</span>'
         : `<label class="check" style="font-size:13px"><input type="checkbox" data-act="${k}" ${i.act ? 'checked' : ''}> ${i.status === 'Falta' ? 'Agregar' : i.status === 'Diferente' ? 'Corregir como el Excel' : 'Borrar de la app'}</label>`;
       prev.innerHTML = `<div class="kpis imp" style="grid-template-columns:repeat(5,1fr)"><div class="kpi"><div class="lab">Coinciden</div><div class="val">${intf(c('Coincide'))}</div></div><div class="kpi"><div class="lab">Distintos</div><div class="val">${intf(c('Diferente'))}</div></div><div class="kpi lead"><div class="lab">Faltan en la app</div><div class="val">${intf(c('Falta'))}</div></div><div class="kpi"><div class="lab">Solo en la app</div><div class="val">${intf(c('Solo en la app'))}</div></div><div class="kpi"><div class="lab">Con error</div><div class="val ${c('Con error') ? 'neg' : ''}">${intf(c('Con error'))}</div></div></div>
-        <p class="formula" style="margin-top:-20px">${esc(fileName)} · ${Dates.fmt(from)} – ${Dates.fmt(to)}. “Solo en la app” no se borra salvo que lo marques. Los cobros corregidos conservan su método de pago, TXN, depósito, paquete y cita.</p>
+        <p class="formula" style="margin-top:-20px">${esc(fileName)} · ${Dates.fmt(from)} – ${Dates.fmt(to)}. Solo compara: no se cambia nada hasta que tú marques qué corregir. Los servicios que en la app están en un mismo ticket se comparan por ticket. Los cobros corregidos conservan su método de pago, TXN, depósito, paquete y cita.</p>
         <div class="tablewrap" style="max-height:52vh;overflow:auto"><table><thead><tr><th>Fecha</th><th>Resultado</th><th>Excel</th><th>App</th><th>Diferencias</th><th>Acción</th></tr></thead><tbody>
         ${items.slice(0, 400).map((i, k) => `<tr><td>${Dates.fmt((i.r || i.s).day, { day: '2-digit', month: 'short' })}</td><td>${tag(i)}</td><td style="white-space:normal;min-width:180px">${esc(label(i))}</td><td style="white-space:normal;min-width:180px">${esc(appLabel(i.s))}</td><td style="white-space:normal;min-width:180px;font-size:12.5px">${esc((i.diffs || []).join(' · '))}</td><td>${action(i, k)}</td></tr>`).join('')}
         </tbody></table></div>${items.length > 400 ? `<p class="formula">Mostrando 400 de ${intf(items.length)}.</p>` : ''}
-        <div class="chips" style="margin-top:10px"><button class="btn sm" data-cmpdl>${ic('dl')}Descargar comparación (Excel)</button></div>`;
+        <div class="chips" style="margin-top:10px"><button class="btn sm" data-actall="Diferente">Marcar todos los distintos</button><button class="btn sm" data-actall="Falta">Marcar todos los que faltan</button><button class="btn sm" data-actall="">Desmarcar todo</button><button class="btn sm" data-cmpdl>${ic('dl')}Descargar comparación (Excel)</button></div>`;
       $$('[data-act]', prev).forEach(cb => cb.onchange = () => { items[+cb.dataset.act].act = cb.checked; count(); });
+      $$('[data-actall]', prev).forEach(b => b.onclick = () => { const st = b.dataset.actall; items.forEach(i => { if (i.locked || i.status === 'Coincide' || i.status === 'Con error') return; i.act = st ? (i.status === st ? true : i.act) : false; }); $$('[data-act]', prev).forEach(cb => { cb.checked = !!items[+cb.dataset.act].act; }); count(); });
       $('[data-cmpdl]', prev).onclick = () => Exporter.run('xlsx', 'Comparacion_Excel_vs_app', [['Fecha', 'Resultado', 'Excel', 'App', 'Diferencias']].concat(items.map(i => [Dates.toISO((i.r || i.s).day), i.status, label(i), appLabel(i.s), (i.diffs || []).join(' · ') || (i.r && i.r.errors ? i.r.errors.join(' · ') : '')])));
       count();
     };
@@ -7788,6 +7791,47 @@ async function moveApptTo(a, day, time, why) {
       <div class="mmrow"><span>Si la clienta vino el ${esc(Dates.fmt(s.day, { day: 'numeric', month: 'short' }))}, mueve la cita a ese día.</span><button class="btn sm primary" data-mvday>Mover la cita al ${esc(Dates.fmt(s.day, { weekday: 'short', day: 'numeric', month: 'short' }))}</button></div></div>`);
     $('[data-mvday]', m).onclick = async () => { const t = new Date(s.createdAt || 0); const hm = s.createdAt && Dates.fromISO(locISO(s.createdAt)) === s.day ? `${String(t.getHours()).padStart(2, '0')}:${String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0')}` : a.time;
       try { await moveApptTo(a, s.day, hm); UI.close(); UI.toast(`Cita movida al ${Dates.fmt(s.day, { weekday: 'short', day: 'numeric', month: 'short' })}`); const na = Store.appointments.find(x => x.id === a.id); if (na) apptDetail(na); } catch (e) { UI.toast('No se pudo mover: ' + (e.message || e.code), true); } };
+  };
+}
+
+
+/* =========================================================
+   COMPARAR CON EXCEL — solo compara: nada se marca solo; tú eliges qué corregir.
+   Compara también por TICKET: en el Excel cada servicio va en su renglón, en la app a veces
+   están juntos en un cobro o con el tip repartido. Si el ticket suma igual (por lashista), coincide.
+   ========================================================= */
+{
+  const F = SaleCompare.formFrom.bind(SaleCompare);
+  // al corregir, se conservan el pago dividido y el ticket al que pertenece el servicio
+  SaleCompare.formFrom = function (r, s) { const f = F(r, s); if (s) Object.assign(f, { payments: s.payments, payGroup: s.payGroup || '', visitOf: s.visitOf || '' }); return f; };
+  const R = SaleCompare.run.bind(SaleCompare);
+  SaleCompare.run = function (res, from, to) {
+    const out = R(res, from, to);
+    out.forEach(i => { i.act = false; });
+    const ck = (f, l) => nameKey2(f, l), root = s => s.visitOf || s.payGroup || s.id;
+    const groups = new Map();
+    out.forEach(i => { if (!i.r || i.status === 'Con error') return; const k = i.r.day + '|' + ck(i.r.first, i.r.last); if (!ck(i.r.first, i.r.last)) return; (groups.get(k) || groups.set(k, []).get(k)).push(i); });
+    groups.forEach((g, k) => {
+      const day = g[0].r.day, roots = new Set(g.filter(i => i.s).map(i => root(i.s)));
+      // ventas de la app de esos tickets, más las de esa clienta ese día que quedaron "solo en la app"
+      const appS = new Map();
+      g.filter(i => i.s).forEach(i => (typeof Visit !== 'undefined' ? Visit.of(i.s) : [i.s]).forEach(x => appS.set(x.id, x)));
+      const onlyApp = out.filter(i => i.status === 'Solo en la app' && i.s && i.s.day === day && (roots.has(root(i.s)) || namesLike((i.s.first || '') + ' ' + (i.s.last || ''), (g[0].r.first || '') + ' ' + (g[0].r.last || ''))));
+      onlyApp.forEach(i => appS.set(i.s.id, i.s));
+      const A = [...appS.values()]; if (!A.length || (g.length < 2 && A.length < 2)) return;
+      const sum = (l, f) => r2(l.reduce((t, x) => t + f(x), 0));
+      const exNet = sum(g, i => i.r.price - (i.r.discount || 0)), exTip = sum(g, i => i.r.tip || 0), apNet = sum(A, s => s.price - s.discount), apTip = sum(A, s => s.tip);
+      const byA = (l, ka, f) => { const m = new Map(); l.forEach(x => m.set(ka(x), r2((m.get(ka(x)) || 0) + f(x)))); return m; };
+      const ea = byA(g, i => i.r.artistId, i => i.r.price - (i.r.discount || 0)), aa = byA(A, s => s.artistKey, s => s.price - s.discount);
+      const sameArtists = [...new Set([...ea.keys(), ...aa.keys()])].every(a => Math.abs((ea.get(a) || 0) - (aa.get(a) || 0)) < 0.01);
+      if (Math.abs(exNet - apNet) >= 0.01 || Math.abs(exTip - apTip) >= 0.01 || !sameArtists) return;
+      const et = byA(g, i => i.r.artistId, i => i.r.tip || 0), at = byA(A, s => s.artistKey, s => s.tip);
+      const tipSplit = [...new Set([...et.keys(), ...at.keys()])].some(a => Math.abs((et.get(a) || 0) - (at.get(a) || 0)) >= 0.01);
+      const note = `Igual por ticket: ${money(exNet + exTip, 1)} en ${g.length} ${g.length > 1 ? 'renglones' : 'renglón'} del Excel y ${A.length} servicio${A.length > 1 ? 's' : ''} en la app${tipSplit ? ' · el tip está repartido distinto entre lashistas' : ''}${A.length !== g.length ? ' · en la app los servicios están juntos o separados distinto' : ''}`;
+      g.concat(onlyApp).forEach(i => { if (i.status === 'Coincide' && !tipSplit && A.length === g.length) return; i.status = 'Coincide'; i.ticket = true; i.diffs = [note].concat(tipSplit && i.diffs ? i.diffs.filter(d => /^Tip/.test(d)) : []); i.act = false; });
+    });
+    const ord = ['Diferente', 'Falta', 'Solo en la app', 'Con error', 'Coincide'];
+    return out.sort((a, b) => ord.indexOf(a.status) - ord.indexOf(b.status) || ((a.r || a.s).day - (b.r || b.s).day));
   };
 }
 
