@@ -370,7 +370,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-24 16:10';
+window.FM_VERSION = '2026-10-24 21:40';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -7754,6 +7754,41 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-msgo
   // aviso cuando llega una nota nueva (administración)
   let seen = null; Store.onChange(() => { if (Mode.reception) return; const ids = Store.artistMsgs.map(m => m.id); if (seen === null) { seen = new Set(ids); return; } const fresh = Store.artistMsgs.filter(m => !seen.has(m.id) && m.status !== 'Resuelto'); ids.forEach(i => seen.add(i));
     if (fresh.length) { const m = fresh[0]; UI.toast(`✉️ Nota de ${m.artistName}: “${String(m.text).slice(0, 60)}${m.text.length > 60 ? '…' : ''}”`); if (Notify.ding) try { Notify.ding(); } catch (e) {} } });
+}
+
+
+/* =========================================================
+   CITA COBRADA EN OTRO DÍA: si la clienta vino antes (o después) de su cita,
+   - al cobrar una cita de un día futuro pregunta si se mueve a hoy;
+   - en una cita pagada cuyo cobro es de otro día, ofrece moverla al día del cobro.
+   ========================================================= */
+const nowHM = () => { const n = new Date(); return `${String(n.getHours()).padStart(2, '0')}:${String(n.getMinutes()).padStart(2, '0')}`; };
+async function moveApptTo(a, day, time, why) {
+  await Store.saveAppointment({ date: Dates.toISO(day), time: time || a.time, history: (a.history || []).concat({ at: new Date().toISOString(), by: Mode.who(), what: why || `Se movió del ${Dates.fmt(a.day, { weekday: 'short', day: 'numeric', month: 'short' })} al ${Dates.fmt(day, { weekday: 'short', day: 'numeric', month: 'short' })}` }) }, a.id);
+}
+{
+  const C = chargeAppt;
+  chargeAppt = function (a) {
+    const t = Dates.today();
+    if (!a || a.status !== 'Agendada' || a.day <= t) return C(a);
+    UI.modal(`<h3>Esta cita es del ${esc(Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' }))}</h3>
+      <p style="color:var(--muted);margin:0 0 12px">${esc(apptClient(a))} · ${esc(a.artistName)} · ${esc(a.serviceName)}. Si la clienta vino hoy, mueve la cita a hoy para que la agenda y el cobro coincidan.</p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn" data-x="keep">Cobrar sin mover</button><button class="btn primary" data-x="move">Vino hoy: mover a hoy y cobrar</button></div>`, m => {
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=keep]', m).onclick = () => { UI.close(); C(a); };
+      $('[data-x=move]', m).onclick = async () => { try { await moveApptTo(a, t, nowHM(), 'La clienta vino antes: la cita se movió a hoy al cobrar'); UI.close(); C(Store.appointments.find(x => x.id === a.id) || a); } catch (e) { UI.toast('No se pudo mover: ' + (e.message || e.code), true); } };
+    });
+  };
+  const D = apptDetail;
+  apptDetail = function (a) {
+    D(a); const m = $('.modal'); if (!m || a.status !== 'Pagada' || !a.saleId || !Store.writable()) return;
+    const s = Store.sales.find(x => x.id === a.saleId); if (!s || s.day === a.day) return;
+    const dl = $('.dl', m); if (!dl) return;
+    dl.insertAdjacentHTML('beforebegin', `<div class="banner mismatch"><b>⚠︎ La cita está el ${esc(Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'short' }))}, pero se cobró el ${esc(Dates.fmt(s.day, { weekday: 'long', day: 'numeric', month: 'short' }))}.</b>
+      <div class="mmrow"><span>Si la clienta vino el ${esc(Dates.fmt(s.day, { day: 'numeric', month: 'short' }))}, mueve la cita a ese día.</span><button class="btn sm primary" data-mvday>Mover la cita al ${esc(Dates.fmt(s.day, { weekday: 'short', day: 'numeric', month: 'short' }))}</button></div></div>`);
+    $('[data-mvday]', m).onclick = async () => { const t = new Date(s.createdAt || 0); const hm = s.createdAt && Dates.fromISO(locISO(s.createdAt)) === s.day ? `${String(t.getHours()).padStart(2, '0')}:${String(Math.floor(t.getMinutes() / 15) * 15).padStart(2, '0')}` : a.time;
+      try { await moveApptTo(a, s.day, hm); UI.close(); UI.toast(`Cita movida al ${Dates.fmt(s.day, { weekday: 'short', day: 'numeric', month: 'short' })}`); const na = Store.appointments.find(x => x.id === a.id); if (na) apptDetail(na); } catch (e) { UI.toast('No se pudo mover: ' + (e.message || e.code), true); } };
+  };
 }
 
 
