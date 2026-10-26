@@ -356,6 +356,11 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 .msgcard{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px}.msgcard .mh{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.msgcard .mh .mutedc{margin-left:auto;font-size:12px}.msgcard .mt{margin:6px 0;font-size:14.5px}
 .mreply{background:var(--blush);border-radius:10px;padding:8px 10px;font-size:13.5px;margin-top:6px}.mact{display:flex;flex-direction:column;gap:6px;margin-top:8px}.msgbanner{border-color:var(--gold)}
 .bell .bdg3{position:absolute;left:-8px;bottom:-6px;min-width:20px;height:18px;padding:0 4px;border-radius:99px;background:#4A78B5;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
+.opaste{border:1px dashed var(--gold);border-radius:12px;padding:8px 12px;margin:0 0 12px}.opaste summary{cursor:pointer}.opaste textarea{width:100%;margin-top:8px}
+.ohead,.oline{display:grid;grid-template-columns:minmax(0,1fr) 70px 90px 34px;gap:8px;align-items:start}.ohead{font-size:12px;font-weight:700;color:var(--muted);margin-top:10px}.oline{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}.oline select{width:100%}
+.ototals{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;margin:10px 0;font-size:14px}
+.bell .bdg4{position:absolute;right:-10px;bottom:-6px;min-width:20px;height:18px;padding:0 4px;border-radius:99px;background:#7A5AA6;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
+@media (max-width:640px){.ohead{display:none}.oline{grid-template-columns:1fr 64px 80px 34px}}
 </style>
 </head>
 <body>
@@ -370,7 +375,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-24 23:30';
+window.FM_VERSION = '2026-10-25 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -7833,6 +7838,223 @@ async function moveApptTo(a, day, time, why) {
     const ord = ['Diferente', 'Falta', 'Solo en la app', 'Con error', 'Coincide'];
     return out.sort((a, b) => ord.indexOf(a.status) - ord.indexOf(b.status) || ((a.r || a.s).day - (b.r || b.s).day));
   };
+}
+
+
+/* =========================================================
+   PEDIDOS EN LÍNEA (tienda web): se registran pegando el correo del pedido, se piden
+   a recepción para surtir, se marcan entregados y se anota lo que quedó después de fees.
+   Al surtir se descuenta del inventario (bodega o salón).
+   ========================================================= */
+Store.orders = [];
+Store.connectHooks.push(db => { db.collection('onlineOrders').onSnapshot(snap => { Store.orders = snap.docs.map(d => ({ id: d.id, ...d.data(), day: Dates.fromISO(d.data().date) })).sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.number).localeCompare(String(a.number))); Store.invalidate(); }, () => {}); });
+const ORDER_ST = ['Por surtir', 'Surtido', 'Entregado', 'Cancelado'];
+const PAY_ONLINE = ['PayPal', 'Tarjeta (Stripe)', 'Shop Pay', 'Zelle', 'Cash App', 'Efectivo', 'Otro'];
+const Orders = {
+  money: v => money(num(v), 1),
+  fees(o) { const f = o.fees || {}; return r2(num(f.payment) + num(f.shipping) + num(f.other)); },
+  net(o) { return o.status === 'Entregado' && o.fees ? r2(num(o.total) - this.fees(o)) : null; },
+  tag(st) { return ({ 'Por surtir': '<span class="tag warn">Por surtir</span>', Surtido: '<span class="tag">Surtido · por entregar</span>', Entregado: '<span class="tag app">Entregado</span>', Cancelado: '<span class="tag off">Cancelado</span>' })[st] || esc(st); },
+  // ---------- leer el correo del pedido ----------
+  EN: { tweezer: 'pinza', tweezers: 'pinza', volume: 'volumen', classic: 'clasica', straight: 'recta', curved: 'curva', mirror: 'mirror', moon: 'moon', glue: 'glue', adhesive: 'glue', primer: 'primer', remover: 'remover', sealer: 'sealer', serum: 'serum', shampoo: 'shampoo', patches: 'parches', patch: 'parches', brush: 'brush', brushes: 'brushes', fan: 'fan', kit: 'kit', hoodie: 'hoodie', tile: 'tile', tape: 'tape', duo: 'duo' },
+  toks(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(t => t.length > 1 && !['fluffy', 'co', 'the', 'de', 'individual', 'lash', 'lashes', 'gold', 'single', 'mm'].includes(t)).map(t => this.EN[t] || t); },
+  matchProduct(name, attrs) {
+    const P = Store.config.products.filter(p => p.active !== false), key = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (/tray/i.test(name) && attrs.curl && attrs.length) { const c = key(attrs.curl) + String(parseInt(attrs.length, 10)); const p = P.find(x => key(x.code) === c) || P.find(x => key(x.name).endsWith(c)); if (p) return p; }
+    const t = this.toks(name); let best = null, bs = -9;
+    P.forEach(p => { const pt = this.toks(p.name + ' ' + (p.category || '')), nt = this.toks(p.name), hit = t.filter(x => pt.includes(x)).length / Math.max(1, t.length), sc = hit - 0.05 * nt.filter(x => !t.includes(x)).length; if (hit >= 0.5 && sc > bs) { bs = sc; best = p; } });
+    return best;
+  },
+  parse(text) {
+    const T = String(text || '').replace(/\r/g, ''), L = T.split('\n').map(x => x.trim()).filter(Boolean), num$ = v => num(String(v || '').replace(/[$,\s]/g, ''));
+    const o = { number: ((/Order\s*#\s*(\d+)/i.exec(T) || /#\s*\(?(\d{3,})\)?/.exec(T) || [])[1]) || '', items: [] };
+    const MES = { january: 1, enero: 1, february: 2, febrero: 2, march: 3, marzo: 3, april: 4, abril: 4, may: 5, mayo: 5, june: 6, junio: 6, july: 7, julio: 7, august: 8, agosto: 8, september: 9, septiembre: 9, october: 10, octubre: 10, november: 11, noviembre: 11, december: 12, diciembre: 12 };
+    const dm = /\((\d{1,2})\s+de\s+([a-záéíóú]+)\s+de\s+(\d{4})\)/i.exec(T) || /([a-z]+)\s+(\d{1,2}),\s*(\d{4})/i.exec(T);
+    if (dm) { const [d, mo, y] = isNaN(+dm[1]) ? [dm[2], dm[1], dm[3]] : [dm[1], dm[2], dm[3]], m = MES[String(mo).toLowerCase()]; if (m) o.date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+    o.customer = { name: ((/order from\s+(.+?):/i.exec(T) || [])[1] || '').replace(/^(ms|mrs|mr|miss)\.?\s+/i, '').trim() };
+    const g = re => { const m = re.exec(T); return m ? num$(m[1]) : 0; };
+    o.subtotal = g(/Subtotal:\s*\$?([\d,.]+)/i); o.shipping = g(/Shipping:\s*\$?([\d,.]+)/i); o.tax = g(/Tax:\s*\$?([\d,.]+)/i); o.total = g(/(?:^|[^a-z])Total:\s*\$?([\d,.]+)/im);
+    o.payMethod = (((/Payment method:\s*([^\n(]+)/i.exec(T) || [])[1]) || '').trim();
+    const em = /[\w.+-]+@[\w-]+\.[\w.]+/g, emails = (T.match(em) || []).filter(e => !/fluffylashesco/i.test(e)); o.customer.email = emails[0] || '';
+    const bi = L.findIndex(x => /^billing address/i.test(x)), si = L.findIndex(x => /^shipping address/i.test(x));
+    if (bi >= 0) { const blk = L.slice(bi + 1, si > bi ? si : bi + 8); o.customer.phone = (blk.find(x => /^\+?\d[\d\s()-]{8,}$/.test(x)) || '').replace(/\D/g, '');
+      const rest = blk.filter(x => !/@/.test(x) && !/^\+?\d[\d\s()-]{8,}$/.test(x)); if (!o.customer.name && rest[0]) o.customer.name = rest[0].replace(/^(ms|mrs|mr|miss)\.?\s+/i, '');
+      o.customer.address = rest.slice(1).join(', '); }
+    const a = L.findIndex(x => /^product\b/i.test(x)), z = L.findIndex((x, i) => i > a && /^subtotal/i.test(x));
+    let buf = [], attrs = {};
+    L.slice(a + 1, z > a ? z : L.length).forEach(x => {
+      if (/^(diameter|length|curl):?$/i.test(x)) return;
+      const kv = /^(diameter|length|curl):\s*(.+)$/i.exec(x); if (kv) { attrs[kv[1].toLowerCase()] = kv[2].trim(); return; }
+      const qp = /^(.*?)\s*(\d+)\s+\$([\d,.]+)$/.exec(x);
+      if (qp) { const name = (qp[1] || buf[0] || '').trim(); buf.slice(qp[1] ? 0 : 1).forEach(v => { if (/^\d*\.?\d+\s*mm$/i.test(v) && /\./.test(v)) attrs.diameter = v; else if (/^\d+\s*mm$/i.test(v)) attrs.length = v; else if (/^(c|cc|d|dd|l|m|b|j)$/i.test(v)) attrs.curl = v.toUpperCase(); });
+        if (name) { const p = this.matchProduct(name, attrs); o.items.push({ label: name + (attrs.curl || attrs.length ? ` · ${[attrs.curl, attrs.length, attrs.diameter].filter(Boolean).join(' · ')}` : ''), code: p ? p.code : '', name: p ? p.name : '', qty: +qp[2], price: num$(qp[3]) }); }
+        buf = []; attrs = {}; return; }
+      buf.push(x);
+    });
+    return o;
+  },
+  // ---------- formulario ----------
+  form(o) {
+    const P = Store.config.products.filter(p => p.active !== false).slice().sort((a, b) => (a.category || 'zz').localeCompare(b.category || 'zz') || a.name.localeCompare(b.name)), st = Store.stock();
+    const f = o ? JSON.parse(JSON.stringify(o)) : { number: '', date: Dates.toISO(Dates.today()), customer: { name: '', email: '', phone: '', address: '' }, items: [{ label: '', code: '', qty: 1, price: '' }], subtotal: '', shipping: '', tax: '', total: '', payMethod: 'PayPal', delivery: 'Envío', notes: '' };
+    const opts = c => `<option value="">— elige el producto —</option>${P.map(p => `<option value="${esc(p.code)}" ${p.code === c ? 'selected' : ''}>${esc(p.name)} · ${esc(p.code)}</option>`).join('')}`;
+    const itemRow = (it, k) => { const s = st.get(it.code) || { bodega: 0, salon: 0 };
+      return `<div class="oline" data-ol="${k}"><div>${it.label ? `<div class="mutedc" style="font-size:12px">Del correo: ${esc(it.label)}</div>` : ''}<select class="inp" data-oi="code">${opts(it.code)}</select>${it.code ? `<span class="mutedc" style="font-size:11.5px">bodega ${intf(s.bodega)} · salón ${intf(s.salon)}</span>` : (it.label ? '<span style="color:var(--bad);font-size:12px;font-weight:600">elige a qué producto corresponde</span>' : '')}</div>
+        <input class="inp num" type="number" min="1" step="1" data-oi="qty" value="${esc(it.qty)}" aria-label="Cantidad"><input class="inp num" type="number" min="0" step="0.01" data-oi="price" value="${esc(it.price)}" aria-label="Precio"><button type="button" class="btn sm" data-oi="rm">×</button></div>`; };
+    UI.modal(`<h3>${o ? 'Pedido #' + esc(o.number) : 'Nuevo pedido en línea'}</h3>
+      ${o ? '' : `<details open class="opaste"><summary><b>Pegar el correo del pedido</b> <span class="mutedc">(se llena solo)</span></summary><textarea class="inp" rows="5" data-opaste placeholder="Abre el correo “#NUEVO_PEDIDO”, selecciona todo (Cmd+A), copia y pega aquí"></textarea><button type="button" class="btn sm primary" data-oparse style="margin-top:6px">Leer correo</button></details>`}
+      <div class="formgrid"><label class="field">Pedido #<input data-o="number" value="${esc(f.number)}"></label><label class="field">Fecha del pedido<input type="date" data-o="date" value="${esc(f.date)}"></label>
+        <label class="field">Clienta<input data-oc="name" value="${esc(f.customer.name)}"></label><label class="field">Teléfono<input data-oc="phone" value="${esc(f.customer.phone || '')}"></label>
+        <label class="field">Correo<input data-oc="email" value="${esc(f.customer.email || '')}"></label><label class="field">Entrega<select data-o="delivery">${['Envío', 'Recoge en tienda'].map(x => `<option ${f.delivery === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+        <label class="field full">Dirección de envío<input data-oc="address" value="${esc(f.customer.address || '')}"></label></div>
+      <div class="ohead"><span>Producto</span><span>Cant.</span><span>Precio</span><span></span></div><div data-olines></div>
+      <button type="button" class="btn sm" data-oadd style="margin-top:6px">${ic('plus')}Agregar producto</button>
+      <div class="formgrid" style="margin-top:10px"><label class="field">Subtotal<input class="num" type="number" step="0.01" data-o="subtotal" value="${esc(f.subtotal)}"></label><label class="field">Envío cobrado<input class="num" type="number" step="0.01" data-o="shipping" value="${esc(f.shipping)}"></label>
+        <label class="field">Tax<input class="num" type="number" step="0.01" data-o="tax" value="${esc(f.tax)}"></label><label class="field">Total cobrado<input class="num" type="number" step="0.01" data-o="total" value="${esc(f.total)}"></label>
+        <label class="field">Pagó con<select data-o="payMethod">${PAY_ONLINE.concat(PAY_ONLINE.includes(f.payMethod) || !f.payMethod ? [] : [f.payMethod]).map(x => `<option ${f.payMethod === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label><label class="field">Notas<input data-o="notes" value="${esc(f.notes || '')}"></label></div>
+      <p class="err" data-oerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${o ? 'Guardar cambios' : 'Guardar y pedir que lo surtan'}</button></div>`, m => {
+      m.classList.add('wide');
+      const draw = () => { $('[data-olines]', m).innerHTML = f.items.map(itemRow).join(''); };
+      const read = () => { $$('[data-o]', m).forEach(i => { f[i.dataset.o] = i.value; }); $$('[data-oc]', m).forEach(i => { f.customer[i.dataset.oc] = i.value; }); };
+      draw();
+      const box = $('[data-olines]', m);
+      box.addEventListener('change', e => { const l = e.target.closest('[data-ol]'), k = e.target.dataset.oi; if (!l || !k || k === 'rm') return; const it = f.items[+l.dataset.ol]; it[k] = e.target.value; if (k === 'code') { const p = Store.config.products.find(x => x.code === it.code); if (p && it.price === '') it.price = p.priceSalon; read(); draw(); } });
+      box.addEventListener('input', e => { const l = e.target.closest('[data-ol]'), k = e.target.dataset.oi; if (l && (k === 'qty' || k === 'price')) f.items[+l.dataset.ol][k] = e.target.value; });
+      box.addEventListener('click', e => { if (e.target.closest('[data-oi=rm]')) { read(); f.items.splice(+e.target.closest('[data-ol]').dataset.ol, 1); if (!f.items.length) f.items.push({ label: '', code: '', qty: 1, price: '' }); draw(); } });
+      $('[data-oadd]', m).onclick = () => { read(); f.items.push({ label: '', code: '', qty: 1, price: '' }); draw(); };
+      const pb = $('[data-oparse]', m); if (pb) pb.onclick = () => { const p = this.parse($('[data-opaste]', m).value); if (!p.items.length && !p.number) return ($('[data-oerr]', m).textContent = 'No encontré el pedido en ese texto. Copia todo el correo y vuelve a pegarlo.');
+        Object.assign(f, { number: p.number || f.number, date: p.date || f.date, subtotal: p.subtotal || '', shipping: p.shipping || '', tax: p.tax || '', total: p.total || '', payMethod: p.payMethod || f.payMethod, customer: { ...f.customer, ...Object.fromEntries(Object.entries(p.customer).filter(([, v]) => v)) }, items: p.items.length ? p.items : f.items });
+        const set = (sel, v) => { const el = $(sel, m); if (el && v != null) el.value = v; };
+        set('[data-o=number]', f.number); set('[data-o=date]', f.date); set('[data-oc=name]', f.customer.name); set('[data-oc=phone]', f.customer.phone); set('[data-oc=email]', f.customer.email); set('[data-oc=address]', f.customer.address);
+        set('[data-o=subtotal]', f.subtotal); set('[data-o=shipping]', f.shipping); set('[data-o=tax]', f.tax); set('[data-o=total]', f.total);
+        const pm = $('[data-o=payMethod]', m); if (pm && f.payMethod) { if (![...pm.options].some(x => x.value === f.payMethod)) pm.insertAdjacentHTML('beforeend', `<option>${esc(f.payMethod)}</option>`); pm.value = f.payMethod; }
+        const d = $('.opaste', m); if (d) d.open = false; $('[data-oerr]', m).textContent = ''; draw();
+        const miss = f.items.filter(i => !i.code).length; UI.toast(`Leí ${f.items.length} productos${miss ? ` · ${miss} sin identificar: elígelos` : ''}`); };
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=ok]', m).onclick = async () => {
+        read(); const err = t => { $('[data-oerr]', m).textContent = t; };
+        const items = f.items.filter(i => i.code || i.label);
+        if (!f.number.trim()) return err('Escribe el número de pedido.');
+        if (!o && Store.orders.some(x => String(x.number) === f.number.trim() && x.status !== 'Cancelado')) return err(`El pedido #${f.number} ya está registrado.`);
+        if (!items.length) return err('Agrega al menos un producto.');
+        if (items.some(i => !i.code)) return err('Elige a qué producto del inventario corresponde cada renglón.');
+        if (items.some(i => !(num(i.qty) > 0))) return err('Revisa las cantidades.');
+        const doc = { ...(o || {}), number: f.number.trim(), date: f.date, customer: f.customer, delivery: f.delivery, notes: f.notes, payMethod: f.payMethod,
+          items: items.map(i => ({ label: i.label || '', code: i.code, name: (Store.product(i.code) || {}).name || i.name || i.code, qty: Math.round(num(i.qty)), price: r2(i.price) })),
+          subtotal: r2(f.subtotal || items.reduce((t, i) => t + num(i.qty) * num(i.price), 0)), shipping: r2(f.shipping), tax: r2(f.tax), total: r2(f.total || 0) };
+        if (!doc.total) doc.total = r2(doc.subtotal + doc.shipping + doc.tax);
+        if (!o) Object.assign(doc, { status: 'Por surtir', createdAt: new Date().toISOString(), createdByName: Mode.who(), history: [{ at: new Date().toISOString(), by: Mode.who(), what: 'Pedido registrado; se pidió surtirlo' }] });
+        delete doc.id; delete doc.day;
+        try { await Store.db.doc('onlineOrders/' + (o ? o.id : 'ord' + doc.number.replace(/\W/g, '') + Date.now().toString(36))).set(doc); UI.close(); UI.toast(o ? 'Pedido actualizado' : `Pedido #${doc.number} registrado · recepción lo verá para surtirlo`); } catch (e) { err('No se pudo guardar: ' + (e.message || e.code)); }
+      };
+    });
+  },
+  // ---------- ver / avanzar ----------
+  async log(o, patch, what) { const { id, day, ...data } = o; await Store.db.doc('onlineOrders/' + id).set({ ...data, ...patch, history: (o.history || []).concat({ at: new Date().toISOString(), by: Mode.who(), what }) }); },
+  view(o) {
+    const st = Store.stock(), fees = this.fees(o), net = this.net(o), admin = !Mode.reception;
+    UI.modal(`<h3>Pedido #${esc(o.number)} ${this.tag(o.status)}</h3>
+      <p style="color:var(--muted);margin:0 0 10px">${esc(Dates.fmt(o.day, { weekday: 'long', day: 'numeric', month: 'long' }))} · <b>${esc(o.customer.name || '—')}</b>${o.customer.phone ? ' · ' + esc(o.customer.phone) : ''}${o.customer.email ? ' · ' + esc(o.customer.email) : ''}<br>${esc(o.delivery || 'Envío')}${o.customer.address ? ': ' + esc(o.customer.address) : ''}</p>
+      <div class="tablewrap"><table><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Bodega</th><th class="r">Salón</th></tr></thead><tbody>
+        ${o.items.map(i => { const s = st.get(i.code) || { bodega: 0, salon: 0 }; return `<tr><td><b>${esc(i.name)}</b>${i.label ? `<br><span class="mutedc" style="font-size:12px">${esc(i.label)}</span>` : ''}</td><td class="r">${intf(i.qty)}</td><td class="r">${this.money(i.price)}</td><td class="r ${s.bodega < i.qty && o.status === 'Por surtir' ? 'neg' : ''}">${intf(s.bodega)}</td><td class="r">${intf(s.salon)}</td></tr>`; }).join('')}
+      </tbody></table></div>
+      <div class="ototals"><span>Subtotal ${this.money(o.subtotal)}</span><span>Envío ${this.money(o.shipping)}</span><span>Tax ${this.money(o.tax)}</span><b>Total ${this.money(o.total)} · ${esc(o.payMethod || '')}</b></div>
+      ${o.status === 'Entregado' ? `<div class="banner" style="border-color:var(--ok)">Entregado ${esc(o.deliveredAt ? new Date(o.deliveredAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '')}${o.tracking ? ' · guía ' + esc(o.tracking) : ''}${o.fees ? ` · fees ${this.money(fees)} (${[['pago', o.fees.payment], ['envío', o.fees.shipping], [o.fees.otherDesc || 'otros', o.fees.other]].filter(x => num(x[1])).map(x => x[0] + ' ' + this.money(x[1])).join(' · ') || 'sin fees'}) · <b>neto ${this.money(net)}</b>` : ' · <b>falta anotar los fees</b>'}</div>` : ''}
+      ${o.notes ? `<p class="formula">Nota: ${esc(o.notes)}</p>` : ''}
+      <details style="margin-top:8px"><summary class="linkbtn" style="cursor:pointer">Historial</summary>${(o.history || []).map(h => `<div class="mutedc" style="font-size:12.5px;margin-top:4px">${esc(new Date(h.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))} · ${esc(h.by || '')} · ${esc(h.what)}</div>`).join('')}</details>
+      <div class="acts">${o.status !== 'Entregado' && o.status !== 'Cancelado' && Store.writable() ? '<button class="btn danger" data-x="cancel">Cancelar pedido</button>' : ''}<button class="btn" data-x="c">Cerrar</button>${admin && Store.writable() && o.status !== 'Cancelado' ? '<button class="btn" data-x="edit">Editar</button>' : ''}
+        ${o.status === 'Por surtir' && Store.writable() ? '<button class="btn primary" data-x="fill">Marcar surtido</button>' : ''}${o.status === 'Surtido' && Store.writable() ? '<button class="btn primary" data-x="deliver">Marcar entregado</button>' : ''}${o.status === 'Entregado' && Store.writable() ? '<button class="btn primary" data-x="fees">Anotar fees y neto</button>' : ''}</div>`, m => {
+      m.classList.add('wide'); const on = (k, fn) => { const b = $(`[data-x=${k}]`, m); if (b) b.onclick = fn; };
+      on('c', UI.close); on('edit', () => { UI.close(); this.form(o); });
+      on('fill', () => { UI.close(); this.fillForm(o); }); on('deliver', () => { UI.close(); this.deliverForm(o); }); on('fees', () => { UI.close(); this.deliverForm(o, true); });
+      on('cancel', async () => { if (!await UI.confirm('Cancelar pedido', `Pedido #${esc(o.number)}${o.status === 'Surtido' ? '. Lo que ya se surtió regresa al inventario.' : ''}`, 'Cancelar pedido')) return;
+        try { if (o.status === 'Surtido') for (const i of o.items) await Store.saveMove({ type: 'Devolución pedido en línea', code: i.code, name: i.name, date: Dates.toISO(Dates.today()), qty: i.qty, from: null, to: o.fulfilledFrom || 'bodega', notes: `Pedido #${o.number} cancelado`, byName: Mode.who() });
+          await this.log(o, { status: 'Cancelado', cancelledAt: new Date().toISOString() }, 'Pedido cancelado'); UI.toast('Pedido cancelado'); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); } });
+    });
+  },
+  fillForm(o) {
+    const st = Store.stock();
+    UI.modal(`<h3>Surtir pedido #${esc(o.number)}</h3><p style="color:var(--muted);margin:0 0 12px">Al marcarlo surtido se descuenta del inventario.</p>
+      <label class="field">¿De dónde sale?<select data-ofrom><option value="bodega">Bodega</option><option value="salon">Salón</option></select></label>
+      <div class="tablewrap" style="margin-top:10px"><table><thead><tr><th>Producto</th><th class="r">Cant.</th><th class="r">Bodega</th><th class="r">Salón</th></tr></thead><tbody>${o.items.map(i => { const s = st.get(i.code) || { bodega: 0, salon: 0 }; return `<tr><td>${esc(i.name)}</td><td class="r"><b>${intf(i.qty)}</b></td><td class="r">${intf(s.bodega)}</td><td class="r">${intf(s.salon)}</td></tr>`; }).join('')}</tbody></table></div>
+      <p class="err" data-oerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Surtido: descontar del inventario</button></div>`, m => {
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=ok]', m).onclick = async () => { const from = $('[data-ofrom]', m).value, short = o.items.filter(i => (st.get(i.code) || { bodega: 0, salon: 0 })[from] < i.qty);
+        if (short.length && !confirm(`No alcanza en ${from === 'bodega' ? 'bodega' : 'salón'}: ${short.map(i => i.name).join(', ')}. ¿Marcar surtido de todos modos?`)) return;
+        const b = $('[data-x=ok]', m); b.disabled = true;
+        try { for (const i of o.items) await Store.saveMove({ type: 'Venta en línea', code: i.code, name: i.name, date: Dates.toISO(Dates.today()), qty: i.qty, from, to: null, unitPrice: i.price, client: o.customer.name || '', notes: `Pedido en línea #${o.number}`, byName: Mode.who() });
+          await this.log(o, { status: 'Surtido', fulfilledAt: new Date().toISOString(), fulfilledBy: Mode.who(), fulfilledFrom: from }, `Surtido desde ${from === 'bodega' ? 'bodega' : 'salón'}`); UI.close(); UI.toast(`Pedido #${o.number} surtido · inventario descontado`); }
+        catch (e) { b.disabled = false; $('[data-oerr]', m).textContent = 'No se pudo: ' + (e.message || e.code); } };
+    });
+  },
+  deliverForm(o, feesOnly) {
+    const f = o.fees || {}, total = num(o.total);
+    UI.modal(`<h3>${feesOnly ? 'Fees y neto' : 'Entregar'} · pedido #${esc(o.number)}</h3><p style="color:var(--muted);margin:0 0 12px">Total cobrado <b>${this.money(total)}</b> con ${esc(o.payMethod || '—')}. Anota lo que se descontó para saber cuánto quedó.</p>
+      ${feesOnly ? '' : `<div class="formgrid"><label class="field">Entrega<select data-dv="delivery">${['Envío', 'Recoge en tienda'].map(x => `<option ${o.delivery === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label><label class="field">Número de guía (opcional)<input data-dv="tracking" value="${esc(o.tracking || '')}"></label></div>`}
+      <div class="formgrid"><label class="field">Comisión de ${esc(o.payMethod || 'pago')}<input type="number" step="0.01" min="0" data-fee="payment" value="${esc(f.payment ?? '')}" placeholder="0.00"></label>
+        <label class="field">Costo real del envío (guía)<input type="number" step="0.01" min="0" data-fee="shipping" value="${esc(f.shipping ?? '')}" placeholder="0.00"></label>
+        <label class="field">Otros fees<input type="number" step="0.01" min="0" data-fee="other" value="${esc(f.other ?? '')}" placeholder="0.00"></label><label class="field">Concepto de otros fees<input data-fee="otherDesc" value="${esc(f.otherDesc || '')}" placeholder="Ej. comisión de la tienda, empaque"></label></div>
+      ${/paypal/i.test(o.payMethod || '') ? `<button type="button" class="btn sm" data-ppcalc>Calcular comisión PayPal (3.49% + $0.49)</button>` : ''}
+      <div class="ototals"><span>Total ${this.money(total)}</span><span>− Fees <b data-ftot>$0.00</b></span><b>Neto recibido <span data-fnet></span></b></div>
+      <p class="formula">Si todavía no sabes los fees, puedes dejarlos vacíos y anotarlos después con "Anotar fees y neto".</p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${feesOnly ? 'Guardar' : 'Marcar entregado'}</button></div>`, m => {
+      const v = k => num($(`[data-fee="${k}"]`, m).value), upd = () => { const t = r2(v('payment') + v('shipping') + v('other')); $('[data-ftot]', m).textContent = this.money(t); $('[data-fnet]', m).textContent = this.money(r2(total - t)); };
+      $$('[data-fee]', m).forEach(i => i.oninput = upd); upd();
+      const pp = $('[data-ppcalc]', m); if (pp) pp.onclick = () => { $('[data-fee="payment"]', m).value = r2(total * 0.0349 + 0.49); upd(); };
+      $('[data-x=no]', m).onclick = UI.close;
+      $('[data-x=ok]', m).onclick = async () => {
+        const anyFee = ['payment', 'shipping', 'other'].some(k => $(`[data-fee="${k}"]`, m).value !== '');
+        const fees = anyFee ? { payment: r2(v('payment')), shipping: r2(v('shipping')), other: r2(v('other')), otherDesc: $('[data-fee="otherDesc"]', m).value.trim() } : null;
+        const patch = feesOnly ? { fees, net: fees ? r2(total - this.fees({ fees })) : null } : { status: 'Entregado', deliveredAt: new Date().toISOString(), deliveredBy: Mode.who(), delivery: $('[data-dv=delivery]', m).value, tracking: $('[data-dv=tracking]', m).value.trim(), fees, net: fees ? r2(total - this.fees({ fees })) : null };
+        try { await this.log(o, patch, feesOnly ? `Fees anotados: neto ${fees ? this.money(patch.net) : '—'}` : `Entregado${patch.tracking ? ' · guía ' + patch.tracking : ''}${fees ? ' · neto ' + this.money(patch.net) : ''}`); UI.close(); UI.toast(feesOnly ? 'Fees guardados' : `Pedido #${o.number} entregado`); } catch (e) { UI.toast('No se pudo: ' + (e.message || e.code), true); }
+      };
+    });
+  },
+};
+/* ---------- pantalla ---------- */
+S.ord = { st: 'activos', q: '' };
+Views.pedidos = {
+  html() {
+    const f = S.ord, q = f.q.trim().toLowerCase(), t = Dates.today(), ym = Dates.toISO(t).slice(0, 7);
+    const all = Store.orders, list = all.filter(o => (f.st === 'activos' ? ['Por surtir', 'Surtido'].includes(o.status) : f.st === 'todos' ? true : o.status === f.st) && (!q || (o.number + ' ' + (o.customer.name || '') + ' ' + o.items.map(i => i.name).join(' ')).toLowerCase().includes(q)));
+    const mo = all.filter(o => String(o.date).slice(0, 7) === ym && o.status !== 'Cancelado'), del = mo.filter(o => o.status === 'Entregado');
+    const sum = (l, fn) => r2(l.reduce((s, o) => s + fn(o), 0)), cnt = st => all.filter(o => o.status === st).length;
+    const kpi = (l, v, s, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+    const noFees = del.filter(o => !o.fees).length;
+    return `<div class="head"><div><h1>Pedidos en línea</h1><p>Pedidos de la tienda web: se piden a recepción para surtir, se entregan y se anota lo que quedó después de fees.</p></div>
+        <div class="chips no-print">${Store.writable() ? `<button class="btn primary" data-onew>${ic('plus')}Nuevo pedido</button>` : ''}</div></div>
+      <section class="kpis" style="grid-template-columns:repeat(${Mode.reception ? 2 : 5},1fr)">${kpi('Por surtir', intf(cnt('Por surtir')), 'pedidos esperando', cnt('Por surtir') > 0)}${kpi('Surtidos por entregar', intf(cnt('Surtido')), 'listos para envío o pickup')}
+        ${Mode.reception ? '' : kpi('Vendido este mes', money(sum(mo, o => num(o.total))), `${intf(mo.length)} pedidos`) + kpi('Fees del mes', money(sum(del, o => Orders.fees(o))), noFees ? `${noFees} entregado${noFees > 1 ? 's' : ''} sin fees anotados` : 'de pedidos entregados') + kpi('Neto del mes', money(sum(del.filter(o => o.fees), o => Orders.net(o))), 'lo que quedó después de fees')}</section>
+      <div class="filters no-print" style="align-items:center"><div class="chips">${[['activos', 'Pendientes'], ['Por surtir', 'Por surtir'], ['Surtido', 'Surtidos'], ['Entregado', 'Entregados'], ['Cancelado', 'Cancelados'], ['todos', 'Todos']].map(([k, l]) => `<button class="chip ${f.st === k ? 'on' : ''}" data-ost="${k}">${l}</button>`).join('')}</div>
+        <label class="field" style="max-width:none;flex:1 1 220px">Buscar<input type="search" data-oq value="${esc(f.q)}" placeholder="Pedido, clienta o producto"></label></div>
+      ${list.length ? `<div class="tablewrap"><table><thead><tr><th>Pedido</th><th>Fecha</th><th>Clienta</th><th>Productos</th><th class="r">Total</th><th>Estado</th>${Mode.reception ? '' : '<th class="r">Neto</th>'}<th></th></tr></thead><tbody>
+        ${list.map((o, k) => `<tr class="click" data-oview="${k}"><td><b>#${esc(o.number)}</b></td><td>${esc(Dates.fmt(o.day, { day: '2-digit', month: 'short' }))}</td><td>${esc(o.customer.name || '—')}<br><span class="mutedc" style="font-size:12px">${esc(o.delivery || 'Envío')}</span></td>
+          <td style="white-space:normal;font-size:12.5px;max-width:260px">${esc(o.items.map(i => `${i.name} × ${i.qty}`).join(', '))}</td><td class="r">${Orders.money(o.total)}</td><td>${Orders.tag(o.status)}</td>${Mode.reception ? '' : `<td class="r">${o.status === 'Entregado' ? (o.fees ? Orders.money(Orders.net(o)) : '<span class="mutedc">falta fees</span>') : '—'}</td>`}
+          <td>${o.status === 'Por surtir' && Store.writable() ? `<button class="btn sm primary" data-ofill="${k}">Surtir</button>` : o.status === 'Surtido' && Store.writable() ? `<button class="btn sm primary" data-odel="${k}">Entregar</button>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="tablewrap"><div class="empty"><b>Sin pedidos ${f.st === 'activos' ? 'pendientes' : 'aquí'}</b>Registra un pedido pegando el correo de la tienda.</div></div>`}`;
+  },
+  mount(root) {
+    const f = S.ord, list = (() => { const q = f.q.trim().toLowerCase(); return Store.orders.filter(o => (f.st === 'activos' ? ['Por surtir', 'Surtido'].includes(o.status) : f.st === 'todos' ? true : o.status === f.st) && (!q || (o.number + ' ' + (o.customer.name || '') + ' ' + o.items.map(i => i.name).join(' ')).toLowerCase().includes(q))); })();
+    $$('[data-ost]', root).forEach(b => b.onclick = () => { f.st = b.dataset.ost; UI.render(); });
+    const q = $('[data-oq]', root); let tm; if (q) q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { f.q = q.value; UI.render(); const n = $('[data-oq]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); };
+    const nb = $('[data-onew]', root); if (nb) nb.onclick = () => Orders.form(null);
+    $$('[data-oview]', root).forEach(tr => tr.onclick = e => { if (e.target.closest('button')) return; Orders.view(list[+tr.dataset.oview]); });
+    $$('[data-ofill]', root).forEach(b => b.onclick = e => { e.stopPropagation(); Orders.fillForm(list[+b.dataset.ofill]); });
+    $$('[data-odel]', root).forEach(b => b.onclick = e => { e.stopPropagation(); Orders.deliverForm(list[+b.dataset.odel]); });
+  },
+};
+NAV.splice(NAV.findIndex(n => n.id === 'productos') + 1, 0, { id: 'pedidos', label: 'Pedidos en línea', icon: 'box', sub: true });
+RECEP_ROUTES.push('pedidos');
+if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(RECEP_MENU.findIndex(x => x[0] === 'inventario') + 1, 0, ['pedidos', 'Pedidos en línea', 'box']);
+{ const R = UI.renderNav; UI.renderNav = function () { R(); if (!Mode.reception) return; const d = $('#side .nav [data-go=inventario]'); if (d && !$('#side .nav [data-go=pedidos]')) d.insertAdjacentHTML('afterend', `<a class="${UI.route === 'pedidos' ? 'on' : ''}" data-go="pedidos">${ic('box')}Pedidos en línea</a>`); }; }
+/* campanita: pedidos por surtir */
+{
+  const NH = Notify.html.bind(Notify);
+  Notify.html = function (cls) { const h = NH(cls), n = Store.orders.filter(o => o.status === 'Por surtir').length; return n ? h.replace('</button>', `<span class="bdg4" title="Pedidos en línea por surtir">📦${n}</span></button>`) : h; };
+  let seen = null; Store.onChange(() => { const ids = Store.orders.map(o => o.id); if (seen === null) { seen = new Set(ids); return; } const fresh = Store.orders.filter(o => !seen.has(o.id) && o.status === 'Por surtir'); ids.forEach(i => seen.add(i));
+    if (fresh.length) { UI.toast(`📦 Nuevo pedido en línea #${fresh[0].number} para surtir`); if (Notify.ding) try { Notify.ding(); } catch (e) {} } });
 }
 
 
