@@ -361,6 +361,8 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 .ototals{display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end;align-items:baseline;margin:10px 0;font-size:14px}
 .bell .bdg4{position:absolute;right:-10px;bottom:-6px;min-width:20px;height:18px;padding:0 4px;border-radius:99px;background:#7A5AA6;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;border:2px solid var(--bg)}
 @media (max-width:640px){.ohead{display:none}.oline{grid-template-columns:1fr 64px 80px 34px}}
+.ppbox{border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:10px 0}.pph{font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.ppl{display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:14px}.ppl b{font-weight:600}.ppl.sep{border-top:1px solid var(--line);margin-top:4px;padding-top:8px}.ppl.tot{border-top:2px solid var(--gold);margin-top:4px;padding-top:8px;font-size:15px}.ppl.tot b{font-weight:800}
 </style>
 </head>
 <body>
@@ -375,7 +377,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-25 12:00';
+window.FM_VERSION = '2026-10-26 14:40';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -8055,6 +8057,67 @@ if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(RECEP_MENU.findIndex(x 
   Notify.html = function (cls) { const h = NH(cls), n = Store.orders.filter(o => o.status === 'Por surtir').length; return n ? h.replace('</button>', `<span class="bdg4" title="Pedidos en línea por surtir">📦${n}</span></button>`) : h; };
   let seen = null; Store.onChange(() => { const ids = Store.orders.map(o => o.id); if (seen === null) { seen = new Set(ids); return; } const fresh = Store.orders.filter(o => !seen.has(o.id) && o.status === 'Por surtir'); ids.forEach(i => seen.add(i));
     if (fresh.length) { UI.toast(`📦 Nuevo pedido en línea #${fresh[0].number} para surtir`); if (Notify.ding) try { Notify.ding(); } catch (e) {} } });
+}
+
+
+/* =========================================================
+   PEDIDOS EN LÍNEA · desglose como PayPal: productos, tax, envío, bruto, comisión y neto.
+   Se puede escribir el importe neto que dice PayPal (la comisión se calcula sola).
+   Ganancia = neto de PayPal − guía de envío − otros fees − tax (el tax se paga al estado).
+   ========================================================= */
+Object.assign(Orders, {
+  calc(o) {
+    const f = o.fees || {}, prod = num(o.subtotal), tax = num(o.tax), ship = num(o.shipping), gross = r2(num(o.total) || prod + tax + ship);
+    const fee = num(f.payment), ppNet = r2(gross - fee), label = num(f.shipping), other = num(f.other);
+    return { prod, tax, ship, gross, fee, ppNet, label, other, after: r2(ppNet - label - other), gain: r2(ppNet - label - other - tax) };
+  },
+  breakdown(o, live) {
+    const c = this.calc(o), row = (l, v, cls, neg) => `<div class="ppl ${cls || ''}"><span>${l}</span><b>${neg && v ? '−' : ''}${money(Math.abs(v), 1)}</b></div>`;
+    return `<div class="ppbox"><div class="pph">Como en PayPal</div>${row('Total de la compra (productos)', c.prod)}${row('Impuesto sobre ventas', c.tax)}${row('Importe del envío', c.ship)}${row('Importe bruto', c.gross, 'sep')}${row('Comisión por transacción', c.fee, '', true)}${row('Importe neto (PayPal)', c.ppNet, 'tot')}
+      <div class="pph" style="margin-top:10px">Para Fluffy</div>${row('Costo de la guía de envío', c.label, '', true)}${c.other ? row(esc((o.fees || {}).otherDesc || 'Otros fees'), c.other, '', true) : ''}${row('Tax a pagar al estado', c.tax, '', true)}${row('Ganancia del pedido', c.gain, 'tot')}
+      <p class="formula" style="margin:6px 0 0">Envío: cobraste ${money(c.ship, 1)}${c.label ? ` y la guía costó ${money(c.label, 1)} (${c.ship - c.label >= 0 ? 'sobraron' : 'faltaron'} ${money(Math.abs(c.ship - c.label), 1)})` : '; falta anotar lo que costó la guía'}.</p></div>`;
+  },
+});
+{
+  // detalle del pedido: reemplaza la línea de totales por el desglose
+  const V = Orders.view.bind(Orders);
+  Orders.view = function (o) {
+    V(o); const m = $('.modal'); if (!m) return;
+    const t = $('.ototals', m); if (t) t.outerHTML = this.breakdown(o);
+    $$('.banner', m).forEach(b => { if (/Entregado/.test(b.textContent)) b.innerHTML = `Entregado ${esc(o.deliveredAt ? new Date(o.deliveredAt).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : '')}${o.tracking ? ' · guía ' + esc(o.tracking) : ''}${o.fees ? '' : ' · <b>falta anotar la comisión y la guía</b>'}`; });
+  };
+  // entregar / fees: campo para el importe neto de PayPal y desglose en vivo
+  const D = Orders.deliverForm.bind(Orders);
+  Orders.deliverForm = function (o, feesOnly) {
+    D(o, feesOnly); const m = $('.modal'); if (!m) return;
+    const pay = $('[data-fee="payment"]', m), gross = this.calc(o).gross;
+    pay.closest('label').insertAdjacentHTML('beforebegin', `<label class="field">Importe neto que dice PayPal<input type="number" step="0.01" min="0" data-ppnet placeholder="Ej. 165.59"></label>`);
+    $('[data-fee="shipping"]', m).closest('label').firstChild.textContent = 'Costo de la guía de envío';
+    const ppn = $('[data-ppnet]', m); if (o.fees && num(o.fees.payment)) ppn.value = r2(gross - num(o.fees.payment));
+    const tot = $('.ototals', m); if (tot) tot.insertAdjacentHTML('afterend', '<div data-ppbreak></div>'), tot.style.display = 'none';
+    const live = () => { const f = { payment: num(pay.value), shipping: num($('[data-fee="shipping"]', m).value), other: num($('[data-fee="other"]', m).value), otherDesc: $('[data-fee="otherDesc"]', m).value }; $('[data-ppbreak]', m).innerHTML = this.breakdown({ ...o, fees: f }); };
+    ppn.oninput = () => { if (ppn.value !== '') pay.value = r2(Math.max(0, gross - num(ppn.value))); live(); };
+    pay.addEventListener('input', () => { ppn.value = pay.value === '' ? '' : r2(gross - num(pay.value)); live(); });
+    $$('[data-fee]', m).forEach(i => i.addEventListener('input', live));
+    const calc = $('[data-ppcalc]', m); if (calc) calc.addEventListener('click', () => setTimeout(() => { ppn.value = r2(gross - num(pay.value)); live(); }, 0));
+    live();
+  };
+  // pantalla: productos vendidos, neto PayPal y ganancia del mes
+  const H = Views.pedidos.html;
+  Views.pedidos.html = function () {
+    let h = H.call(this); if (Mode.reception) return h;
+    const ym = Dates.toISO(Dates.today()).slice(0, 7), mo = Store.orders.filter(o => String(o.date).slice(0, 7) === ym && o.status !== 'Cancelado'), del = mo.filter(o => o.status === 'Entregado' && o.fees);
+    const s = (l, f) => r2(l.reduce((t, o) => t + f(Orders.calc(o)), 0)), pend = mo.filter(o => o.status === 'Entregado' && !o.fees).length;
+    const k = (l, v, sub, lead) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
+    h = h.replace(/(<section class="kpis"[^>]*>)([\s\S]*?)(<\/section>)/, (m0, a, b, c) => {
+      const keep = b.split('<div class="kpi').filter(Boolean).slice(0, 2).map(x => '<div class="kpi' + x).join('');
+      return a.replace('repeat(5,1fr)', 'repeat(5,1fr)') + keep + k('Productos vendidos', money(s(mo, c2 => c2.prod), 1), `${intf(mo.length)} pedidos este mes · tax ${money(s(mo, c2 => c2.tax), 1)} · envío ${money(s(mo, c2 => c2.ship), 1)}`)
+        + k('Neto PayPal', money(s(del, c2 => c2.ppNet), 1), `comisiones ${money(s(del, c2 => c2.fee), 1)}${pend ? ` · ${pend} sin anotar` : ''}`) + k('Ganancia del mes', money(s(del, c2 => c2.gain), 1), 'después de comisión, guías y tax') + c; });
+    // columna Neto → Ganancia
+    h = h.replace('<th class="r">Neto</th>', '<th class="r">Ganancia</th>');
+    Store.orders.forEach(o => { if (o.status === 'Entregado' && o.fees) h = h.replace(Orders.money(Orders.net(o)), Orders.money(Orders.calc(o).gain)); });
+    return h;
+  };
 }
 
 
