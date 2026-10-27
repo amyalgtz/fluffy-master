@@ -7,343 +7,474 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="theme-color" content="#FFFFFF">
+<meta name="theme-color" content="#FBF6F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1C1517" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap">
 <script src="vendor/supabase-2.117.1.js"></script>
 <script src="config.js"></script>
 <style>
-:root{--bg:#FFFFFF;--card:#FFFFFF;--blush:#FCF3F2;--pink:#F4C2C2;--pink-deep:#C9787E;--gold:#D4AF37;--ink:#3A2A2E;--muted:#6E5960;--line:#EFE4DF;--bad:#B3261E;--ok:#2E7D4F;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#1B1416;--card:#211A1C;--blush:#251C1F;--pink:#E3A9AC;--pink-deep:#E9A3A9;--gold:#D4AF37;--ink:#F6ECEC;--muted:#C2AFB3;--line:#3A2E31;--bad:#FF8A80;--ok:#7BD3A0;color-scheme:dark}}
-*{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Helvetica,"Helvetica Neue",Arial,sans-serif}
-:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-main{max-width:560px;margin:0 auto;padding:22px 18px 120px}
-.brand{display:flex;align-items:center;gap:14px;margin-bottom:18px}.brand img{height:64px;width:auto}@media (prefers-color-scheme:dark){.brand img{filter:invert(1) brightness(1.1)}}
-h1{font-size:26px;margin:0}.sub{color:var(--muted);margin:4px 0 0;font-size:14px}
-label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:14px 0 6px}
-input,select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:0}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 8px;margin:8px 0 4px}
-.chip{flex:none;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:700;font-size:13.5px;cursor:pointer}
-.chip.on{background:var(--pink);border-color:var(--pink);color:#3A2A2E}
-.list{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-top:6px}
-.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
-.item:last-child{border-bottom:0}.item small{color:var(--muted);display:block;font-size:12px}
-.item.sel{background:var(--blush)}
-.step{display:flex;align-items:center;gap:8px}.step button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--ink);font-size:20px;line-height:1;cursor:pointer}
-.step b{min-width:22px;text-align:center}
-.cat{padding:8px 14px;background:var(--blush);font-weight:700;font-size:12.5px;border-bottom:1px solid var(--line)}
-.bar{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px))}
-.bar .in{max-width:560px;margin:0 auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.btn{flex:1;border:0;border-radius:999px;padding:15px 18px;font:inherit;font-weight:700;font-size:16px;background:#3A2A2E;color:#fff;cursor:pointer;box-shadow:0 0 0 3px rgba(212,175,55,.35)}
-@media (prefers-color-scheme:dark){.btn{background:var(--pink);color:#3A2A2E}}
-.btn:disabled{opacity:.5;cursor:default}.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none}
-.count{font-size:13px;color:var(--muted);min-width:90px}
-.err{color:var(--bad);font-weight:700;font-size:14px;min-height:20px;margin:10px 0 0}
-.done{text-align:center;padding:40px 0}.done .ok{font-size:54px;color:var(--ok)}
-.sum{text-align:left;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
-.sum div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)}.sum div:last-child{border-bottom:0}
-.empty{color:var(--muted);padding:16px 14px}
-.goal{border:1.5px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--blush)}.goal.done{border-color:var(--ok)}.goal .gtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700}.goal .gtop b{font-size:20px}.goal .gtop small{font-size:13px;color:var(--muted);font-weight:600}
-.gbar{height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 8px}.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.goal.done .gbar i{background:var(--ok)}.goal p{margin:0 0 4px;font-size:15px}.goal small{color:var(--muted);font-size:12px}
-.redit{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.rq.editing{border-color:var(--gold);background:var(--blush)}.rq.editing select,.rq.editing input{margin-bottom:4px}
-.mhead{display:flex;flex-direction:column;gap:2px;margin:6px 0 10px;padding:10px 12px;border-radius:14px;background:var(--blush)}.mtabs{margin:12px 0 6px}.mtabs button{flex:1}
-.mk{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}.mkb{border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;background:var(--card)}.mkb span{font-size:12.5px;color:var(--muted);font-weight:600}.mkb b{font-size:20px}.mkb small{font-size:12px;color:var(--muted)}
-.mkb.big{grid-column:1/-1;border:2px solid var(--gold)}.mkb.big b{font-size:28px}.mkb.cash{border-color:#2E7D4F}.mkb.warn{border-color:#C0392B}.mkb.warn b{color:#C0392B}
-.mrow{display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.mbar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;display:block}.mbar i{display:block;height:100%;background:var(--pink-deep);border-radius:99px}.mbar.wide{margin:6px 0 8px}
-.mcard .mtop{display:flex;justify-content:space-between;gap:10px;font-size:15px}.mcard .msub{font-size:13px;color:var(--muted);margin-top:3px}.mday{margin:14px 0 6px;font-size:15px}.mday small{font-weight:600;color:var(--muted);text-transform:none}
-.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11.5px;color:var(--muted)}.mgrid b{display:block;font-size:13.5px;color:var(--ink)}.mnav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.mnav input{width:auto;flex:1;min-width:140px}
-.tg.no{background:#FDECEA;color:#C0392B;border-color:#F3B8B1}
-.compose{margin-top:22px;border:1.5px solid var(--gold);border-radius:16px;padding:12px 14px}.compose h2{margin-top:0}.compose textarea{resize:vertical}.okmsg{color:var(--ok);font-weight:700;margin:0 0 6px}
-.linkb{border:0;background:none;color:var(--pink-deep);font:inherit;font-size:12.5px;font-weight:700;padding:6px 0 0;cursor:pointer;text-decoration:underline}.ntxt{margin:4px 0;font-size:14px}.nreply{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--blush);font-size:13.5px}
-.weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
-.tabs{display:flex;border:1.5px solid var(--gold);border-radius:999px;padding:3px;gap:3px;margin:0 0 16px}.tabs button{flex:1;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;font-size:14px;padding:10px 6px;border-radius:999px;cursor:pointer}.tabs button.on{background:var(--pink);color:#3A2A2E}
-.kp{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.kp div{border:1px solid var(--line);border-radius:12px;padding:10px 12px}.kp span{display:block;font-size:12px;color:var(--muted);font-weight:700}.kp b{font-size:22px}
-.rq{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}.rq h3{margin:0 0 6px;font-size:15px;display:flex;justify-content:space-between;gap:8px}.rq small{color:var(--muted);font-weight:400}
-.rq li{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px}.rq ul{list-style:none;margin:0;padding:0}
-.tg{font-size:11.5px;font-weight:700;border-radius:99px;padding:2px 9px;border:1px solid var(--line);white-space:nowrap}.tg.ok{color:var(--ok);border-color:var(--ok)}.tg.no{color:var(--bad);border-color:var(--bad)}.tg.pe{color:#9A6B00;border-color:#C9A227}
-h2{font-size:17px;margin:22px 0 4px}
+:root{--bg:#FBF6F4;--card:#FFFFFF;--ink:#3B2329;--soft:#7C6268;--petal:#F2C6C8;--mauve:#B5737C;--gold:#B8913A;--goldline:#C9A24A;--sage:#5F8069;--line:#EADCD6;--blush:#F7E9E8;--warn:#B4533F;--bar:#3B2329;--barink:#E9D9D6;--other:#8E7DA8;--nomethod:#D9B8B4;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;--sans:"DM Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#1C1517;--card:#251D20;--ink:#F4E9E8;--soft:#BCA6AA;--petal:#E3A9AC;--mauve:#D58F98;--gold:#D9B45E;--goldline:#C9A24A;--sage:#8FB39A;--line:#3A2E31;--blush:#2C2225;--warn:#E38A73;--bar:#F4E9E8;--barink:#5B4A4E;--other:#B3A3CC;--nomethod:#6A5458;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;-webkit-text-size-adjust:100%}
+body{padding:env(safe-area-inset-top) 0 0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--mauve);outline-offset:2px}
+main{max-width:560px;margin:0 auto;padding:14px 22px 150px}
+.top{display:flex;align-items:center;gap:10px;margin:4px 0 18px}.top img{width:32px;height:32px}.top .nm{line-height:1.25}.top .nm b{display:block;font-size:13px;font-weight:600;color:var(--soft)}.top .nm span{font-size:12px;color:var(--soft)}
+.av{margin-left:auto;width:36px;height:36px;border-radius:50%;border:0;background:var(--blush);color:var(--mauve);font-family:var(--serif);font-weight:600;font-size:13px}
+h1{font-family:var(--serif);font-weight:500;font-size:30px;letter-spacing:-.4px;margin:0;line-height:1.15}
+.lead{color:var(--soft);font-size:14px;margin:6px 0 18px}
+h2{font-family:var(--serif);font-weight:600;font-size:17px;margin:26px 0 10px}
+.seg{display:flex;background:var(--blush);border-radius:999px;padding:4px;gap:2px;margin:0 0 18px}.seg button{flex:1;border:0;background:none;border-radius:999px;padding:9px 6px;font-size:13px;font-weight:500;color:var(--soft);min-height:38px}.seg .pickl{flex:1;position:relative;display:flex;align-items:center;justify-content:center;border-radius:999px;font-size:13px;font-weight:500;color:var(--soft);min-height:38px;cursor:pointer}.seg .pickl.on{background:var(--card);color:var(--ink);font-weight:600}.seg .pickl input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0}
+.seg button.on{background:var(--card);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(59,35,41,.06)}
+.big{font-family:var(--serif);font-weight:500;font-size:38px;letter-spacing:-.8px;line-height:1.1}.mid{font-family:var(--serif);font-weight:500;font-size:22px}
+.muted{color:var(--soft)}.small{font-size:12.5px}.warn{color:var(--warn)}.ok{color:var(--sage)}.goldt{color:var(--gold)}
+.stats{display:flex;margin:16px 0 4px}.stats div{flex:1;padding:0 12px;border-left:1px solid var(--line)}.stats div:first-child{padding-left:0;border-left:0}.stats b{display:block;font-family:var(--serif);font-weight:500;font-size:22px}.stats span{font-size:12.5px;color:var(--soft)}
+.row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+.row .grow{flex:1;min-width:0}.row .t1{font-weight:600;font-size:14.5px}.row .t2{font-size:12.5px;color:var(--soft);margin-top:3px}.row .r{text-align:right;white-space:nowrap}.row .tm{width:56px;flex:none;font-size:12.5px;font-weight:600;color:var(--soft)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}.chev{flex:none;color:var(--soft)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px}
+.soft{background:var(--blush);border-radius:20px;padding:14px 18px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.two .card span{display:block;font-size:12.5px;color:var(--soft);font-weight:500}.two .card b{font-family:var(--serif);font-weight:500;font-size:22px;display:block;margin-top:6px}
+.stack{display:flex;gap:2px;height:12px;margin:14px 0 4px}.stack i{display:block;border-radius:3px;min-width:3px}
+.legend{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 16px;font-size:12px;color:var(--soft);margin:2px 0 6px}.legend span{display:inline-flex;align-items:center;gap:6px}
+.fanwrap{position:relative;width:100%;max-width:340px;margin:4px auto 0}.fanwrap svg{width:100%;height:auto;display:block}.fanc{position:absolute;left:0;right:0;bottom:6px;text-align:center}.fanc b{font-family:var(--serif);font-weight:500;font-size:32px;letter-spacing:-.6px;display:block}.fanc span{font-size:12.5px;color:var(--soft)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;margin:12px -22px 6px;padding-left:22px;padding-right:22px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;min-height:34px}.chip.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.search{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:0 16px;height:46px}.search input{border:0;background:none;outline:none;flex:1;font-size:16px;min-width:0}
+.step{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;background:var(--card);height:34px}.step button{border:0;background:none;width:34px;height:34px;color:var(--mauve);font-size:18px}.step b{min-width:22px;text-align:center;font-size:14px}
+.add{border:0;background:var(--blush);color:var(--mauve);border-radius:999px;padding:0 16px;height:34px;font-weight:600;font-size:12.5px}
+.pill{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 14px;font-weight:600;font-size:12.5px;min-height:32px}.pill.pri{border-color:var(--mauve);color:var(--mauve)}.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.btn{display:block;width:100%;border:0;border-radius:999px;background:var(--mauve);color:#fff;font-weight:700;font-size:15px;min-height:50px;padding:0 20px}.btn.line{background:none;border:1.5px solid var(--mauve);color:var(--mauve)}.btn:disabled{opacity:.55}
+.field{display:block;margin:14px 0 6px;font-size:13px;font-weight:600;color:var(--soft)}
+input.in,select.in,textarea.in{width:100%;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px 14px;font-size:16px}
+.err{color:var(--warn);font-weight:600;font-size:13.5px;min-height:1px;margin:8px 0}
+.okmsg{background:var(--blush);color:var(--sage);border-radius:14px;padding:10px 14px;font-weight:600;font-size:13.5px;margin:10px 0}
+.sh{display:flex;justify-content:space-between;align-items:baseline;gap:10px}.sh h2{margin-bottom:6px}
+.req{padding:14px 0;border-bottom:1px solid var(--line)}.req .hd{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.req .hd b{font-family:var(--serif);font-weight:600;font-size:15.5px}
+.li{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:5px 0}.li .st{font-size:11.5px;font-weight:600}
+.reply{margin-top:8px;font-size:13px;color:var(--sage)}
+.check{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}.check .ic{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center}
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(98px + env(safe-area-inset-bottom));width:min(520px,calc(100% - 32px));border:0;border-radius:999px;background:var(--mauve);color:#fff;min-height:54px;padding:0 24px;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:14.5px;box-shadow:0 10px 24px rgba(181,115,124,.35);z-index:4}
+.fab.solo{bottom:calc(24px + env(safe-area-inset-bottom))}
+nav.tab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom));width:min(520px,calc(100% - 32px));height:66px;border-radius:33px;background:var(--bar);display:flex;align-items:center;padding:0 8px;z-index:5;box-shadow:0 12px 30px rgba(59,35,41,.22)}
+nav.tab button{flex:1;border:0;background:none;color:var(--barink);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:500;height:50px;border-radius:25px;justify-content:center}
+nav.tab button.on{background:var(--petal);color:#3B2329;font-weight:700}nav.tab svg{width:20px;height:20px}
+@media (prefers-color-scheme:dark){nav.tab button{color:#3B2329}nav.tab button:not(.on){color:#7C6268}}
+.sheet{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;justify-content:center;background:rgba(28,21,23,.38)}
+.sheet .pane{background:var(--bg);width:min(560px,100%);max-height:88vh;overflow:auto;border-radius:26px 26px 0 0;padding:10px 22px calc(26px + env(safe-area-inset-bottom))}
+.sheet .grab{width:44px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 12px}
+.done{text-align:center;padding:30px 0}.done .tick{width:64px;height:64px;border-radius:50%;background:var(--sage);color:#fff;display:grid;place-items:center;font-size:30px;margin:0 auto 14px}
+.login{max-width:420px;margin:0 auto;padding-top:6vh}.login .logo{width:58px;height:58px;display:block;margin:0 auto 12px}
+.empty{color:var(--soft);font-size:14px;padding:16px 0}
+.bar{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin:7px 0 6px}.bar i{display:block;height:100%;background:var(--mauve);border-radius:2px}
+.ini{width:36px;height:36px;border-radius:50%;background:var(--blush);color:var(--mauve);font-family:var(--serif);font-weight:600;font-size:12.5px;display:grid;place-items:center;flex:none}
+.wk{display:flex;align-items:center;justify-content:space-between;background:var(--blush);border-radius:999px;padding:4px;margin:0 0 16px}.wk button{border:0;background:none;width:40px;height:34px;border-radius:999px;font-size:18px;color:var(--soft)}.wk button:disabled{opacity:.3}.wk b{font-size:13.5px;font-weight:600}
+.fine{font-size:12px;color:var(--soft);margin-top:10px;line-height:1.45}
+.loading{color:var(--soft);padding:30px 0;text-align:center}
+@media (prefers-reduced-motion:no-preference){.sheet .pane{animation:up .28s cubic-bezier(.32,.72,0,1)}@keyframes up{from{transform:translateY(40px);opacity:.6}}}
 </style>
 </head>
 <body>
-<main id="app"><p class="sub">Cargando…</p></main>
+<main id="app"><p class="loading">Cargando…</p></main>
+<div id="nav"></div>
 <script>
 (function () {
-  const $ = s => document.querySelector(s), esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-  const cfg = window.FM_CONFIG || {}, app = $('#app');
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const cfg = window.FM_CONFIG || {}, app = $('#app'), navEl = $('#nav');
   if (!cfg.url || !cfg.anonKey || /TU-PROYECTO|PEGA/.test(cfg.url + cfg.anonKey)) { app.innerHTML = '<p class="err">Falta configurar el sistema.</p>'; return; }
   const sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false } });
-  const S = { artists: [], products: [], qty: {}, cat: '', q: '', artist: '', pin: '', note: '', sending: false, tab: 'pedir', mine: null, loading: false, week: null, wofs: 0, notes: null, cref: '' };
-  try { S.artist = localStorage.getItem('fm-req-artist') || ''; } catch (e) {}
-  const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
-  const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Portal de lashistas</h1><p class="sub">Fluffy Lashes · pide insumos, revisa tus solicitudes y tu semana.</p></div></div>`;
 
-  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button><button data-t="semana" class="${S.tab === 'semana' ? 'on' : ''}">Mi semana</button>${isMgr() ? `<button data-t="mgr" class="${S.tab === 'mgr' ? 'on' : ''}">★ Manager</button>` : ''}</div>`;
-  const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); if ((S.tab === 'mis' && !S.mine) || (S.tab === 'semana' && !S.week)) { const k = S.tab === 'mis' ? '#see' : '#seew', x = $(k); if (x && S.artist && /^\d{4,8}$/.test(S.pin)) x.click(); } });
-  const isMgr = () => !!(S.artists.find(a => a.id === S.artist) || {}).manager;
-  // al elegir el nombre, aparece (o se quita) la pestaña de manager
-  document.addEventListener('change', e => { if (!e.target || e.target.id !== 'art') return; if (!S.artist) S.artist = e.target.value; const t = document.querySelector('.tabs:not(.mtabs)'); if (!t) return; const had = !!t.querySelector('[data-t=mgr]'); if (had !== isMgr()) { t.outerHTML = tabs(); bindTabs(); } });
-  /* ---------- vista de manager (solo lectura) ---------- */
-  S.mgr = { t: 'dia', day: null, dep: null, pay: null, date: '', wofs: 0, busy: false, err: '' };
-  const M$ = v => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  /* ---------- estado ---------- */
+  const S = { artists: [], products: [], artist: '', pin: '', in: false, view: 'pedir', yo: 'pedir',
+    qty: {}, cat: '', q: '', note: '', sending: false, sent: null,
+    mine: null, edit: null, week: null, wofs: 0, notes: [],
+    day: null, today: null, date: '', dep: null, pay: null, pofs: 0, myWeek0: null, allSvc: false, busy: {} };
+  try { S.artist = localStorage.getItem('fm-req-artist') || ''; } catch (e) {}
+  const me = () => S.artists.find(a => a.id === S.artist) || {};
+  const isMgr = () => !!me().manager;
+  const initials = n => { const w = String(n || '').replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g, ' ').trim().split(/\s+/).filter(Boolean); return (w.length > 1 ? w[0][0] + w[1][0] : (w[0] || '·').slice(0, 2)).toUpperCase(); };
+  const first = n => { const x = String(n || '').replace(/(ag|ii)$/i, ''); return x.charAt(0).toUpperCase() + x.slice(1).toLowerCase(); };
+  const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
+
+  /* ---------- formato ---------- */
+  const M = (v, dec = true) => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: dec ? 2 : 0, maximumFractionDigits: dec ? 2 : 0 });
+  const D = iso => new Date(String(iso).slice(0, 10) + 'T12:00:00');
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const fdate = iso => cap(D(iso).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' }));
+  const fshort = iso => D(iso).toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
+  const wdm = (iso, month) => { const d = D(iso); return `${d.toLocaleDateString('es-MX', { weekday: 'long' })} ${d.getDate()}${month ? ' de ' + d.toLocaleDateString('es-MX', { month: 'long' }) : ''}`; };
+  const fday = iso => D(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
   const hm = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '';
-  const dayLabel = (iso, today) => { const d = new Date(iso + 'T12:00:00'), t = new Date(today + 'T12:00:00'), n = Math.round((d - t) / 864e5); if (n === 0) return 'Hoy'; if (n === 1) return 'Mañana'; if (n === -1) return 'Ayer'; const x = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }); return x.charAt(0).toUpperCase() + x.slice(1); };
-  async function mgrLoad(kind) {
-    const G = S.mgr; G.busy = true; G.err = ''; renderMgr();
-    const fn = { dia: 'fm_mgr_day', dep: 'fm_mgr_deposits', pay: 'fm_mgr_payroll' }[kind], args = { p_artist: S.artist, p_pin: S.pin };
-    if (kind === 'dia' && G.date) args.p_date = G.date; if (kind === 'pay') args.p_offset = G.wofs;
-    const { data, error } = await sb.rpc(fn, args);
-    G.busy = false;
-    if (error || !data || !data.ok) { G.err = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta vista todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); G[kind === 'dia' ? 'day' : kind] = null; return renderMgr(); }
-    G[kind === 'dia' ? 'day' : kind] = data; if (kind === 'dia') G.date = data.date; renderMgr();
+  const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+  const rel = (iso, today) => { const n = Math.round((D(iso) - D(today)) / 864e5); return n === 0 ? 'Hoy' : n === 1 ? 'Mañana' : n === -1 ? 'Ayer' : fdate(iso); };
+  const hello = () => { const h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
+  const rpcErr = (data, error) => (data && data.error) || (error && /function|schema cache/i.test(error.message || '') ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Revisa tu internet e intenta de nuevo.');
+
+  /* ---------- colores por forma de pago ---------- */
+  const famOf = k => /efectivo/i.test(k) ? 'Efectivo' : /sin m[eé]todo|sin registrar/i.test(k) ? 'Sin forma de pago' : /tarjeta|clover|stripe/i.test(k) ? 'Tarjeta' : /zelle/i.test(k) ? 'Zelle' : 'Otros';
+  const FAM = { Tarjeta: 'var(--mauve)', Zelle: 'var(--goldline)', Efectivo: 'var(--sage)', Otros: 'var(--other)', 'Sin forma de pago': 'var(--nomethod)' };
+  const families = meth => { const f = {}; Object.entries(meth || {}).forEach(([k, v]) => { const n = famOf(k); f[n] = (f[n] || 0) + Number(v); }); return ['Tarjeta', 'Zelle', 'Efectivo', 'Otros', 'Sin forma de pago'].filter(n => f[n] > 0).map(n => [n, Math.round(f[n] * 100) / 100]); };
+
+  /* ---------- íconos ---------- */
+  const IC = {
+    hoy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 18 6 11M12 18l-3-8M12 18V9M12 18l3-8M12 18l6-7"/></svg>',
+    caja: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="6.5" width="18" height="12" rx="3"/><circle cx="12" cy="12.5" r="2.6"/></svg>',
+    dep: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="4" y="5.5" width="16" height="15" rx="3"/><path d="M4 10.5h16M8.5 3v4M15.5 3v4"/></svg>',
+    pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 19v-7M12 19V5M19 19v-10"/></svg>',
+    yo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="8.5" r="4"/><path d="M4.5 20c1.6-4 4.2-5.5 7.5-5.5s5.9 1.5 7.5 5.5"/></svg>',
+    search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" style="color:var(--soft)"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>',
+    chev: '<svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>',
+  };
+
+  /* ---------- abanico (el motivo del logo) ---------- */
+  function fan(parts, opts) {
+    const o = Object.assign({ n: 52, r0: 104, r1: 156, fill: null }, opts), W = 340, cx = W / 2, cy = 168, tot = parts.reduce((t, p) => t + p[1], 0) || 1;
+    let cols = [];
+    if (o.fill != null) cols = Array.from({ length: o.n }, (_, i) => (i + .5) / o.n <= o.fill ? 'var(--mauve)' : 'var(--line)');
+    else { parts.forEach(([name, v]) => { const c = Math.max(v > 0 ? 1 : 0, Math.round(v / tot * o.n)); for (let i = 0; i < c; i++) cols.push(FAM[name]); }); cols = cols.slice(0, o.n); while (cols.length < o.n) cols.push(cols[cols.length - 1] || 'var(--line)'); }
+    const lines = cols.map((c, i) => { const a = Math.PI - (i + .5) * Math.PI / o.n, l = o.r1 - (i % 2 ? 6 : 0); return `<line x1="${(cx + o.r0 * Math.cos(a)).toFixed(1)}" y1="${(cy - o.r0 * Math.sin(a)).toFixed(1)}" x2="${(cx + l * Math.cos(a)).toFixed(1)}" y2="${(cy - l * Math.sin(a)).toFixed(1)}" stroke="${c}" stroke-width="2.3" stroke-linecap="round"/>`; }).join('');
+    return `<svg viewBox="0 0 ${W} 176" aria-hidden="true">${lines}<path d="M${cx - o.r0 + 4} ${cy} A${o.r0 - 4} ${o.r0 - 4} 0 0 1 ${cx + o.r0 - 4} ${cy}" fill="none" stroke="var(--goldline)" stroke-width="1" opacity=".55"/></svg>`;
   }
-  function mgrDay(d) {
-    const t = d.totals, total = Number(t.net) + Number(t.tips) + Number(t.products), meth = Object.entries(d.methods || {});
-    const cash = meth.filter(([k]) => /^efectivo/i.test(k)).reduce((a, [, v]) => a + Number(v), 0), tx = meth.filter(([k]) => !/^efectivo/i.test(k) && !/sin método/i.test(k)), none = meth.filter(([k]) => /sin método/i.test(k)).reduce((a, [, v]) => a + Number(v), 0);
-    const max = Math.max(1, ...tx.map(([, v]) => Number(v)));
-    return `<div class="mnav"><button class="chip ${d.date !== d.today ? '' : 'on'}" data-md="${d.today}">Hoy</button><button class="chip" data-md="prev">← Día anterior</button>${d.date !== d.today ? '<button class="chip" data-md="next">Día siguiente →</button>' : ''}<input type="date" id="mdate" value="${esc(d.date)}" max="${esc(d.today)}"></div>
-      <h2 style="margin-top:6px">${esc(dayLabel(d.date, d.today))} · ${esc(fdate(d.date))}</h2>
-      <div class="mk"><div class="mkb big"><span>Total del día</span><b>${M$(total)}</b></div><div class="mkb"><span>Servicios</span><b>${t.count}</b></div><div class="mkb"><span>Ventas</span><b>${M$(t.net)}</b></div><div class="mkb"><span>Tips</span><b>${M$(t.tips)}</b></div>${Number(t.products) ? `<div class="mkb"><span>Productos</span><b>${M$(t.products)}</b></div>` : ''}</div>
-      <h2>Cómo se pagó</h2><div class="mk"><div class="mkb cash"><span>💵 Efectivo (en caja)</span><b>${M$(cash)}</b></div><div class="mkb"><span>💳 Transacciones</span><b>${M$(tx.reduce((a, [, v]) => a + Number(v), 0))}</b></div>${none ? `<div class="mkb warn"><span>⚠︎ Sin método</span><b>${M$(none)}</b></div>` : ''}</div>
-      ${tx.map(([k, v]) => `<div class="mrow"><span>${esc(k)}</span><span class="mbar"><i style="width:${Math.round(Number(v) / max * 100)}%"></i></span><b>${M$(v)}</b></div>`).join('')}
-      <h2>Servicios del día (${t.count})</h2>${d.rows.length ? d.rows.map(r => `<div class="rq mcard"><div class="mtop"><b>${esc(r.service)}</b><b>${M$(Number(r.net) + Number(r.tip))}</b></div>
-        <div class="msub">${esc(hm(r.at))} · ${esc(r.artist || '')} · ${esc(r.client || 'Sin nombre')}</div>
-        <div class="msub">${M$(r.net)}${Number(r.tip) ? ` + tip ${M$(r.tip)}` : ''}${Number(r.deposit) ? ` · depósito ${M$(r.deposit)}` : ''} <span class="tg ${/sin método/i.test(r.method) ? 'no' : 'ok'}">${esc(r.method)}</span></div></div>`).join('') : '<p class="sub">Todavía no hay servicios cobrados este día.</p>'}
-      ${(d.products || []).length ? `<h2>Productos vendidos</h2>${d.products.map(x => `<div class="mrow"><span>${esc(x.name)} × ${Number(x.qty)}</span><span class="tg ok">${esc(x.method)}</span><b>${M$(x.amount)}</b></div>`).join('')}` : ''}`;
+
+  /* ---------- armazón ---------- */
+  function topbar() { const m = me();
+    return `<div class="top"><img src="logo-mark.png" alt=""><div class="nm"><b>Fluffy Lashes</b><span>${isMgr() ? 'Portal de manager' : 'Portal de lashistas'}</span></div><button class="av" id="avatar" aria-label="Opciones de ${esc(m.name || '')}">${esc(initials(first(m.name)))}</button></div>`; }
+  function renderNav() {
+    if (!S.in || !isMgr()) { navEl.innerHTML = ''; return; }
+    const it = [['hoy', 'Hoy'], ['caja', 'Caja'], ['dep', 'Depósitos'], ['pay', 'Payroll'], ['yo', 'Yo']];
+    navEl.innerHTML = `<nav class="tab" aria-label="Secciones">${it.map(([k, l]) => `<button data-nav="${k}" class="${S.view === k ? 'on' : ''}" ${S.view === k ? 'aria-current="page"' : ''}>${IC[k]}<span>${l}</span></button>`).join('')}</nav>`;
+    $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
   }
-  function mgrDep(d) {
-    const groups = {}; d.upcoming.forEach(a => (groups[a.date] = groups[a.date] || []).push(a));
-    const st = x => /verific/i.test(x) ? '<span class="tg ok">Verificado</span>' : x ? `<span class="tg pe">${esc(x)}</span>` : '<span class="tg pe">Por verificar</span>';
-    const sum = l => l.reduce((a, x) => a + Number(x.amount || 0), 0);
-    return `<div class="mk"><div class="mkb big"><span>Recibidos hoy</span><b>${M$(sum(d.received))}</b><small>${d.received.length} depósito${d.received.length === 1 ? '' : 's'}</small></div><div class="mkb"><span>Citas con depósito (14 días)</span><b>${d.upcoming.length}</b><small>${M$(sum(d.upcoming))}</small></div></div>
-      <h2>Recibidos hoy</h2>${d.received.length ? d.received.map(x => `<div class="rq mcard"><div class="mtop"><b>${esc(x.client || 'Sin nombre')}</b><b>${M$(x.amount)}</b></div><div class="msub">${esc(x.method || '')} ${st(x.status)}${x.outcome ? ` · ${esc(x.outcome)}` : ''}</div></div>`).join('') : '<p class="sub">Hoy no se ha registrado ningún depósito.</p>'}
-      <h2>Próximas citas con depósito</h2>${Object.keys(groups).length ? Object.entries(groups).map(([day, l]) => `<h3 class="mday">${esc(dayLabel(day, d.today))}${dayLabel(day, d.today).length < 8 ? ' · ' + esc(fdate(day)) : ''} <small>${l.length} · ${M$(sum(l))}</small></h3>${l.map(a => `<div class="rq mcard"><div class="mtop"><b>${esc(a.time || '')} · ${esc(a.client || '')}</b><b>${M$(a.amount)}</b></div><div class="msub">${esc(a.artist || '')} · ${esc(a.service || '')}</div><div class="msub">${esc(a.method || '')} ${st(a.depStatus)}${a.status === 'Pagada' ? ' <span class="tg ok">Ya pagó</span>' : ''}</div></div>`).join('')}`).join('') : '<p class="sub">No hay citas con depósito en los próximos 14 días.</p>'}`;
+  function paint(html) {
+    app.innerHTML = topbar() + html; renderNav();
+    const av = $('#avatar'); if (av) av.onclick = () => sheet(`<h2 style="margin-top:4px">${esc(me().name || '')}</h2><p class="muted small">Entraste con tu clave en este dispositivo.</p><button class="btn line" id="logout" style="margin-top:14px">Salir</button>`, () => { $('#logout').onclick = () => { closeSheet(); logout(); }; });
   }
-  function mgrPay(d) {
-    const t = d.totals, max = Math.max(1, ...d.rows.map(r => Number(r.pay)));
-    return `<div class="weeknav2"><button class="chip" data-mw="-1" ${S.mgr.wofs <= -8 ? 'disabled' : ''}>← Anterior</button><b>${esc(fdate(d.weekStart))} – ${esc(fdate(d.weekEnd))}</b><button class="chip" data-mw="1" ${S.mgr.wofs >= 0 ? 'disabled' : ''}>Siguiente →</button></div>
-      <div class="mk"><div class="mkb big"><span>Total a pagar</span><b>${M$(t.pay)}</b><small>comisiones ${M$(t.commission)} + tips ${M$(t.tips)}</small></div><div class="mkb"><span>Servicios</span><b>${t.count}</b></div><div class="mkb"><span>Ventas netas</span><b>${M$(t.net)}</b></div></div>
-      <h2>Por lashista</h2>${d.rows.length ? d.rows.map(r => `<div class="rq mcard"><div class="mtop"><b>${esc(r.name)}</b><b>${M$(r.pay)}</b></div><span class="mbar wide"><i style="width:${Math.round(Number(r.pay) / max * 100)}%"></i></span>
-        <div class="mgrid"><span>Servicios<b>${r.count}</b></span><span>Ventas<b>${M$(r.net)}</b></span><span>Comisión<b>${M$(r.commission)}</b></span><span>Tips<b>${M$(r.tips)}</b></span></div></div>`).join('') : '<p class="sub">Todavía no hay servicios esta semana.</p>'}
-      <p class="sub" style="margin-top:10px">Solo para consulta. Los cambios se hacen en la app de administración.</p>`;
+  function go(v) { S.view = v; window.scrollTo(0, 0); render(); }
+  function yoSeg() { return `<div class="seg" role="tablist">${[['pedir', 'Pedir insumos'], ['mis', 'Mis solicitudes'], ['sem', 'Mi semana']].map(([k, l]) => `<button role="tab" data-yo="${k}" class="${S.yo === k ? 'on' : ''}" aria-selected="${S.yo === k}">${l}</button>`).join('')}</div>`; }
+  function bindYo() { $$('[data-yo]').forEach(b => b.onclick = () => { S.yo = b.dataset.yo; S.view = 'yo'; window.scrollTo(0, 0); render(); }); }
+  function sheet(html, bind) { const ex = $('.sheet'); if (ex && S.keepSheet) { S.keepSheet = false; ex.querySelector('.pane').innerHTML = '<div class="grab"></div>' + html; if (bind) bind(ex); return; } closeSheet(); const d = document.createElement('div'); d.className = 'sheet'; d.innerHTML = `<div class="pane" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div>`; document.body.appendChild(d); d.onclick = e => { if (e.target === d) closeSheet(); }; if (bind) bind(d); }
+  function closeSheet() { const had = $$('.sheet').length; $$('.sheet').forEach(x => x.remove()); if (had && S.in && S.view === 'yo' && S.yo === 'pedir' && !S.sent && !S.sending) setTimeout(render, 0); }
+  function logout() { S.in = false; S.pin = ''; S.mine = S.week = S.day = S.today = S.dep = S.pay = S.myWeek0 = null; S.qty = {}; S.notes = []; render(); }
+
+  /* ---------- entrar ---------- */
+  function renderLogin(err) {
+    navEl.innerHTML = '';
+    app.innerHTML = `<div class="login"><img class="logo" src="logo-mark.png" alt="Fluffy Lashes"><h1 style="text-align:center">Portal de lashistas</h1><p class="lead" style="text-align:center">Pide insumos, revisa tus solicitudes y tu semana.</p>
+      <label class="field" for="art">Tu nombre</label><select id="art" class="in"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      <label class="field" for="pin">Tu clave</label><input id="pin" class="in" type="password" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="La que te dio administración">
+      <p class="err" id="err">${esc(err || '')}</p><button class="btn" id="enter">Entrar</button></div>`;
+    $('#pin').oninput = e => { e.target.value = e.target.value.replace(/\D/g, ''); };
+    $('#pin').onkeydown = e => { if (e.key === 'Enter') $('#enter').click(); };
+    $('#enter').onclick = async () => {
+      const a = $('#art').value, p = $('#pin').value;
+      if (!a) return ($('#err').textContent = 'Elige tu nombre.');
+      if (!/^\d{4,8}$/.test(p)) return ($('#err').textContent = 'Escribe tu clave (4 a 8 números).');
+      const b = $('#enter'); b.disabled = true; b.textContent = 'Entrando…';
+      const { data, error } = await sb.rpc('fm_my_requests', { p_artist: a, p_pin: p });
+      if (error || !data || !data.ok) { b.disabled = false; b.textContent = 'Entrar'; $('#err').textContent = rpcErr(data, error); return; }
+      S.artist = a; S.pin = p; S.in = true; try { localStorage.setItem('fm-req-artist', a); } catch (e) {}
+      S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] };
+      S.view = isMgr() ? 'hoy' : 'yo'; S.yo = 'pedir'; loadNotes(); render();
+    };
   }
-  function renderMgr() {
-    const G = S.mgr, data = G.t === 'dia' ? G.day : G[G.t], mgrs = S.artists.filter(a => a.manager);
-    app.innerHTML = header + tabs() + `<div class="mhead"><b>★ Vista de manager</b><span class="sub">Solo consulta: no se puede cambiar nada desde aquí.</span></div>
-      ${data || G.busy ? '' : `<label for="art">Tu nombre</label><select id="art">${mgrs.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
-        <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="6 a 8 números"><button class="btn" id="mgo" style="width:100%;margin-top:10px">Entrar</button>`}
-      <div class="tabs mtabs">${[['dia', 'Hoja del día'], ['dep', 'Depósitos'], ['pay', 'Payroll']].map(([k, l]) => `<button data-mt="${k}" class="${G.t === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-      <p class="err" id="err">${esc(G.err)}</p>
-      ${G.busy ? '<p class="sub">Cargando…</p>' : data ? (G.t === 'dia' ? mgrDay(data) : G.t === 'dep' ? mgrDep(data) : mgrPay(data)) : ''}
-      ${data && !G.busy ? '<button class="chip" id="mref" style="margin-top:14px">↻ Actualizar</button>' : ''}`;
-    bindTabs();
-    const go = $('#mgo'); if (go) go.onclick = () => { S.artist = $('#art').value; S.pin = $('#pin').value.trim(); if (!/^\d{6,8}$/.test(S.pin)) { G.err = 'Escribe tu clave (6 a 8 números).'; return renderMgr(); } mgrLoad(G.t); };
-    const pin = $('#pin'); if (pin) pin.oninput = () => { S.pin = pin.value.trim(); };
-    document.querySelectorAll('[data-mt]').forEach(b => b.onclick = () => { G.t = b.dataset.mt; const has = G.t === 'dia' ? G.day : G[G.t]; if (!has && /^\d{6,8}$/.test(S.pin)) mgrLoad(G.t); else renderMgr(); });
-    document.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { const v = b.dataset.md, cur = new Date((G.date || G.day.today) + 'T12:00:00'); if (v === 'prev') cur.setDate(cur.getDate() - 1); else if (v === 'next') cur.setDate(cur.getDate() + 1); G.date = /^\d{4}/.test(v) ? v : cur.toISOString().slice(0, 10); mgrLoad('dia'); });
-    const md = $('#mdate'); if (md) md.onchange = () => { if (md.value) { G.date = md.value; mgrLoad('dia'); } };
-    document.querySelectorAll('[data-mw]').forEach(b => b.onclick = () => { G.wofs = Math.max(-8, Math.min(0, G.wofs + Number(b.dataset.mw))); mgrLoad('pay'); });
-    const rf = $('#mref'); if (rf) rf.onclick = () => mgrLoad(G.t);
-  }
+
+  /* ---------- datos ---------- */
+  async function call(fn, args) { const { data, error } = await sb.rpc(fn, Object.assign({ p_artist: S.artist, p_pin: S.pin }, args || {})); return (error || !data || !data.ok) ? { err: rpcErr(data, error) } : data; }
+  async function loadNotes() { const r = await call('fm_my_notes'); if (!r.err) { S.notes = r.notes || []; if (S.in && S.view === 'yo') render(); } }
+  async function need(key, fn, args, after) { if (S.busy[key]) return; S.busy[key] = true; const r = await call(fn, args); S.busy[key] = false; S[key] = r; if (after) after(r); render(); }
+
+  /* ---------- vistas ---------- */
   function render() {
-    if (S.tab === 'mgr') { if (!isMgr()) { S.tab = 'pedir'; } else { if (!S.mgr.day && !S.mgr.busy && /^\d{6,8}$/.test(S.pin) && !S.mgr.err) { mgrLoad('dia'); return; } return renderMgr(); } }
-    if (S.tab === 'mis') return renderMine();
-    if (S.tab === 'semana') return renderWeek();
-    const cats = [...new Set(S.products.map(p => p.category))];
-    const q = S.q.trim().toLowerCase();
+    if (!S.in) return renderLogin();
+    if (!isMgr() && S.view !== 'yo') S.view = 'yo';
+    ({ hoy: vHoy, caja: vCaja, dep: vDep, pay: vPay, yo: vYo })[S.view]();
+  }
+  const errBox = r => `<p class="err">${esc(r.err)}</p><button class="btn line" data-retry>Intentar otra vez</button>`;
+  const bindRetry = (key) => $$('[data-retry]').forEach(b => b.onclick = () => { S[key] = null; render(); });
+
+  // HOY (manager)
+  function vHoy() {
+    if (!S.today) need('today', 'fm_mgr_day', {});
+    if (!S.dep) need('dep', 'fm_mgr_deposits');
+    if (!S.myWeek0) need('myWeek0', 'fm_my_week', { p_offset: 0 });
+    let body;
+    if (!S.today) body = '<p class="loading">Cargando el día…</p>';
+    else if (S.today.err) body = errBox(S.today);
+    else {
+      const x = S.today;
+      const t = x.totals, fams = families(x.methods), tot = Number(t.net) + Number(t.tips) + Number(t.products);
+      const none = (fams.find(f => f[0] === 'Sin forma de pago') || [0, 0])[1], nNone = (x.rows || []).filter(r => /sin m[eé]todo/i.test(r.method)).length;
+      const dep = S.dep && !S.dep.err ? S.dep : null, unv = dep ? dep.upcoming.filter(a => !/verific/i.test(a.depStatus || '')) : [];
+      const w = S.myWeek0 && !S.myWeek0.err ? S.myWeek0 : null;
+      const pend = [];
+      if (nNone) pend.push(['var(--warn)', `${nNone} cobro${nNone > 1 ? 's' : ''} sin forma de pago`, `De ${M(none)}; avísale a recepción para asignarlo`, 'caja']);
+      if (unv.length) pend.push(['var(--gold)', `${unv.length} depósito${unv.length > 1 ? 's' : ''} por verificar`, unv.slice(0, 2).map(a => a.client).join(' y ') + (unv.length > 2 ? ` y ${unv.length - 2} más` : ''), 'dep']);
+      body = `<div class="fanwrap">${fan(fams.length ? fams : [['Sin forma de pago', 1]])}<div class="fanc"><b>${M(tot)}</b><span>cobrado hoy en el salón</span></div></div>
+        <div class="legend">${fams.map(([n]) => `<span><i class="dot" style="background:${FAM[n]};width:8px;height:8px"></i>${n === 'Sin forma de pago' ? 'Sin forma' : n}</span>`).join('')}</div>
+        <div class="stats"><div><b>${t.count}</b><span>Servicios</span></div><div><b>${M(t.tips, false)}</b><span>Tips</span></div><div><b>${M(t.count ? t.net / t.count : 0, false)}</b><span>Ticket prom.</span></div></div>
+        <h2>Pendientes de hoy</h2>${pend.length ? pend.map(([c, a, b, to]) => `<button class="row" data-goto="${to}"><i class="dot" style="background:${c}"></i><div class="grow"><div class="t1">${esc(a)}</div><div class="t2">${esc(b)}</div></div>${IC.chev}</button>`).join('') : '<p class="empty">Todo en orden: no hay cobros sin forma de pago ni depósitos por verificar.</p>'}
+        ${w ? weekCard(w) : ''}`;
+    }
+    paint(`<h1>${hello()}, ${esc(first(me().name))}</h1><p class="lead">${esc(fdate(todayISO()))}</p>${body}<button class="pill" id="refresh" style="margin-top:22px">Actualizar</button>`);
+    $$('[data-goto]').forEach(b => b.onclick = () => go(b.dataset.goto));
+    const wc = $('#weekcard'); if (wc) wc.onclick = () => { S.yo = 'sem'; go('yo'); };
+    $('#refresh').onclick = () => { S.today = S.dep = S.myWeek0 = null; render(); };
+    bindRetry('today');
+  }
+  function goalInfo(w, past) {
+    const meta = Number(w.goal || 0), neto = Number((w.totals || {}).sales || 0), falta = Math.round((meta - neto) * 100) / 100, fs = Number(w.fullSet || 180), rf = Number(w.refill || 100);
+    if (!meta) return { meta, neto, msg: 'Todavía no tienes meta asignada esta semana.' };
+    let msg;
+    if (falta <= 0) msg = past ? `Lograste tu meta: quedaste ${M(-falta)} arriba.` : `Ya lograste tu meta: vas ${M(-falta)} arriba.`;
+    else if (past) msg = `Te faltaron ${M(falta)} para tu meta.`;
+    else if (falta <= rf) msg = `Estás a un refill de tu meta: te faltan ${M(falta)}.`;
+    else if (falta <= fs) msg = `Estás a un full set de tu meta: te faltan ${M(falta)}.`;
+    else msg = `Te faltan ${M(falta)}, más o menos ${Math.ceil(falta / rf)} refills o ${Math.ceil(falta / fs)} full sets.`;
+    return { meta, neto, falta, msg };
+  }
+  function weekCard(w) { const g = goalInfo(w, false); if (!g.meta) return '';
+    return `<button class="soft" id="weekcard" style="display:block;width:100%;text-align:left;border:0;margin-top:22px"><div class="sh"><b style="font-size:14.5px">Tu semana: ${M(g.neto, false)} de ${M(g.meta, false)}</b>${IC.chev}</div><div class="bar" style="background:var(--card)"><i style="width:${Math.min(100, g.neto / g.meta * 100).toFixed(1)}%"></i></div><div class="t2 muted small">${esc(g.msg)}</div></button>`; }
+
+  // CAJA (manager)
+  function vCaja() {
+    if (!S.day || (S.date && S.day.date !== S.date && !S.day.err)) { if (!S.busy.day) need('day', 'fm_mgr_day', S.date ? { p_date: S.date } : {}); }
+    const d = S.day && !S.day.err ? S.day : null, today = d ? d.today : todayISO(), cur = S.date || (d && d.date) || today;
+    const prev = new Date(D(cur).getTime() - 864e5).toISOString().slice(0, 10);
+    let body = '';
+    if (!S.day || S.busy.day) body = '<p class="loading">Cargando…</p>';
+    else if (S.day.err) body = errBox(S.day);
+    else {
+      const t = d.totals, fams = families(d.methods), tot = Number(t.net) + Number(t.tips) + Number(t.products), sumF = fams.reduce((a, f) => a + f[1], 0) || 1;
+      const cash = (fams.find(f => f[0] === 'Efectivo') || [0, 0])[1], tx = fams.filter(f => !['Efectivo', 'Sin forma de pago'].includes(f[0])).reduce((a, f) => a + f[1], 0);
+      const raw = Object.entries(d.methods || {}).filter(([k]) => !/efectivo/i.test(k)).sort((a, b) => b[1] - a[1]);
+      const rows = d.rows || [], shown = S.allSvc ? rows : rows.slice(0, 8);
+      body = `<div class="big">${M(tot)}</div><p class="muted small" style="margin:6px 0 0">${t.count} servicio${t.count == 1 ? '' : 's'}, ${M(t.tips, false)} de tips${Number(t.products) ? ` y ${M(t.products, false)} en productos` : ''}</p>
+        <div class="stack">${fams.map(([n, v]) => `<i style="flex:${(v / sumF).toFixed(4)};background:${FAM[n]}" title="${esc(n)}"></i>`).join('')}</div>
+        <div class="two"><div class="card"><span>En caja (efectivo)</span><b class="ok">${M(cash)}</b></div><div class="card"><span>Transacciones</span><b>${M(tx)}</b></div></div>
+        ${raw.map(([k, v]) => `<div class="li" style="padding:6px 0"><span style="display:flex;align-items:center;gap:10px" class="${/sin m/i.test(k) ? 'warn' : ''}"><i class="dot" style="background:${FAM[famOf(k)]};width:9px;height:9px"></i>${esc(/sin m/i.test(k) ? k.replace(/Sin método/i, 'Sin forma de pago') : k)}</span><b>${M(v)}</b></div>`).join('')}
+        <div class="sh"><h2>Servicios</h2>${rows.length > 8 ? `<button class="pill" id="allsvc" style="border:0;color:var(--mauve);background:none">${S.allSvc ? 'Ver menos' : `Ver los ${rows.length}`}</button>` : ''}</div>
+        ${rows.length ? shown.map(r => `<div class="row"><div class="tm">${esc(hm(r.at))}</div><div class="grow"><div class="t1">${esc(r.service)}</div><div class="t2">${esc(first(r.artist))} con ${esc(r.client || 'sin nombre')}${Number(r.deposit) ? `, depósito ${M(r.deposit, false)}` : ''}</div></div><div class="r"><div class="t1">${M(Number(r.net) + Number(r.tip))}</div><div class="t2 ${/sin m/i.test(r.method) ? 'warn' : ''}" style="${/sin m/i.test(r.method) ? 'font-weight:700' : ''}">${esc(/sin m/i.test(r.method) ? 'Sin forma de pago' : r.method)}</div></div></div>`).join('') : '<p class="empty">Todavía no hay servicios cobrados este día.</p>'}
+        ${(d.products || []).length ? `<h2>Productos</h2>${d.products.map(p => `<div class="li"><span>${esc(p.name)} × ${Number(p.qty)} <span class="muted small">${esc(p.method)}</span></span><b>${M(p.amount)}</b></div>`).join('')}` : ''}`;
+    }
+    paint(`<h1>Caja del día</h1><p class="lead">${esc(fdate(cur))}</p>
+      <div class="seg"><button data-day="${prev}" class="${cur !== today && cur === prev ? '' : ''}">${cur === today ? 'Ayer' : '‹ Día anterior'}</button><button data-day="${today}" class="${cur === today ? 'on' : ''}">Hoy</button><label id="pick" class="pickl ${cur !== today ? 'on' : ''}">${cur !== today ? esc(fday(cur)) : 'Elegir fecha'}<input type="date" id="dpick" max="${today}" value="${cur}" aria-label="Elegir fecha"></label></div>${body}`);
+    $$('[data-day]').forEach(b => b.onclick = () => { S.date = b.dataset.day === today ? '' : b.dataset.day; S.day = null; S.allSvc = false; render(); });
+    const dp = $('#dpick');
+    dp.onchange = () => { if (dp.value) { S.date = dp.value === today ? '' : dp.value; S.day = null; render(); } };
+    const al = $('#allsvc'); if (al) al.onclick = () => { S.allSvc = !S.allSvc; render(); };
+    bindRetry('day');
+  }
+
+  // DEPÓSITOS (manager)
+  function vDep() {
+    if (!S.dep) need('dep', 'fm_mgr_deposits');
+    let body;
+    if (!S.dep) body = '<p class="loading">Cargando…</p>';
+    else if (S.dep.err) body = errBox(S.dep);
+    else {
+      const d = S.dep, sum = l => l.reduce((a, x) => a + Number(x.amount || 0), 0), groups = {};
+      d.upcoming.forEach(a => (groups[a.date] = groups[a.date] || []).push(a));
+      const st = (m, s) => /verific/i.test(s || '') ? `<span class="ok">${esc(m || '')}, verificado</span>` : `<b class="goldt">${esc(m || '')}, por verificar</b>`;
+      body = `<div class="stats" style="margin-top:0"><div><b class="big" style="font-size:32px">${M(sum(d.received))}</b><span>recibidos hoy en ${d.received.length} depósito${d.received.length === 1 ? '' : 's'}</span></div><div><b class="big" style="font-size:32px">${d.upcoming.length}</b><span>cita${d.upcoming.length === 1 ? '' : 's'} con depósito</span></div></div>
+        ${Object.keys(groups).length ? Object.entries(groups).map(([day, l]) => `<div class="sh"><h2>${esc(rel(day, d.today) === 'Mañana' ? 'Mañana, ' + D(day).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric' }) : rel(day, d.today))}</h2><span class="muted small">${M(sum(l))}</span></div>
+          ${l.map(a => `<div class="row"><div class="tm">${esc(fmtTime(a.time))}</div><div class="grow"><div class="t1">${esc(a.client)}</div><div class="t2">${esc(first(a.artist))}, ${esc(a.service || '')}</div></div><div class="r"><div class="t1">${M(a.amount)}</div><div class="t2">${st(a.method, a.depStatus)}</div></div></div>`).join('')}`).join('') : '<p class="empty">No hay citas con depósito en los próximos 14 días.</p>'}
+        <h2>Recibidos hoy</h2>${d.received.length ? d.received.map(x => `<div class="row"><div class="grow"><div class="t1">${esc(x.client || 'Sin nombre')}</div><div class="t2">${st(x.method, x.status)}${x.outcome ? `, ${esc(x.outcome)}` : ''}</div></div><div class="r t1">${M(x.amount)}</div></div>`).join('') : '<p class="empty">Hoy no se ha registrado ningún depósito.</p>'}`;
+    }
+    paint(`<h1>Depósitos</h1><p class="lead">Hoy y los próximos 14 días</p>${body}<button class="pill" id="refresh" style="margin-top:22px">Actualizar</button>`);
+    $('#refresh').onclick = () => { S.dep = null; render(); }; bindRetry('dep');
+  }
+  const fmtTime = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; };
+
+  // PAYROLL (manager)
+  function vPay() {
+    if (!S.pay || (!S.pay.err && S.pay._ofs !== S.pofs)) need('pay', 'fm_mgr_payroll', { p_offset: S.pofs }, r => { r._ofs = S.pofs; });
+    let body, sub = 'Semana Fluffy, de viernes a jueves';
+    if (!S.pay || S.busy.pay) body = '<p class="loading">Cargando…</p>';
+    else if (S.pay.err) body = errBox(S.pay);
+    else {
+      const d = S.pay, t = d.totals, mx = Math.max(1, ...d.rows.map(r => Number(r.pay)));
+      sub = `Semana del ${wdm(d.weekStart)} al ${wdm(d.weekEnd)}`;
+      body = `<div class="big">${M(t.pay)}</div><p class="muted small" style="margin:6px 0 14px">por pagar: ${M(t.commission, false)} de comisiones y ${M(t.tips, false)} de tips</p>
+        ${d.rows.length ? d.rows.map(r => `<div class="row" style="align-items:flex-start"><div class="ini">${esc(initials(first(r.name)))}</div><div class="grow"><div class="sh"><span class="t1">${esc(first(r.name))}</span><b class="t1">${M(r.pay)}</b></div><div class="bar"><i style="width:${(Number(r.pay) / mx * 100).toFixed(1)}%"></i></div><div class="sh t2"><span>${r.count} servicio${r.count == 1 ? '' : 's'}</span><span>comisión ${M(r.commission, false)} + tips ${M(r.tips, false)}</span></div></div></div>`).join('') : '<p class="empty">Todavía no hay servicios esta semana.</p>'}
+        <p class="fine">Solo para consulta. Los cambios los hace administración.</p>`;
+    }
+    paint(`<h1>Payroll</h1><p class="lead">${esc(sub)}</p><div class="wk"><button data-pw="-1" ${S.pofs <= -8 ? 'disabled' : ''} aria-label="Semana anterior">‹</button><b>${S.pofs === 0 ? 'Esta semana' : S.pofs === -1 ? 'Semana pasada' : `Hace ${-S.pofs} semanas`}</b><button data-pw="1" ${S.pofs >= 0 ? 'disabled' : ''} aria-label="Semana siguiente">›</button></div>${body}`);
+    $$('[data-pw]').forEach(b => b.onclick = () => { S.pofs = Math.max(-8, Math.min(0, S.pofs + Number(b.dataset.pw))); S.pay = null; render(); });
+    bindRetry('pay');
+  }
+
+  // YO
+  function vYo() { ({ pedir: vPedir, mis: vMis, sem: vSem })[S.yo](); }
+  function vPedir() {
+    if (S.sent) return vSent();
+    const cats = [...new Set(S.products.map(p => p.category))], q = S.q.trim().toLowerCase();
     const list = S.products.filter(p => (!S.cat || p.category === S.cat) && (!q || (p.name + ' ' + p.code).toLowerCase().includes(q)));
     let last = null;
-    const rows = list.map(p => { const head = !S.cat && p.category !== last ? `<div class="cat">${esc(p.category)}</div>` : ''; last = p.category; const n = S.qty[p.code] || 0;
-      return head + `<div class="item ${n ? 'sel' : ''}"><div>${esc(p.name)}<small>${esc(p.code)}</small></div><div class="step"><button type="button" data-m="${esc(p.code)}" aria-label="Menos">−</button><b>${n}</b><button type="button" data-p="${esc(p.code)}" aria-label="Más">+</button></div></div>`; }).join('');
-    app.innerHTML = header + tabs() + `
-      <label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
-      <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
-      <label>¿Qué necesitas?</label><input id="q" type="search" placeholder="Buscar producto" value="${esc(S.q)}">
+    const rows = list.map(p => { const head = !S.cat && !q && p.category !== last ? `<h2 style="margin:22px 0 2px;font-size:15px">${esc(p.category)}</h2>` : ''; last = p.category; const n = S.qty[p.code] || 0;
+      return head + `<div class="row"><div class="grow"><div class="t1">${esc(p.name)}</div><div class="t2">${esc(p.code)}</div></div>${n ? `<span class="step"><button data-m="${esc(p.code)}" aria-label="Quitar uno de ${esc(p.name)}">−</button><b>${n}</b><button data-p="${esc(p.code)}" aria-label="Agregar uno de ${esc(p.name)}">+</button></span>` : `<button class="add" data-p="${esc(p.code)}">Agregar</button>`}</div>`; }).join('');
+    const n = total();
+    paint(`<h1>Pedir insumos</h1><p class="lead">Lo que pidas lo entrega recepción</p>${yoSeg()}
+      <label class="search">${IC.search}<input id="q" type="search" placeholder="Buscar producto o código" value="${esc(S.q)}" aria-label="Buscar producto"></label>
       <div class="chips"><button class="chip ${!S.cat ? 'on' : ''}" data-c="">Todos</button>${cats.map(c => `<button class="chip ${S.cat === c ? 'on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
-      <div class="list">${rows || '<div class="empty">No hay productos con ese nombre.</div>'}</div>
-      <label for="note">Nota (opcional)</label><textarea id="note" rows="2" maxlength="300" placeholder="Ej. lo necesito para el viernes">${esc(S.note)}</textarea>
-      <p class="err" id="err"></p>
-      <div class="bar"><div class="in"><span class="count">${total() ? `${Object.keys(S.qty).length} productos · ${total()} piezas` : 'Nada elegido'}</span><button class="btn" id="send" ${total() && !S.sending ? '' : 'disabled'}>${S.sending ? 'Enviando…' : 'Enviar solicitud'}</button></div></div>`;
-    $('#art').onchange = e => { S.artist = e.target.value; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} };
-    $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
-    $('#note').oninput = e => { S.note = e.target.value; };
-    const qi = $('#q'); qi.oninput = () => { S.q = qi.value; render(); const n = $('#q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
-    document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { S.cat = b.dataset.c; render(); });
-    document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { const c = b.dataset.p; S.qty[c] = Math.min(100, (S.qty[c] || 0) + 1); render(); });
-    document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { const c = b.dataset.m; if (S.qty[c] > 1) S.qty[c]--; else delete S.qty[c]; render(); });
-    $('#send').onclick = send; bindTabs();
+      ${rows || '<p class="empty">No hay productos con ese nombre.</p>'}
+      ${n ? `<button class="fab ${isMgr() ? '' : 'solo'}" id="cart"><span>${n} pieza${n > 1 ? 's' : ''} en tu solicitud</span><b>Revisar y enviar</b></button>` : ''}`);
+    bindYo();
+    const qi = $('#q'); qi.oninput = () => { S.q = qi.value; render(); const x = $('#q'); x.focus(); x.setSelectionRange(x.value.length, x.value.length); };
+    $$('[data-c]').forEach(b => b.onclick = () => { S.cat = b.dataset.c; render(); });
+    $$('[data-p]').forEach(b => b.onclick = () => { const c = b.dataset.p; S.qty[c] = Math.min(100, (S.qty[c] || 0) + 1); render(); });
+    $$('[data-m]').forEach(b => b.onclick = () => { const c = b.dataset.m; if (S.qty[c] > 1) S.qty[c]--; else delete S.qty[c]; render(); });
+    const ct = $('#cart'); if (ct) ct.onclick = review;
+  }
+  function review() {
+    const items = Object.entries(S.qty).map(([code, qty]) => ({ code, qty, name: (S.products.find(p => p.code === code) || {}).name || code }));
+    sheet(`<h2 style="margin-top:4px">Tu solicitud</h2>${items.map(i => `<div class="li" style="padding:9px 0;border-bottom:1px solid var(--line)"><span>${esc(i.name)}</span><span class="step"><button data-sm="${esc(i.code)}" aria-label="Quitar uno">−</button><b>${i.qty}</b><button data-sp="${esc(i.code)}" aria-label="Agregar uno">+</button></span></div>`).join('')}
+      <label class="field" for="note">Nota para recepción (opcional)</label><textarea id="note" class="in" rows="2" maxlength="300" placeholder="Ej. lo necesito para el viernes">${esc(S.note)}</textarea>
+      <p class="err" id="serr"></p><button class="btn" id="send" ${S.sending ? 'disabled' : ''}>${S.sending ? 'Enviando…' : 'Enviar solicitud'}</button>
+      <p class="fine" style="text-align:center">Se cobra en tu nota del mes, solo lo que te entreguen.</p>`, d => {
+      $$('[data-sp]').forEach(b => b.onclick = () => { const c = b.dataset.sp; S.qty[c] = Math.min(100, S.qty[c] + 1); S.keepSheet = true; review(); });
+      $$('[data-sm]').forEach(b => b.onclick = () => { const c = b.dataset.sm; if (S.qty[c] > 1) S.qty[c]--; else delete S.qty[c]; if (!total()) { closeSheet(); render(); } else { S.keepSheet = true; review(); } });
+      $('#note').oninput = e => { S.note = e.target.value; };
+      $('#send').onclick = send;
+    });
+  }
+  async function send() {
+    const items = Object.entries(S.qty).map(([code, qty]) => ({ code, qty })); if (!items.length) return;
+    S.sending = true; const b = $('#send'); if (b) { b.disabled = true; b.textContent = 'Enviando…'; }
+    const r = await call('fm_submit_supply_request', { p_items: items, p_note: S.note });
+    S.sending = false;
+    if (r.err) { if (b) { b.disabled = false; b.textContent = 'Enviar solicitud'; } const e = $('#serr'); if (e) e.textContent = r.err; return; }
+    S.sent = items.map(i => ({ ...i, name: (S.products.find(p => p.code === i.code) || {}).name || i.code })); S.qty = {}; S.note = ''; S.mine = null; closeSheet(); render();
+  }
+  function vSent() {
+    paint(`<div class="done"><div class="tick">✓</div><h1>Solicitud enviada</h1><p class="lead">${esc(fdate(todayISO()))}</p></div>
+      ${S.sent.map(i => `<div class="li" style="padding:10px 0;border-bottom:1px solid var(--line)"><span>${esc(i.name)}</span><b>× ${i.qty}</b></div>`).join('')}
+      <p class="fine">Recepción ya la tiene en la app. Si te equivocaste, la puedes corregir en Mis solicitudes mientras no se entregue.</p>
+      <div style="display:grid;gap:10px;margin-top:18px"><button class="btn" id="mine">Ver mis solicitudes</button><button class="btn line" id="again">Hacer otra solicitud</button></div>`);
+    $('#again').onclick = () => { S.sent = null; render(); }; $('#mine').onclick = () => { S.sent = null; S.yo = 'mis'; render(); };
   }
 
-  const dmy = iso => { if (!iso) return ''; const d = new Date(String(iso).length <= 10 ? iso + 'T12:00:00' : iso); return d.toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' }); };
-  const tag = st => st === 'Entregado' ? '<span class="tg ok">Entregado</span>' : st === 'Sin stock' ? '<span class="tg no">Sin stock</span>' : '<span class="tg pe">Pendiente</span>';
-  const TOPIC = { insumos: 'Insumos', semana: 'Mi semana', otro: 'Otro' };
-  async function loadNotes(re) { const { data } = await sb.rpc('fm_my_notes', { p_artist: S.artist, p_pin: S.pin }); if (data && data.ok) { S.notes = data.notes || []; if (re) re(); } }
-  function notesList(topic) {
-    const l = (S.notes || []).filter(n => !topic || n.topic === topic); if (!l.length) return '';
-    return `<h2>Tus notas a administración</h2>${l.map(n => `<div class="rq"><h3><span>${esc(n.ref || TOPIC[n.topic] || 'Nota')}</span>${n.status === 'Resuelto' ? '<span class="tg ok">Resuelto</span>' : n.status === 'Visto' ? '<span class="tg pe">Visto</span>' : '<span class="tg pe">Enviada</span>'}</h3>
-      <p class="ntxt">“${esc(n.text)}”</p><small>${esc(dmy(n.createdAt))}</small>${n.reply ? `<div class="nreply"><b>Administración:</b> ${esc(n.reply)}</div>` : ''}</div>`).join('')}`;
+  // Mis solicitudes
+  const reqRef = r => `Solicitud del ${fshort(r.requestDate)}: ${(r.items || []).map(i => i.name + ' × ' + Number(i.qty)).join(', ')}`.slice(0, 190);
+  const itemTag = s => s === 'Entregado' ? '<span class="st ok">Entregado</span>' : s === 'Sin stock' ? '<span class="st warn">Sin stock</span>' : '<span class="st goldt">Pendiente</span>';
+  function vMis() {
+    if (!S.mine) { need('mine', 'fm_my_requests', {}, r => { if (!r.err) S.mine = { requests: r.requests || [], prices: r.prices || {}, notes: r.notes || [] }; }); }
+    let body;
+    if (!S.mine) body = '<p class="loading">Cargando…</p>';
+    else if (S.mine.err) body = errBox(S.mine);
+    else {
+      const m = S.mine, ym = todayISO().slice(0, 7), mes = cap(new Date().toLocaleDateString('es-MX', { month: 'long' }));
+      const cur = m.requests.filter(r => (r.deliveredAt || r.requestDate || '').slice(0, 7) === ym), ent = cur.flatMap(r => (r.items || []).filter(i => i.state === 'Entregado'));
+      const sub = ent.reduce((t, i) => t + Number(i.qty) * Number(m.prices[i.code] || 0), 0), pz = ent.reduce((t, i) => t + Number(i.qty), 0);
+      body = `<div class="soft"><div class="muted small">Tu nota de insumos de ${esc(mes.toLowerCase())}, aproximada</div><div class="sh" style="margin-top:4px"><span class="mid">${M(sub)}</span><span class="muted small">${pz} pieza${pz === 1 ? '' : 's'} entregada${pz === 1 ? '' : 's'}</span></div></div>
+        <p class="fine">A precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
+        ${(m.notes || []).length ? `<h2>Tus notas de insumos</h2>${m.notes.map(n => `<div class="li" style="padding:8px 0;border-bottom:1px solid var(--line)"><span>Nota #${esc(n.invoice)}, ${esc(n.month)}</span><span class="st ${n.status === 'Pagada' ? 'ok' : 'goldt'}">${esc(n.status)}${Number(n.paid) ? ` · pagado ${M(n.paid, false)}` : ''}</span></div>`).join('')}` : ''}
+        <h2>Tus solicitudes</h2>
+        ${m.requests.length ? m.requests.map(r => S.edit && S.edit.id === r.id ? editBox(r) : `<div class="req"><div class="hd"><b>${esc(fdate(r.requestDate))}</b>${r.status === 'Cancelada' ? '<span class="muted small">Cancelada</span>' : r.deliveredAt ? `<span class="st ok small" style="font-weight:600">Entregado el ${esc(fday(r.deliveredAt))}</span>` : '<span class="goldt small" style="font-weight:700">Por entregar</span>'}</div>
+          ${r.editedAt ? '<div class="muted small" style="margin-top:2px">La corregiste</div>' : ''}
+          ${(r.items || []).map(i => `<div class="li"><span>${esc(i.name)}</span><span>${(r.items || []).some(x => x.state && x.state !== 'Pendiente') ? itemTag(i.state) + ' ' : ''}<b>× ${Number(i.qty)}</b></span></div>`).join('')}
+          ${r.note ? `<div class="muted small" style="margin-top:4px">Nota: ${esc(r.note)}</div>` : ''}
+          <div class="pills">${r.editable ? `<button class="pill pri" data-redit="${esc(r.id)}">Corregir</button><button class="pill" data-rcancel="${esc(r.id)}">Cancelar</button>` : ''}<button class="pill" data-noteref="${esc(reqRef(r))}" data-topic="insumos">Mandar nota</button></div></div>`).join('') : '<p class="empty">No tienes solicitudes en los últimos 75 días.</p>'}
+        ${notesBlock('insumos')}
+        <button class="btn line" style="margin-top:18px" data-noteref="General (insumos o nota del mes)" data-topic="insumos">Mandar nota a administración</button>`;
+    }
+    paint(`<h1>Mis solicitudes</h1><p class="lead">Puedes corregirlas mientras no se entreguen</p>${yoSeg()}${body}`);
+    bindYo(); bindRetry('mine'); bindNotes(); bindEdit();
+    $$('[data-redit]').forEach(b => b.onclick = () => { const r = S.mine.requests.find(x => x.id === b.dataset.redit); S.edit = { id: r.id, items: (r.items || []).map(i => ({ code: i.code, name: i.name, qty: Number(i.qty) })), note: r.note || '' }; render(); });
+    $$('[data-rcancel]').forEach(b => b.onclick = () => sheet(`<h2 style="margin-top:4px">¿Cancelar esta solicitud?</h2><p class="muted">Recepción ya no la va a entregar.</p><div style="display:grid;gap:10px;margin-top:16px"><button class="btn" id="yes">Sí, cancelar</button><button class="btn line" id="no">No</button></div>`, () => { $('#no').onclick = closeSheet; $('#yes').onclick = () => { closeSheet(); saveEdit(b.dataset.rcancel, [], ''); }; }));
   }
-  function composer(topic, opts, types) {
-    return `<div class="compose" id="compose"><h2>✉️ Mandar nota a administración</h2><p class="sub">Si algo no está bien, avísale a administración. Te contestan aquí mismo.</p>
-      ${types ? `<label for="ntype">¿Qué pasa?</label><select id="ntype">${types.map(t => `<option>${esc(t)}</option>`).join('')}</select>` : ''}
-      <label for="nref">¿Sobre qué?</label><select id="nref">${opts.map(o => `<option value="${esc(o)}" ${S.cref === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
-      <label for="ntext">Tu nota</label><textarea id="ntext" rows="3" maxlength="800" placeholder="${topic === 'semana' ? 'Ej. el tip de Olessia fue de $30, no de $20' : 'Ej. el CC del 13 de oct no lo pedí'}"></textarea>
-      <p class="err" id="nerr"></p><button class="btn" id="nsend" style="width:100%">Enviar a administración</button></div>`;
-  }
-  function bindComposer(topic, re) {
-    const b = $('#nsend'); if (!b) return;
-    b.onclick = async () => { const txt = $('#ntext').value.trim(), ty = $('#ntype') ? $('#ntype').value : '', ref = [ty, $('#nref').value].filter(Boolean).join(' · ');
-      if (!txt) return ($('#nerr').textContent = 'Escribe tu nota.');
-      b.disabled = true; b.textContent = 'Enviando…';
-      const { data, error } = await sb.rpc('fm_send_artist_note', { p_artist: S.artist, p_pin: S.pin, p_topic: topic, p_ref: ref, p_text: txt });
-      if (error || !data || !data.ok) { b.disabled = false; b.textContent = 'Enviar a administración'; $('#nerr').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo enviar. Intenta de nuevo.'); return; }
-      S.cref = ''; await loadNotes(); re(); const c = $('#compose'); if (c) c.insertAdjacentHTML('afterbegin', '<p class="okmsg">✓ Tu nota se envió a administración.</p>'); };
-    document.querySelectorAll('[data-noteref]').forEach(x => x.onclick = () => { S.cref = x.dataset.noteref; const sel = $('#nref'); if (sel) sel.value = S.cref; const t = $('#ntext'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
-  }
-  function editCard(r) {
-    const e = S.edit, opts = S.products.map(p => `<option value="${esc(p.code)}">${esc(p.name)}</option>`).join('');
-    return `<div class="rq editing"><h3><span>Corregir solicitud del ${esc(dmy(r.requestDate))}</span></h3><ul>${e.items.map((i, k) => `<li><span>${esc(i.name)}</span><span class="step"><button type="button" data-em="${k}">−</button><b>${i.qty}</b><button type="button" data-ep="${k}">+</button></span></li>`).join('') || '<li><span class="sub">Sin productos: si guardas así, la solicitud se cancela.</span></li>'}</ul>
-      <label for="eadd">Agregar producto</label><select id="eadd"><option value="">Elige un producto</option>${opts}</select>
-      <label for="enote">Nota (opcional)</label><input id="enote" value="${esc(e.note || '')}" maxlength="300">
-      <p class="err" id="eerr"></p><div class="redit"><button class="btn" id="esave">Guardar cambios</button><button class="btn ghost" id="eback">No cambiar</button></div></div>`;
+  function editBox(r) {
+    const e = S.edit;
+    return `<div class="req" style="background:var(--blush);border-radius:18px;padding:14px 16px;border:0;margin:8px 0"><div class="hd"><b>Corregir: ${esc(fdate(r.requestDate))}</b></div>
+      ${e.items.map((i, k) => `<div class="li" style="align-items:center"><span>${esc(i.name)}</span><span class="step"><button data-em="${k}" aria-label="Quitar uno">−</button><b>${i.qty}</b><button data-ep="${k}" aria-label="Agregar uno">+</button></span></div>`).join('') || '<p class="muted small">Sin productos: si guardas así, la solicitud se cancela.</p>'}
+      <label class="field" for="eadd">Agregar producto</label><select id="eadd" class="in"><option value="">Elige un producto</option>${S.products.map(p => `<option value="${esc(p.code)}">${esc(p.name)}</option>`).join('')}</select>
+      <label class="field" for="enote">Nota (opcional)</label><input id="enote" class="in" value="${esc(e.note || '')}" maxlength="300">
+      <p class="err" id="eerr"></p><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><button class="btn" id="esave">Guardar</button><button class="btn line" id="eback">No cambiar</button></div></div>`;
   }
   function bindEdit() {
-    const e = S.edit; if (!e) return;
-    document.querySelectorAll('[data-ep]').forEach(b => b.onclick = () => { const i = e.items[+b.dataset.ep]; i.qty = Math.min(100, i.qty + 1); renderMine(); });
-    document.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { const k = +b.dataset.em; if (e.items[k].qty > 1) e.items[k].qty--; else e.items.splice(k, 1); renderMine(); });
-    const add = $('#eadd'); if (add) add.onchange = () => { const p = S.products.find(x => x.code === add.value); if (!p) return; const ex = e.items.find(x => x.code === p.code); if (ex) ex.qty++; else e.items.push({ code: p.code, name: p.name, qty: 1 }); renderMine(); };
-    const nt = $('#enote'); if (nt) nt.oninput = () => { e.note = nt.value; };
-    const bk = $('#eback'); if (bk) bk.onclick = () => { S.edit = null; renderMine(); };
-    const sv = $('#esave'); if (sv) sv.onclick = () => saveEdit(e.id, e.items, e.note);
+    const e = S.edit; if (!e || !$('#esave')) return;
+    $$('[data-ep]').forEach(b => b.onclick = () => { const i = e.items[+b.dataset.ep]; i.qty = Math.min(100, i.qty + 1); render(); });
+    $$('[data-em]').forEach(b => b.onclick = () => { const k = +b.dataset.em; if (e.items[k].qty > 1) e.items[k].qty--; else e.items.splice(k, 1); render(); });
+    $('#eadd').onchange = ev => { const p = S.products.find(x => x.code === ev.target.value); if (!p) return; const ex = e.items.find(x => x.code === p.code); if (ex) ex.qty++; else e.items.push({ code: p.code, name: p.name, qty: 1 }); render(); };
+    $('#enote').oninput = ev => { e.note = ev.target.value; };
+    $('#eback').onclick = () => { S.edit = null; render(); };
+    $('#esave').onclick = () => saveEdit(e.id, e.items, e.note);
   }
   async function saveEdit(id, items, note) {
-    const { data, error } = await sb.rpc('fm_edit_my_request', { p_artist: S.artist, p_pin: S.pin, p_id: id, p_items: (items || []).map(i => ({ code: i.code, qty: i.qty })), p_note: note || '' });
-    if (error || !data || !data.ok) { const el = $('#eerr') || $('#err'); if (el) el.textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo guardar. Intenta de nuevo.'); return; }
-    S.edit = null; const b = $('#see'); if (b) b.click(); setTimeout(() => { const app2 = document.querySelector('#app'); if (app2) app2.insertAdjacentHTML('afterbegin', `<p class="okmsg" style="margin:0 0 8px">✓ ${data.cancelled ? 'Solicitud cancelada' : 'Solicitud corregida'}. Recepción ya ve el cambio.</p>`); }, 900);
-  }
-  const reqRef = r => `Solicitud del ${dmy(r.requestDate)}: ${(r.items || []).map(i => i.name + ' × ' + Number(i.qty)).join(', ')}`.slice(0, 190);
-  function renderMine() {
-    const m = S.mine, ym = new Date().toISOString().slice(0, 7);
-    let body = '';
-    if (m) {
-      const cur = m.requests.filter(r => (r.deliveredAt || r.requestDate || '').slice(0, 7) === ym);
-      const ent = cur.flatMap(r => (r.items || []).filter(i => i.state === 'Entregado')), pend = m.requests.flatMap(r => (r.items || []).filter(i => !i.state || i.state === 'Pendiente'));
-      const sub = ent.reduce((t, i) => t + Number(i.qty) * Number(m.prices[i.code] || 0), 0);
-      body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Solicitudes (75 días)</span><b>${m.requests.length}</b></div></div>
-        <p class="sub">El monto es a precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
-        ${m.notes.length ? `<h2>Tus notas</h2>${m.notes.map(n => `<div class="rq"><h3><span>Nota #${esc(n.invoice)} · ${esc(n.month)}</span>${n.status === 'Pagada' ? '<span class="tg ok">Pagada</span>' : `<span class="tg pe">${esc(n.status)}</span>`}</h3>${Number(n.paid) ? `<small>Pagos registrados: $${Number(n.paid).toFixed(2)}</small>` : '<small>Sin pagos registrados</small>'}</div>`).join('')}` : ''}
-        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => S.edit && S.edit.id === r.id ? editCard(r) : `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}${r.editedAt ? ' <span class="tg pe">Corregida</span>' : ''}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul><button class="linkb" data-noteref="${esc(reqRef(r))}">✉️ Mandar nota sobre esta solicitud</button>${r.editable ? `<div class="redit"><button class="chip" data-redit="${esc(r.id)}">✏️ Corregir solicitud</button><button class="chip" data-rcancel="${esc(r.id)}">Cancelar solicitud</button></div>` : ''}${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
-    }
-    app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
-      <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
-      <p class="err" id="err"></p><button class="btn" id="see" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : m ? 'Actualizar' : 'Ver mis solicitudes'}</button>${body}`;
-    $('#art').onchange = e => { S.artist = e.target.value; S.mine = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderMine(); };
-    $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
-    bindTabs();
-    document.querySelectorAll('[data-redit]').forEach(b => b.onclick = () => { const r = m.requests.find(x => x.id === b.dataset.redit); S.edit = { id: r.id, items: (r.items || []).map(i => ({ code: i.code, name: i.name, qty: Number(i.qty) })), note: r.note || '' }; renderMine(); });
-    document.querySelectorAll('[data-rcancel]').forEach(b => b.onclick = () => { if (confirm('¿Cancelar esta solicitud de insumos?')) saveEdit(b.dataset.rcancel, [], ''); });
-    bindEdit();
-    if (m) { const opts = ['General (insumos o nota del mes)'].concat(m.requests.map(reqRef)); document.querySelector('#app').insertAdjacentHTML('beforeend', composer('insumos', opts, null) + notesList('insumos')); bindComposer('insumos', renderMine); }
-    $('#see').onclick = async () => {
-      if (!S.artist) return ($('#err').textContent = 'Elige tu nombre.');
-      if (!/^\d{4,8}$/.test(S.pin)) return ($('#err').textContent = 'Escribe tu clave (4 a 8 números).');
-      S.loading = true; renderMine();
-      const { data, error } = await sb.rpc('fm_my_requests', { p_artist: S.artist, p_pin: S.pin });
-      S.loading = false;
-      if (error || !data || !data.ok) { S.mine = null; renderMine(); $('#err').textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); return; }
-      S.mine = { requests: data.requests || [], prices: data.prices || {}, notes: data.notes || [] }; renderMine(); loadNotes(renderMine);
-    };
+    const r = await call('fm_edit_my_request', { p_id: id, p_items: (items || []).map(i => ({ code: i.code, qty: i.qty })), p_note: note || '' });
+    if (r.err) { const el = $('#eerr'); if (el) el.textContent = r.err; else alert(r.err); return; }
+    S.edit = null; S.mine = null; S.flash = r.cancelled ? 'Solicitud cancelada. Recepción ya ve el cambio.' : 'Solicitud corregida. Recepción ya ve el cambio.'; render();
   }
 
-  const $$m = v => '$' + Number(v || 0).toFixed(2);
-  const fdate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short' });
-  async function loadWeek() {
-    const err = t => { const e = $('#err'); if (e) e.textContent = t; };
-    if (!S.artist) return err('Elige tu nombre.');
-    if (!/^\d{4,8}$/.test(S.pin)) return err('Escribe tu clave (4 a 8 números).');
-    S.loading = true; renderWeek();
-    const { data, error } = await sb.rpc('fm_my_week', { p_artist: S.artist, p_pin: S.pin, p_offset: S.wofs });
-    S.loading = false;
-    if (error || !data || !data.ok) { S.week = null; renderWeek(); err((data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.')); return; }
-    S.week = data; renderWeek(); loadNotes(renderWeek);
+  // notas a administración
+  function notesBlock(topic) {
+    const l = (S.notes || []).filter(n => n.topic === topic); if (!l.length) return S.flash ? `<p class="okmsg">${esc(S.flash)}</p>` : '';
+    const out = `${S.flash ? `<p class="okmsg">${esc(S.flash)}</p>` : ''}<h2>Tus notas a administración</h2>${l.map(n => `<div class="card" style="margin-bottom:10px"><div class="sh"><b style="font-size:13.5px">“${esc(n.text)}”</b><span class="small ${n.status === 'Resuelto' ? 'ok' : 'goldt'}" style="font-weight:600;white-space:nowrap">${n.status === 'Resuelto' ? 'Resuelto' : n.status === 'Visto' ? 'Visto' : 'Enviada'}</span></div><div class="muted small" style="margin-top:4px">${esc(n.ref || '')}</div>${n.reply ? `<div class="reply">Administración: ${esc(n.reply)}</div>` : ''}</div>`).join('')}`;
+    S.flash = ''; return out;
   }
-  const CHECKS = [['limpieza', '🧼', 'Limpieza', 'Mantén tu cabina limpia y ordenada al terminar cada servicio. También cuenta para tu meta.'],
-    ['reviews', '⭐', 'Reviews', 'Recuerda pedirle review a tus clientas al terminar su servicio.'],
-    ['fotos', '📸', 'Fotos y videos', 'Manda fotos y videos de tus trabajos para subir a redes.']];
-  const chk = v => v === 'O' ? '<span class="tg ok">✓ Cumplido</span>' : v === 'X' ? '<span class="tg no">No cumplido</span>' : v === '?' ? '<span class="tg pe">Por revisar</span>' : '';
-  function goalCard(w) {
-    const meta = Number(w.goal || 0), neto = Number((w.totals || {}).sales || 0), past = S.wofs < 0;
-    if (!meta) return '<div class="rq"><h3><span>🎯 Tu meta de la semana</span></h3><small>Todavía no tienes meta asignada esta semana.</small></div>';
-    const falta = Math.round((meta - neto) * 100) / 100, pctv = Math.max(0, Math.min(100, neto / meta * 100)), fs = Number(w.fullSet || 180), rf = Number(w.refill || 100);
-    let msg;
-    if (falta <= 0) msg = past ? `🎉 ¡Lograste tu meta! Quedaste $${(-falta).toFixed(2)} arriba.` : `🎉 ¡Ya lograste tu meta! Vas $${(-falta).toFixed(2)} arriba. ¡Sigue así!`;
-    else if (past) msg = `Te faltaron $${falta.toFixed(2)} para tu meta.`;
-    else if (falta <= rf) msg = `¡Estás a <b>un refill</b> de lograr tu meta! Te faltan $${falta.toFixed(2)}.`;
-    else if (falta <= fs) msg = `¡Estás a <b>un full set</b> de lograr tu meta! Te faltan $${falta.toFixed(2)}.`;
-    else { const n = Math.ceil(falta / fs); msg = `Te faltan <b>$${falta.toFixed(2)}</b>: unos <b>${n} full sets</b> o ${Math.ceil(falta / rf)} refills.`; }
-    return `<div class="goal ${falta <= 0 ? 'done' : ''}"><div class="gtop"><span>🎯 Tu meta ${past ? 'de esa semana' : 'de la semana'}</span><b>$${neto.toFixed(2)} <small>de $${meta.toFixed(2)}</small></b></div>
-      <div class="gbar"><i style="width:${pctv.toFixed(1)}%"></i></div><p>${msg}</p><small>La meta es en venta neta (precio menos descuentos), de viernes a jueves.</small></div>`;
+  function bindNotes() { $$('[data-noteref]').forEach(b => b.onclick = () => noteSheet(b.dataset.topic || 'insumos', b.dataset.noteref)); }
+  function noteSheet(topic, ref) {
+    const types = topic === 'semana' ? ['Falta una clienta o servicio', 'Tip incorrecto', 'Servicio o precio incorrecto', 'Comisión incorrecta', 'Otro'] : null;
+    sheet(`<h2 style="margin-top:4px">Mandar nota a administración</h2><p class="muted small">Sobre: ${esc(ref)}</p>
+      ${types ? `<label class="field" for="ntype">¿Qué pasa?</label><select id="ntype" class="in">${types.map(t => `<option>${esc(t)}</option>`).join('')}</select>` : ''}
+      <label class="field" for="ntext">Tu nota</label><textarea id="ntext" class="in" rows="3" maxlength="800" placeholder="${topic === 'semana' ? 'Ej. el tip de Olessia fue de $30, no de $20' : 'Ej. el CC del 13 de octubre no lo pedí'}"></textarea>
+      <p class="err" id="nerr"></p><button class="btn" id="nsend">Enviar a administración</button><p class="fine" style="text-align:center">Te contestan aquí mismo.</p>`, () => {
+      setTimeout(() => { const t = $('#ntext'); if (t) t.focus(); }, 80);
+      $('#nsend').onclick = async () => {
+        const txt = $('#ntext').value.trim(), ty = $('#ntype') ? $('#ntype').value : ''; if (!txt) return ($('#nerr').textContent = 'Escribe tu nota.');
+        const b = $('#nsend'); b.disabled = true; b.textContent = 'Enviando…';
+        const r = await call('fm_send_artist_note', { p_topic: topic, p_ref: [ty, ref].filter(Boolean).join(' · '), p_text: txt });
+        if (r.err) { b.disabled = false; b.textContent = 'Enviar a administración'; $('#nerr').textContent = r.err; return; }
+        closeSheet(); S.flash = 'Tu nota se envió a administración.'; const n = await call('fm_my_notes'); if (!n.err) S.notes = n.notes || []; render();
+      };
+    });
   }
-  function detailList(w) {
-    const rows = w.rows || [], byDay = {};
-    rows.forEach(r => { (byDay[r.date] = byDay[r.date] || []).push(r); });
+
+  // Mi semana
+  const CHECKS = [['limpieza', 'Limpieza'], ['reviews', 'Reviews'], ['fotos', 'Fotos y videos']];
+  function vSem() {
+    if (!S.week || (!S.week.err && S.week._ofs !== S.wofs)) need('week', 'fm_my_week', { p_offset: S.wofs }, r => { r._ofs = S.wofs; });
+    let body, sub = 'De viernes a jueves';
+    if (!S.week || S.busy.week) body = '<p class="loading">Cargando…</p>';
+    else if (S.week.err) body = errBox(S.week);
+    else {
+      const w = S.week, t = w.totals || {}, g = goalInfo(w, S.wofs < 0), d = w.detail;
+      sub = `${cap(wdm(w.weekStart))} al ${wdm(w.weekEnd, true)}`;
+      body = `${g.meta ? `<div class="fanwrap">${fan([], { n: 44, r0: 96, r1: 142, fill: Math.min(1, g.neto / g.meta) })}<div class="fanc"><b>${M(g.neto, false)}</b><span>de tu meta de ${M(g.meta, false)}</span></div></div><p style="text-align:center;color:var(--mauve);font-weight:600;font-size:14px;margin:12px 0 0">${esc(g.msg)}</p>` : `<p class="empty">${esc(g.msg)}</p>`}
+        <div class="stats" style="margin-top:20px"><div><b>${Number(t.count || 0)}</b><span>Servicios</span></div><div><b>${M(t.commission, false)}</b><span>Comisión</span></div><div><b>${M(t.tips, false)}</b><span>Tips</span></div></div>
+        <div class="soft sh" style="margin-top:16px;align-items:center"><span class="muted">Total a recibir</span><b class="mid">${M(Number(t.commission || 0) + Number(t.tips || 0))}</b></div>
+        <p class="fine">Ventas netas de la semana: ${M(t.sales)}. La meta cuenta precio menos descuentos. El total no incluye descuentos de tu nota de insumos ni ajustes de administración.</p>
+        <h2>Tus otras metas</h2>${CHECKS.map(([k, l]) => { const v = (w.checks || {})[k];
+          return `<div class="check">${v === 'O' ? '<span class="ic" style="background:var(--sage);color:#fff">✓</span>' : v === 'X' ? '<span class="ic" style="background:var(--warn);color:#fff">×</span>' : '<span class="ic" style="border:1.6px solid var(--gold)"></span>'}<span style="flex:1;font-weight:500">${l}</span><span class="small" style="font-weight:600;color:${v === 'O' ? 'var(--sage)' : v === 'X' ? 'var(--warn)' : 'var(--gold)'}">${v === 'O' ? 'Hecho' : v === 'X' ? 'No cumplido' : v === '?' ? 'Por revisar' : 'Falta'}</span></div>`; }).join('')}
+        <button class="btn line" id="reqdet" style="margin-top:18px" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? 'Ya pediste el detalle de esta semana' : d === 'Enviado' ? '¿Algo no cuadra? Pedir que lo revisen otra vez' : 'Pedir el detalle de mi semana'}</button>
+        ${d === 'Pendiente' ? '<p class="fine" style="text-align:center">Administración va a revisar tu semana; cuando esté lista, tu detalle aparece aquí.</p>' : ''}
+        ${d === 'Enviado' ? detail(w) : ''}
+        ${notesBlock('semana')}
+        <button class="btn line" style="margin-top:14px" data-noteref="Semana ${esc(fshort(w.weekStart))} – ${esc(fshort(w.weekEnd))}" data-topic="semana">Mandar nota sobre mi semana</button>
+        <p class="err" id="werr"></p>`;
+    }
+    paint(`<h1>Mi semana</h1><p class="lead">${esc(sub)}</p>${yoSeg()}<div class="wk"><button data-wk="-1" ${S.wofs <= -8 ? 'disabled' : ''} aria-label="Semana anterior">‹</button><b>${S.wofs === 0 ? 'Esta semana' : S.wofs === -1 ? 'Semana pasada' : `Hace ${-S.wofs} semanas`}</b><button data-wk="1" ${S.wofs >= 0 ? 'disabled' : ''} aria-label="Semana siguiente">›</button></div>${body}`);
+    bindYo(); bindRetry('week'); bindNotes();
+    $$('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.max(-8, Math.min(0, S.wofs + Number(b.dataset.wk))); S.week = null; render(); });
+    const rq = $('#reqdet'); if (rq) rq.onclick = async () => { rq.disabled = true; rq.textContent = 'Enviando…'; const r = await call('fm_request_week_detail', { p_offset: S.wofs });
+      if (r.err) { rq.disabled = false; rq.textContent = 'Pedir el detalle de mi semana'; $('#werr').textContent = r.err; return; } S.week.detail = 'Pendiente'; render(); };
+  }
+  function detail(w) {
+    const byDay = {}; (w.rows || []).forEach(r => (byDay[r.date] = byDay[r.date] || []).push(r));
     const sent = w.sentAt ? new Date(w.sentAt).toLocaleString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
-    return `<h2 id="detalle">📄 Tu detalle de la semana</h2><p class="sub">Revisado y enviado por administración${sent ? ' el ' + esc(sent) : ''}</p>
-      ${rows.length ? Object.entries(byDay).map(([d, l]) => `<div class="rq"><h3><span>${esc(fdate(d))}</span><small>${l.length} servicio${l.length > 1 ? 's' : ''}</small></h3><ul>${l.map(r => `<li><span>${esc(r.service)}<br><small>${esc(r.client || '')} · neto ${$$m(r.net)}</small><br><button class="linkb" data-noteref="${esc(fdate(r.date) + ' · ' + r.service + ' · ' + (r.client || ''))}">✉️ nota</button></span><span style="text-align:right">${$$m(Number(r.commission) + Number(r.tip))}<br><small>comisión ${$$m(r.commission)}${Number(r.tip) ? ' · tip ' + $$m(r.tip) : ''}</small></span></li>`).join('')}</ul></div>`).join('') : '<p class="sub">No hay servicios en esta semana.</p>'}`;
-  }
-  function renderWeek() {
-    const w = S.week; let body = '';
-    if (w) {
-      const t = w.totals || {}, d = w.detail;
-      body = `<div class="weeknav2"><button class="chip" data-wk="-1">← Anterior</button><b>${esc(fdate(w.weekStart))} – ${esc(fdate(w.weekEnd))}</b><button class="chip" data-wk="1" ${S.wofs >= 0 ? 'disabled' : ''}>Siguiente →</button></div>
-        ${goalCard(w)}
-        <div class="kp"><div><span>Servicios</span><b>${Number(t.count || 0)}</b></div><div><span>Ventas (neto)</span><b>${$$m(t.sales)}</b></div><div><span>Comisiones</span><b>${$$m(t.commission)}</b></div><div><span>Tips</span><b>${$$m(t.tips)}</b></div></div>
-        <div class="rq" style="border-color:var(--gold)"><h3><span>Total a recibir</span><b>${$$m(Number(t.commission || 0) + Number(t.tips || 0))}</b></h3><small>Comisiones + tips de la semana (viernes a jueves). No incluye descuentos de tu nota de insumos ni ajustes de administración.</small></div>
-        <button class="btn ghost" id="reqdet" style="width:100%;margin-top:12px" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? '✓ Ya pediste el detalle de esta semana' : d === 'Enviado' ? '¿Algo no cuadra? Pedir que lo revisen otra vez' : 'Solicitar detalle de la semana'}</button>
-        ${d === 'Pendiente' ? '<p class="sub" style="text-align:center;margin-top:6px">Administración va a revisar tu semana. Cuando esté lista, tu detalle aparecerá aquí abajo.</p>' : ''}
-        ${d === 'Enviado' ? detailList(w) : ''}
-        <h2>Tus otras metas</h2>${CHECKS.map(([k, ic, lab, txt]) => `<div class="rq"><h3><span>${ic} ${lab}</span>${chk((w.checks || {})[k])}</h3><small>${txt}</small></div>`).join('')}`;
-    }
-    app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
-      <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
-      <p class="err" id="err"></p><button class="btn" id="seew" style="width:100%" ${S.loading ? 'disabled' : ''}>${S.loading ? 'Cargando…' : w ? 'Actualizar' : 'Ver mi semana'}</button>${body}`;
-    $('#art').onchange = e => { S.artist = e.target.value; S.week = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderWeek(); };
-    $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
-    if (w) { const opts = [`Semana ${fdate(w.weekStart)} – ${fdate(w.weekEnd)}`].concat((w.rows || []).map(r => fdate(r.date) + ' · ' + r.service + ' · ' + (r.client || '')));
-      document.querySelector('#app').insertAdjacentHTML('beforeend', composer('semana', opts, ['Falta una clienta o servicio', 'Tip incorrecto', 'Servicio o precio incorrecto', 'Comisión incorrecta', 'Otro']) + notesList('semana')); bindComposer('semana', renderWeek); }
-    $('#seew').onclick = loadWeek; bindTabs();
-    document.querySelectorAll('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.min(0, S.wofs + Number(b.dataset.wk)); loadWeek(); });
-    const rq = $('#reqdet'); if (rq) rq.onclick = async () => {
-      rq.disabled = true; rq.textContent = 'Enviando…';
-      const { data, error } = await sb.rpc('fm_request_week_detail', { p_artist: S.artist, p_pin: S.pin, p_offset: S.wofs });
-      if (error || !data || !data.ok) { rq.disabled = false; rq.textContent = 'Solicitar detalle de la semana'; $('#err').textContent = (data && data.error) || 'No se pudo enviar. Intenta de nuevo.'; return; }
-      S.week.detail = 'Pendiente'; renderWeek();
-    };
+    return `<h2>Tu detalle de la semana</h2><p class="muted small" style="margin-top:-4px">Revisado y enviado por administración${sent ? ' el ' + esc(sent) : ''}</p>
+      ${Object.keys(byDay).length ? Object.entries(byDay).map(([d, l]) => `<h2 style="font-size:15px;margin:16px 0 0">${esc(fdate(d))}</h2>${l.map(r => `<div class="row"><div class="grow"><div class="t1">${esc(r.service)}</div><div class="t2">${esc(r.client || '')}, neto ${M(r.net)}</div><button class="pill" style="margin-top:6px;min-height:28px;padding:3px 10px" data-noteref="${esc(fshort(r.date) + ' · ' + r.service + ' · ' + (r.client || ''))}" data-topic="semana">Mandar nota</button></div><div class="r"><div class="t1">${M(Number(r.commission) + Number(r.tip))}</div><div class="t2">comisión ${M(r.commission, false)}${Number(r.tip) ? ` + tip ${M(r.tip, false)}` : ''}</div></div></div>`).join('')}`).join('') : '<p class="empty">No hay servicios en esta semana.</p>'}`;
   }
 
-  async function send() {
-    const err = t => { $('#err').textContent = t; };
-    if (!S.artist) return err('Elige tu nombre.');
-    if (!/^\d{4,8}$/.test(S.pin)) return err('Escribe tu clave (4 a 8 números).');
-    if (!total()) return err('Elige al menos un producto.');
-    S.sending = true; render();
-    const items = Object.entries(S.qty).map(([code, qty]) => ({ code, qty }));
-    const { data, error } = await sb.rpc('fm_submit_supply_request', { p_artist: S.artist, p_pin: S.pin, p_items: items, p_note: S.note });
-    S.sending = false;
-    if (error || !data || !data.ok) { render(); return err((data && data.error) || 'No se pudo enviar. Revisa tu conexión e intenta de nuevo.'); }
-    const name = (S.artists.find(a => a.id === S.artist) || {}).name || '', sent = items.map(i => ({ ...i, name: (S.products.find(p => p.code === i.code) || {}).name || i.code }));
-    S.qty = {}; S.note = '';
-    app.innerHTML = header + `<div class="done"><div class="ok">✓</div><h1>Solicitud enviada</h1><p class="sub">${esc(name)} · ${new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-      <div class="sum">${sent.map(i => `<div><span>${esc(i.name)}</span><b>× ${i.qty}</b></div>`).join('')}</div>
-      <p class="sub">Recepción ya la tiene en la app. Se cobra en tu nota del mes, solo lo que te entreguen.</p></div>
-      <div class="bar"><div class="in"><button class="btn" id="mine">Ver mis solicitudes</button><button class="btn ghost" id="again">Hacer otra solicitud</button></div></div>`;
-    $('#again').onclick = render; $('#mine').onclick = () => { S.tab = 'mis'; S.mine = null; render(); const b = $('#see'); if (b && S.artist && S.pin) b.click(); };
-  }
-
+  /* ---------- arranque ---------- */
   sb.rpc('fm_public_form').then(({ data, error }) => {
-    if (error || !data) { app.innerHTML = header + '<p class="err">No se pudo cargar la lista de productos. Intenta más tarde.</p>'; return; }
+    if (error || !data) { app.innerHTML = '<p class="err" style="padding-top:30px">No se pudo cargar el portal. Revisa tu internet e intenta más tarde.</p>'; return; }
     S.artists = data.artists || []; S.products = data.products || [];
-    if (!S.artists.length) { app.innerHTML = header + '<p class="err">Todavía no hay lashistas con clave. Pide a administración que te asigne una.</p>'; return; }
+    if (!S.artists.length) { app.innerHTML = '<p class="err" style="padding-top:30px">Todavía no hay lashistas con clave. Pide a administración que te asigne una.</p>'; return; }
     if (!S.artists.some(a => a.id === S.artist)) S.artist = '';
     render();
   });
