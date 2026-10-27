@@ -46,6 +46,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .empty{color:var(--muted);padding:16px 14px}
 .goal{border:1.5px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--blush)}.goal.done{border-color:var(--ok)}.goal .gtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700}.goal .gtop b{font-size:20px}.goal .gtop small{font-size:13px;color:var(--muted);font-weight:600}
 .gbar{height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 8px}.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.goal.done .gbar i{background:var(--ok)}.goal p{margin:0 0 4px;font-size:15px}.goal small{color:var(--muted);font-size:12px}
+.redit{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.rq.editing{border-color:var(--gold);background:var(--blush)}.rq.editing select,.rq.editing input{margin-bottom:4px}
 .compose{margin-top:22px;border:1.5px solid var(--gold);border-radius:16px;padding:12px 14px}.compose h2{margin-top:0}.compose textarea{resize:vertical}.okmsg{color:var(--ok);font-weight:700;margin:0 0 6px}
 .linkb{border:0;background:none;color:var(--pink-deep);font:inherit;font-size:12.5px;font-weight:700;padding:6px 0 0;cursor:pointer;text-decoration:underline}.ntxt{margin:4px 0;font-size:14px}.nreply{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--blush);font-size:13.5px}
 .weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
@@ -126,6 +127,27 @@ h2{font-size:17px;margin:22px 0 4px}
       S.cref = ''; await loadNotes(); re(); const c = $('#compose'); if (c) c.insertAdjacentHTML('afterbegin', '<p class="okmsg">✓ Tu nota se envió a administración.</p>'); };
     document.querySelectorAll('[data-noteref]').forEach(x => x.onclick = () => { S.cref = x.dataset.noteref; const sel = $('#nref'); if (sel) sel.value = S.cref; const t = $('#ntext'); if (t) { t.scrollIntoView({ behavior: 'smooth', block: 'center' }); t.focus(); } });
   }
+  function editCard(r) {
+    const e = S.edit, opts = S.products.map(p => `<option value="${esc(p.code)}">${esc(p.name)}</option>`).join('');
+    return `<div class="rq editing"><h3><span>Corregir solicitud del ${esc(dmy(r.requestDate))}</span></h3><ul>${e.items.map((i, k) => `<li><span>${esc(i.name)}</span><span class="step"><button type="button" data-em="${k}">−</button><b>${i.qty}</b><button type="button" data-ep="${k}">+</button></span></li>`).join('') || '<li><span class="sub">Sin productos: si guardas así, la solicitud se cancela.</span></li>'}</ul>
+      <label for="eadd">Agregar producto</label><select id="eadd"><option value="">Elige un producto</option>${opts}</select>
+      <label for="enote">Nota (opcional)</label><input id="enote" value="${esc(e.note || '')}" maxlength="300">
+      <p class="err" id="eerr"></p><div class="redit"><button class="btn" id="esave">Guardar cambios</button><button class="btn ghost" id="eback">No cambiar</button></div></div>`;
+  }
+  function bindEdit() {
+    const e = S.edit; if (!e) return;
+    document.querySelectorAll('[data-ep]').forEach(b => b.onclick = () => { const i = e.items[+b.dataset.ep]; i.qty = Math.min(100, i.qty + 1); renderMine(); });
+    document.querySelectorAll('[data-em]').forEach(b => b.onclick = () => { const k = +b.dataset.em; if (e.items[k].qty > 1) e.items[k].qty--; else e.items.splice(k, 1); renderMine(); });
+    const add = $('#eadd'); if (add) add.onchange = () => { const p = S.products.find(x => x.code === add.value); if (!p) return; const ex = e.items.find(x => x.code === p.code); if (ex) ex.qty++; else e.items.push({ code: p.code, name: p.name, qty: 1 }); renderMine(); };
+    const nt = $('#enote'); if (nt) nt.oninput = () => { e.note = nt.value; };
+    const bk = $('#eback'); if (bk) bk.onclick = () => { S.edit = null; renderMine(); };
+    const sv = $('#esave'); if (sv) sv.onclick = () => saveEdit(e.id, e.items, e.note);
+  }
+  async function saveEdit(id, items, note) {
+    const { data, error } = await sb.rpc('fm_edit_my_request', { p_artist: S.artist, p_pin: S.pin, p_id: id, p_items: (items || []).map(i => ({ code: i.code, qty: i.qty })), p_note: note || '' });
+    if (error || !data || !data.ok) { const el = $('#eerr') || $('#err'); if (el) el.textContent = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta opción todavía no está activada. Avísale a administración.' : 'No se pudo guardar. Intenta de nuevo.'); return; }
+    S.edit = null; const b = $('#see'); if (b) b.click(); setTimeout(() => { const app2 = document.querySelector('#app'); if (app2) app2.insertAdjacentHTML('afterbegin', `<p class="okmsg" style="margin:0 0 8px">✓ ${data.cancelled ? 'Solicitud cancelada' : 'Solicitud corregida'}. Recepción ya ve el cambio.</p>`); }, 900);
+  }
   const reqRef = r => `Solicitud del ${dmy(r.requestDate)}: ${(r.items || []).map(i => i.name + ' × ' + Number(i.qty)).join(', ')}`.slice(0, 190);
   function renderMine() {
     const m = S.mine, ym = new Date().toISOString().slice(0, 7);
@@ -137,7 +159,7 @@ h2{font-size:17px;margin:22px 0 4px}
       body = `<div class="kp"><div><span>Entregado este mes</span><b>${ent.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Aprox. en tu nota del mes</span><b>$${sub.toFixed(2)}</b></div><div><span>Por entregar</span><b>${pend.reduce((t, i) => t + Number(i.qty), 0)} pzas</b></div><div><span>Solicitudes (75 días)</span><b>${m.requests.length}</b></div></div>
         <p class="sub">El monto es a precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
         ${m.notes.length ? `<h2>Tus notas</h2>${m.notes.map(n => `<div class="rq"><h3><span>Nota #${esc(n.invoice)} · ${esc(n.month)}</span>${n.status === 'Pagada' ? '<span class="tg ok">Pagada</span>' : `<span class="tg pe">${esc(n.status)}</span>`}</h3>${Number(n.paid) ? `<small>Pagos registrados: $${Number(n.paid).toFixed(2)}</small>` : '<small>Sin pagos registrados</small>'}</div>`).join('')}` : ''}
-        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul><button class="linkb" data-noteref="${esc(reqRef(r))}">✉️ Mandar nota sobre esta solicitud</button>${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
+        <h2>Tus solicitudes</h2>${m.requests.length ? m.requests.map(r => S.edit && S.edit.id === r.id ? editCard(r) : `<div class="rq"><h3><span>Solicitaste ${esc(dmy(r.requestDate))}${r.editedAt ? ' <span class="tg pe">Corregida</span>' : ''}</span><small>${r.deliveredAt ? 'Entregado ' + esc(dmy(r.deliveredAt)) : 'Aún sin entregar'}</small></h3><ul>${(r.items || []).map(i => `<li><span>${esc(i.name)} × ${Number(i.qty)}</span>${tag(i.state)}</li>`).join('')}</ul><button class="linkb" data-noteref="${esc(reqRef(r))}">✉️ Mandar nota sobre esta solicitud</button>${r.editable ? `<div class="redit"><button class="chip" data-redit="${esc(r.id)}">✏️ Corregir solicitud</button><button class="chip" data-rcancel="${esc(r.id)}">Cancelar solicitud</button></div>` : ''}${r.note ? `<small>Nota: ${esc(r.note)}</small>` : ''}</div>`).join('') : '<p class="sub">No tienes solicitudes en los últimos 75 días.</p>'}`;
     }
     app.innerHTML = header + tabs() + `<label for="art">Tu nombre</label><select id="art"><option value="">Elige tu nombre</option>${S.artists.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
       <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="La que te dio administración">
@@ -145,6 +167,9 @@ h2{font-size:17px;margin:22px 0 4px}
     $('#art').onchange = e => { S.artist = e.target.value; S.mine = null; try { localStorage.setItem('fm-req-artist', S.artist); } catch (x) {} renderMine(); };
     $('#pin').oninput = e => { S.pin = e.target.value.replace(/\D/g, ''); e.target.value = S.pin; };
     bindTabs();
+    document.querySelectorAll('[data-redit]').forEach(b => b.onclick = () => { const r = m.requests.find(x => x.id === b.dataset.redit); S.edit = { id: r.id, items: (r.items || []).map(i => ({ code: i.code, name: i.name, qty: Number(i.qty) })), note: r.note || '' }; renderMine(); });
+    document.querySelectorAll('[data-rcancel]').forEach(b => b.onclick = () => { if (confirm('¿Cancelar esta solicitud de insumos?')) saveEdit(b.dataset.rcancel, [], ''); });
+    bindEdit();
     if (m) { const opts = ['General (insumos o nota del mes)'].concat(m.requests.map(reqRef)); document.querySelector('#app').insertAdjacentHTML('beforeend', composer('insumos', opts, null) + notesList('insumos')); bindComposer('insumos', renderMine); }
     $('#see').onclick = async () => {
       if (!S.artist) return ($('#err').textContent = 'Elige tu nombre.');
