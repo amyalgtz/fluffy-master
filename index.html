@@ -383,7 +383,7 @@ details.how ul{margin:8px 0 0;padding-left:18px;line-height:1.8}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-26 19:30';
+window.FM_VERSION = '2026-10-26 21:15';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -8284,6 +8284,31 @@ Object.assign(Orders, {
   };
   // búsqueda también por número de guía
   const _q = S.ord;
+}
+
+
+/* =========================================================
+   PORTAL · MANAGER: en Insumos → Link para lashistas, administración marca quién es manager.
+   La manager ve en su portal (solo lectura) la Hoja del día, los depósitos y el payroll.
+   ========================================================= */
+{
+  const H = Views.insumos.html, M = Views.insumos.mount;
+  Views.insumos.html = function () {
+    let h = H.call(this); if (Mode.reception || !/data-setpin=/.test(h)) return h;
+    const mg = Store.config.portalManagers || [];
+    Store.config.artists.forEach(a => { const on = mg.includes(a.id);
+      h = h.replace(`<button class="btn sm" data-setpin="${a.id}">`, `<button class="btn sm ${on ? 'primary' : ''}" data-mgr="${a.id}" title="La manager ve en su portal la Hoja del día, los depósitos y el payroll (solo lectura)">${on ? '★ Manager' : 'Hacer manager'}</button> <button class="btn sm" data-setpin="${a.id}">`); });
+    return h.replace(/(<section class="panel"[^>]*>\s*<h2>[^<]*[Cc]laves[^<]*<\/h2>)/, `$1<p class="hint">★ <b>Manager</b>: además de su portal, ve la Hoja del día, los depósitos y el payroll, solo para consulta. Su clave debe tener <b>6 a 8 dígitos</b>.</p>`);
+  };
+  Views.insumos.mount = function (root) {
+    M.call(this, root);
+    $$('[data-mgr]', root).forEach(b => b.onclick = async () => {
+      const id = b.dataset.mgr, a = Store.config.artists.find(x => x.id === id), mg = (Store.config.portalManagers || []).slice(), on = mg.includes(id);
+      if (!on && !await UI.confirm('Hacer manager', `${esc(a.name)} podrá ver en su portal la Hoja del día, los depósitos (con nombres de clientas) y el payroll de todas las lashistas, solo para consulta. Su clave debe tener 6 a 8 dígitos.`, 'Hacer manager')) return;
+      try { await Store.saveConfig({ portalManagers: on ? mg.filter(x => x !== id) : mg.concat(id) }); UI.toast(on ? `${a.name} ya no es manager en el portal` : `${a.name} es manager · si su clave tiene menos de 6 dígitos, cámbiala`); UI.render(); }
+      catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); }
+    });
+  };
 }
 
 

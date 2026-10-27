@@ -47,6 +47,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-of
 .goal{border:1.5px solid var(--gold);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--blush)}.goal.done{border-color:var(--ok)}.goal .gtop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:700}.goal .gtop b{font-size:20px}.goal .gtop small{font-size:13px;color:var(--muted);font-weight:600}
 .gbar{height:12px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 8px}.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--pink-deep),var(--gold))}.goal.done .gbar i{background:var(--ok)}.goal p{margin:0 0 4px;font-size:15px}.goal small{color:var(--muted);font-size:12px}
 .redit{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.rq.editing{border-color:var(--gold);background:var(--blush)}.rq.editing select,.rq.editing input{margin-bottom:4px}
+.mhead{display:flex;flex-direction:column;gap:2px;margin:6px 0 10px;padding:10px 12px;border-radius:14px;background:var(--blush)}.mtabs{margin:12px 0 6px}.mtabs button{flex:1}
+.mk{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:8px 0}.mkb{border:1px solid var(--line);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;background:var(--card)}.mkb span{font-size:12.5px;color:var(--muted);font-weight:600}.mkb b{font-size:20px}.mkb small{font-size:12px;color:var(--muted)}
+.mkb.big{grid-column:1/-1;border:2px solid var(--gold)}.mkb.big b{font-size:28px}.mkb.cash{border-color:#2E7D4F}.mkb.warn{border-color:#C0392B}.mkb.warn b{color:#C0392B}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) 90px auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.mbar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;display:block}.mbar i{display:block;height:100%;background:var(--pink-deep);border-radius:99px}.mbar.wide{margin:6px 0 8px}
+.mcard .mtop{display:flex;justify-content:space-between;gap:10px;font-size:15px}.mcard .msub{font-size:13px;color:var(--muted);margin-top:3px}.mday{margin:14px 0 6px;font-size:15px}.mday small{font-weight:600;color:var(--muted);text-transform:none}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:11.5px;color:var(--muted)}.mgrid b{display:block;font-size:13.5px;color:var(--ink)}.mnav{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.mnav input{width:auto;flex:1;min-width:140px}
+.tg.no{background:#FDECEA;color:#C0392B;border-color:#F3B8B1}
 .compose{margin-top:22px;border:1.5px solid var(--gold);border-radius:16px;padding:12px 14px}.compose h2{margin-top:0}.compose textarea{resize:vertical}.okmsg{color:var(--ok);font-weight:700;margin:0 0 6px}
 .linkb{border:0;background:none;color:var(--pink-deep);font:inherit;font-size:12.5px;font-weight:700;padding:6px 0 0;cursor:pointer;text-decoration:underline}.ntxt{margin:4px 0;font-size:14px}.nreply{margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--blush);font-size:13.5px}
 .weeknav2{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:16px 0 4px;font-size:14px}.weeknav2 .chip:disabled{opacity:.4}
@@ -71,9 +78,75 @@ h2{font-size:17px;margin:22px 0 4px}
   const total = () => Object.values(S.qty).reduce((t, n) => t + n, 0);
   const header = `<div class="brand"><img src="logo-mark.png" alt="Fluffy Lashes"><div><h1>Portal de lashistas</h1><p class="sub">Fluffy Lashes · pide insumos, revisa tus solicitudes y tu semana.</p></div></div>`;
 
-  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button><button data-t="semana" class="${S.tab === 'semana' ? 'on' : ''}">Mi semana</button></div>`;
+  const tabs = () => `<div class="tabs"><button data-t="pedir" class="${S.tab === 'pedir' ? 'on' : ''}">Pedir insumos</button><button data-t="mis" class="${S.tab === 'mis' ? 'on' : ''}">Mis solicitudes</button><button data-t="semana" class="${S.tab === 'semana' ? 'on' : ''}">Mi semana</button>${isMgr() ? `<button data-t="mgr" class="${S.tab === 'mgr' ? 'on' : ''}">★ Manager</button>` : ''}</div>`;
   const bindTabs = () => document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.tab = b.dataset.t; render(); if ((S.tab === 'mis' && !S.mine) || (S.tab === 'semana' && !S.week)) { const k = S.tab === 'mis' ? '#see' : '#seew', x = $(k); if (x && S.artist && /^\d{4,8}$/.test(S.pin)) x.click(); } });
+  const isMgr = () => !!(S.artists.find(a => a.id === S.artist) || {}).manager;
+  // al elegir el nombre, aparece (o se quita) la pestaña de manager
+  document.addEventListener('change', e => { if (!e.target || e.target.id !== 'art') return; if (!S.artist) S.artist = e.target.value; const t = document.querySelector('.tabs:not(.mtabs)'); if (!t) return; const had = !!t.querySelector('[data-t=mgr]'); if (had !== isMgr()) { t.outerHTML = tabs(); bindTabs(); } });
+  /* ---------- vista de manager (solo lectura) ---------- */
+  S.mgr = { t: 'dia', day: null, dep: null, pay: null, date: '', wofs: 0, busy: false, err: '' };
+  const M$ = v => '$' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const hm = iso => iso ? new Date(iso).toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '';
+  const dayLabel = (iso, today) => { const d = new Date(iso + 'T12:00:00'), t = new Date(today + 'T12:00:00'), n = Math.round((d - t) / 864e5); if (n === 0) return 'Hoy'; if (n === 1) return 'Mañana'; if (n === -1) return 'Ayer'; const x = d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }); return x.charAt(0).toUpperCase() + x.slice(1); };
+  async function mgrLoad(kind) {
+    const G = S.mgr; G.busy = true; G.err = ''; renderMgr();
+    const fn = { dia: 'fm_mgr_day', dep: 'fm_mgr_deposits', pay: 'fm_mgr_payroll' }[kind], args = { p_artist: S.artist, p_pin: S.pin };
+    if (kind === 'dia' && G.date) args.p_date = G.date; if (kind === 'pay') args.p_offset = G.wofs;
+    const { data, error } = await sb.rpc(fn, args);
+    G.busy = false;
+    if (error || !data || !data.ok) { G.err = (data && data.error) || (error && /function/i.test(error.message) ? 'Esta vista todavía no está activada. Avísale a administración.' : 'No se pudo cargar. Intenta de nuevo.'); G[kind === 'dia' ? 'day' : kind] = null; return renderMgr(); }
+    G[kind === 'dia' ? 'day' : kind] = data; if (kind === 'dia') G.date = data.date; renderMgr();
+  }
+  function mgrDay(d) {
+    const t = d.totals, total = Number(t.net) + Number(t.tips) + Number(t.products), meth = Object.entries(d.methods || {});
+    const cash = meth.filter(([k]) => /^efectivo/i.test(k)).reduce((a, [, v]) => a + Number(v), 0), tx = meth.filter(([k]) => !/^efectivo/i.test(k) && !/sin método/i.test(k)), none = meth.filter(([k]) => /sin método/i.test(k)).reduce((a, [, v]) => a + Number(v), 0);
+    const max = Math.max(1, ...tx.map(([, v]) => Number(v)));
+    return `<div class="mnav"><button class="chip ${d.date !== d.today ? '' : 'on'}" data-md="${d.today}">Hoy</button><button class="chip" data-md="prev">← Día anterior</button>${d.date !== d.today ? '<button class="chip" data-md="next">Día siguiente →</button>' : ''}<input type="date" id="mdate" value="${esc(d.date)}" max="${esc(d.today)}"></div>
+      <h2 style="margin-top:6px">${esc(dayLabel(d.date, d.today))} · ${esc(fdate(d.date))}</h2>
+      <div class="mk"><div class="mkb big"><span>Total del día</span><b>${M$(total)}</b></div><div class="mkb"><span>Servicios</span><b>${t.count}</b></div><div class="mkb"><span>Ventas</span><b>${M$(t.net)}</b></div><div class="mkb"><span>Tips</span><b>${M$(t.tips)}</b></div>${Number(t.products) ? `<div class="mkb"><span>Productos</span><b>${M$(t.products)}</b></div>` : ''}</div>
+      <h2>Cómo se pagó</h2><div class="mk"><div class="mkb cash"><span>💵 Efectivo (en caja)</span><b>${M$(cash)}</b></div><div class="mkb"><span>💳 Transacciones</span><b>${M$(tx.reduce((a, [, v]) => a + Number(v), 0))}</b></div>${none ? `<div class="mkb warn"><span>⚠︎ Sin método</span><b>${M$(none)}</b></div>` : ''}</div>
+      ${tx.map(([k, v]) => `<div class="mrow"><span>${esc(k)}</span><span class="mbar"><i style="width:${Math.round(Number(v) / max * 100)}%"></i></span><b>${M$(v)}</b></div>`).join('')}
+      <h2>Servicios del día (${t.count})</h2>${d.rows.length ? d.rows.map(r => `<div class="rq mcard"><div class="mtop"><b>${esc(r.service)}</b><b>${M$(Number(r.net) + Number(r.tip))}</b></div>
+        <div class="msub">${esc(hm(r.at))} · ${esc(r.artist || '')} · ${esc(r.client || 'Sin nombre')}</div>
+        <div class="msub">${M$(r.net)}${Number(r.tip) ? ` + tip ${M$(r.tip)}` : ''}${Number(r.deposit) ? ` · depósito ${M$(r.deposit)}` : ''} <span class="tg ${/sin método/i.test(r.method) ? 'no' : 'ok'}">${esc(r.method)}</span></div></div>`).join('') : '<p class="sub">Todavía no hay servicios cobrados este día.</p>'}
+      ${(d.products || []).length ? `<h2>Productos vendidos</h2>${d.products.map(x => `<div class="mrow"><span>${esc(x.name)} × ${Number(x.qty)}</span><span class="tg ok">${esc(x.method)}</span><b>${M$(x.amount)}</b></div>`).join('')}` : ''}`;
+  }
+  function mgrDep(d) {
+    const groups = {}; d.upcoming.forEach(a => (groups[a.date] = groups[a.date] || []).push(a));
+    const st = x => /verific/i.test(x) ? '<span class="tg ok">Verificado</span>' : x ? `<span class="tg pe">${esc(x)}</span>` : '<span class="tg pe">Por verificar</span>';
+    const sum = l => l.reduce((a, x) => a + Number(x.amount || 0), 0);
+    return `<div class="mk"><div class="mkb big"><span>Recibidos hoy</span><b>${M$(sum(d.received))}</b><small>${d.received.length} depósito${d.received.length === 1 ? '' : 's'}</small></div><div class="mkb"><span>Citas con depósito (14 días)</span><b>${d.upcoming.length}</b><small>${M$(sum(d.upcoming))}</small></div></div>
+      <h2>Recibidos hoy</h2>${d.received.length ? d.received.map(x => `<div class="rq mcard"><div class="mtop"><b>${esc(x.client || 'Sin nombre')}</b><b>${M$(x.amount)}</b></div><div class="msub">${esc(x.method || '')} ${st(x.status)}${x.outcome ? ` · ${esc(x.outcome)}` : ''}</div></div>`).join('') : '<p class="sub">Hoy no se ha registrado ningún depósito.</p>'}
+      <h2>Próximas citas con depósito</h2>${Object.keys(groups).length ? Object.entries(groups).map(([day, l]) => `<h3 class="mday">${esc(dayLabel(day, d.today))}${dayLabel(day, d.today).length < 8 ? ' · ' + esc(fdate(day)) : ''} <small>${l.length} · ${M$(sum(l))}</small></h3>${l.map(a => `<div class="rq mcard"><div class="mtop"><b>${esc(a.time || '')} · ${esc(a.client || '')}</b><b>${M$(a.amount)}</b></div><div class="msub">${esc(a.artist || '')} · ${esc(a.service || '')}</div><div class="msub">${esc(a.method || '')} ${st(a.depStatus)}${a.status === 'Pagada' ? ' <span class="tg ok">Ya pagó</span>' : ''}</div></div>`).join('')}`).join('') : '<p class="sub">No hay citas con depósito en los próximos 14 días.</p>'}`;
+  }
+  function mgrPay(d) {
+    const t = d.totals, max = Math.max(1, ...d.rows.map(r => Number(r.pay)));
+    return `<div class="weeknav2"><button class="chip" data-mw="-1" ${S.mgr.wofs <= -8 ? 'disabled' : ''}>← Anterior</button><b>${esc(fdate(d.weekStart))} – ${esc(fdate(d.weekEnd))}</b><button class="chip" data-mw="1" ${S.mgr.wofs >= 0 ? 'disabled' : ''}>Siguiente →</button></div>
+      <div class="mk"><div class="mkb big"><span>Total a pagar</span><b>${M$(t.pay)}</b><small>comisiones ${M$(t.commission)} + tips ${M$(t.tips)}</small></div><div class="mkb"><span>Servicios</span><b>${t.count}</b></div><div class="mkb"><span>Ventas netas</span><b>${M$(t.net)}</b></div></div>
+      <h2>Por lashista</h2>${d.rows.length ? d.rows.map(r => `<div class="rq mcard"><div class="mtop"><b>${esc(r.name)}</b><b>${M$(r.pay)}</b></div><span class="mbar wide"><i style="width:${Math.round(Number(r.pay) / max * 100)}%"></i></span>
+        <div class="mgrid"><span>Servicios<b>${r.count}</b></span><span>Ventas<b>${M$(r.net)}</b></span><span>Comisión<b>${M$(r.commission)}</b></span><span>Tips<b>${M$(r.tips)}</b></span></div></div>`).join('') : '<p class="sub">Todavía no hay servicios esta semana.</p>'}
+      <p class="sub" style="margin-top:10px">Solo para consulta. Los cambios se hacen en la app de administración.</p>`;
+  }
+  function renderMgr() {
+    const G = S.mgr, data = G.t === 'dia' ? G.day : G[G.t], mgrs = S.artists.filter(a => a.manager);
+    app.innerHTML = header + tabs() + `<div class="mhead"><b>★ Vista de manager</b><span class="sub">Solo consulta: no se puede cambiar nada desde aquí.</span></div>
+      ${data || G.busy ? '' : `<label for="art">Tu nombre</label><select id="art">${mgrs.map(a => `<option value="${esc(a.id)}" ${S.artist === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+        <label for="pin">Tu clave</label><input id="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8" value="${esc(S.pin)}" placeholder="6 a 8 números"><button class="btn" id="mgo" style="width:100%;margin-top:10px">Entrar</button>`}
+      <div class="tabs mtabs">${[['dia', 'Hoja del día'], ['dep', 'Depósitos'], ['pay', 'Payroll']].map(([k, l]) => `<button data-mt="${k}" class="${G.t === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+      <p class="err" id="err">${esc(G.err)}</p>
+      ${G.busy ? '<p class="sub">Cargando…</p>' : data ? (G.t === 'dia' ? mgrDay(data) : G.t === 'dep' ? mgrDep(data) : mgrPay(data)) : ''}
+      ${data && !G.busy ? '<button class="chip" id="mref" style="margin-top:14px">↻ Actualizar</button>' : ''}`;
+    bindTabs();
+    const go = $('#mgo'); if (go) go.onclick = () => { S.artist = $('#art').value; S.pin = $('#pin').value.trim(); if (!/^\d{6,8}$/.test(S.pin)) { G.err = 'Escribe tu clave (6 a 8 números).'; return renderMgr(); } mgrLoad(G.t); };
+    const pin = $('#pin'); if (pin) pin.oninput = () => { S.pin = pin.value.trim(); };
+    document.querySelectorAll('[data-mt]').forEach(b => b.onclick = () => { G.t = b.dataset.mt; const has = G.t === 'dia' ? G.day : G[G.t]; if (!has && /^\d{6,8}$/.test(S.pin)) mgrLoad(G.t); else renderMgr(); });
+    document.querySelectorAll('[data-md]').forEach(b => b.onclick = () => { const v = b.dataset.md, cur = new Date((G.date || G.day.today) + 'T12:00:00'); if (v === 'prev') cur.setDate(cur.getDate() - 1); else if (v === 'next') cur.setDate(cur.getDate() + 1); G.date = /^\d{4}/.test(v) ? v : cur.toISOString().slice(0, 10); mgrLoad('dia'); });
+    const md = $('#mdate'); if (md) md.onchange = () => { if (md.value) { G.date = md.value; mgrLoad('dia'); } };
+    document.querySelectorAll('[data-mw]').forEach(b => b.onclick = () => { G.wofs = Math.max(-8, Math.min(0, G.wofs + Number(b.dataset.mw))); mgrLoad('pay'); });
+    const rf = $('#mref'); if (rf) rf.onclick = () => mgrLoad(G.t);
+  }
   function render() {
+    if (S.tab === 'mgr') { if (!isMgr()) { S.tab = 'pedir'; } else { if (!S.mgr.day && !S.mgr.busy && /^\d{6,8}$/.test(S.pin) && !S.mgr.err) { mgrLoad('dia'); return; } return renderMgr(); } }
     if (S.tab === 'mis') return renderMine();
     if (S.tab === 'semana') return renderWeek();
     const cats = [...new Set(S.products.map(p => p.category))];
