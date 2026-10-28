@@ -91,7 +91,7 @@ main{overflow-y:auto;min-width:0}
 .kpi{padding:18px 18px 20px;border-left:1px solid var(--line);min-width:0}
 .kpi:first-child{border-left:0;padding-left:0}
 .kpi .lab{font-size:13px;color:var(--muted);font-weight:600}
-.kpi .val{font-family:var(--display);font-size:clamp(22px,2.3vw,32px);font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:6px;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .val{font-family:var(--ui);font-size:24px;font-size:clamp(17px,9.5cqi,30px);font-weight:600;line-height:1.15;font-variant-numeric:lining-nums tabular-nums;margin-top:6px;letter-spacing:-.02em;white-space:nowrap}
 .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .kpi.lead .val{color:var(--pink-deep)}
 .neg{color:var(--bad)!important}
@@ -302,7 +302,7 @@ tbody tr.pe-ch td{background:#FFF7DB}@media (prefers-color-scheme:dark){:root:no
 .rline{display:flex;justify-content:space-between;gap:10px;padding:7px 0;font-size:14px;font-variant-numeric:tabular-nums}
 .rline span:first-child{color:var(--muted)}
 .rline.total{border-top:1px solid var(--gold);margin-top:6px;padding-top:12px;font-weight:700}
-.rline.big span:last-child{font-family:var(--display);font-size:24px;font-weight:700}
+.rline.big span:last-child{font-family:var(--ui);font-size:24px;font-weight:700}
 .formula{font-size:12px;color:var(--muted);margin-top:14px;line-height:1.6}
 .check{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink);font-weight:500;cursor:pointer}
 
@@ -436,7 +436,8 @@ h2,.panel h2,.modal h3{font-family:var(--display);font-weight:600;letter-spacing
 .panel,.tablewrap,.kpis,.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r-l);box-shadow:var(--shadow)}
 .kpis{overflow:hidden}
 .kpi .lab{font-family:var(--ui);font-weight:600;font-size:12.5px;color:var(--muted);letter-spacing:0;text-transform:none}
-.kpi .val{font-family:var(--display);font-weight:500;letter-spacing:-.6px;color:var(--ink)}
+.kpi{container-type:inline-size}
+.kpi .val{font-family:var(--ui);font-weight:600;letter-spacing:-.02em;color:var(--ink)}
 .kpi.lead .val{color:var(--pink-deep)}
 /* ---- tablas ---- */
 table th{font-family:var(--ui);font-size:12px;font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0;background:var(--bg);border-bottom:1px solid var(--line)}
@@ -480,6 +481,7 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
   .topbar2{padding:0 16px;height:58px}.topbar2 .tbsearch,.topbar2 .tbdate{display:none}.topbar2 .tbbrand{display:flex}
   .page{padding:18px 16px 110px}.head h1{font-size:27px}
 }
+@media (min-width:1101px){.kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))}.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -542,7 +544,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-28 17:00';
+window.FM_VERSION = '2026-10-28 18:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -8681,7 +8683,7 @@ Views.cpanel = {
     const alerts = [[c.sinMetodo >= 0.01, 'warn', `${F$(c.sinMetodo)} cobrados sin forma de pago`, 'Recepción debe asignar el método', 'ctrans'], [b.nPen > 0, 'warn', `${b.nPen} depósitos por verificar (${F$(b.pen)})`, 'Aún no están confirmados', 'crep:ant'], [c.sinCat.length > 0, 'warn', `${c.sinCat.length} gastos sin categoría`, `${F$(c.sinCat.reduce((a, e) => a + num(e.amount), 0))} que impiden calcular el resultado`, 'cgas'], [!FIN.closeOf(shiftMonth(Dates.ym(Dates.today()), -1)) && Dates.today() > Dates.monthStart(+Dates.ym(Dates.today()).slice(0, 4), +Dates.ym(Dates.today()).slice(5) - 1) + 5, 'n', `${ymLabel(shiftMonth(Dates.ym(Dates.today()), -1))} sin cerrar`, 'Ciérralo para congelar sus cifras', 'ccierre']].filter(a => a[0]);
     const comp = c.cats.filter(x => x.net > 0 || x.b > 0), cobComp = [['Servicios y depósitos aplicados', c.d.tot.svcCash], ['Paquetes vendidos', c.d.tot.paquetes], ['Productos del salón', c.d.tot.productos], ['Pagos de lashistas (insumos)', c.d.tot.lashistas], ['Tienda web (total al cliente, con tax y envío)', c.onl.cob]];
     return `${fhead('Panel financiero', 'Ingresos, cobros y pendientes con las mismas cifras de la Hoja del día y el Resumen de ventas.', `<button class="btn" data-fx="panel">${ic('dl')}Exportar</button>`)}${finNav()}
-      <section class="kpis" style="grid-template-columns:repeat(5,minmax(0,1fr))">${kp.map(([l, v, d, s, go, tipo], i) => `<button class="kpi ${i === 0 ? 'lead' : ''}" data-drill="${go}" data-tipo="${tipo}" style="text-align:left;background:none;border-top:0;border-right:0;border-bottom:0;border-radius:0;cursor:pointer;font:inherit"><div class="lab">${l}</div><div class="val">${F$(v)}${d}</div><div class="sub">${s}</div></button>`).join('')}</section>
+      <section class="kpis k5">${kp.map(([l, v, d, s, go, tipo], i) => `<button class="kpi ${i === 0 ? 'lead' : ''}" data-drill="${go}" data-tipo="${tipo}" style="text-align:left;background:none;border-top:0;border-right:0;border-bottom:0;border-radius:0;cursor:pointer;font:inherit"><div class="lab">${l}</div><div class="val">${F$(v)}${d}</div><div class="sub">${s}</div></button>`).join('')}</section>
       <p class="hint" style="margin:-20px 0 26px;color:var(--muted);font-size:12.5px">Las ventas netas no incluyen propinas ni tax. Los depósitos y paquetes se cuentan como cobrados cuando se aplican a un servicio, igual que en el Resumen de ventas. Toca una cifra para ver su detalle.</p>
       <div class="grid2"><section class="panel"><h2>Ventas netas y gastos por mes</h2><p class="hint">Los últimos 10 meses. Los gastos son lo registrado, no un resultado final.</p>${chartMonths(FIN.st.ym)}</section>
         <section class="panel"><h2>De dónde viene</h2><p class="hint">Ventas netas por categoría. Toca una para ver su detalle.</p>${comp.map(x => `<button class="rline" data-cat="${esc(x.n)}" style="display:flex;justify-content:space-between;width:100%;padding:7px 0;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:inherit;text-align:left;cursor:pointer"><span>${x.n}</span><span><b>${F$(x.net)}</b> <span class="mutedc">${c.netas ? (x.net / c.netas * 100).toFixed(1) + '%' : ''}</span></span></button>`).join('') || '<p class="mutedc">Sin ventas en este período.</p>'}
@@ -8731,7 +8733,7 @@ Views.ctrans = {
     const f = FIN.st.tf, l = txRows(), PER = 15, pg = l.slice(f.page * PER, f.page * PER + PER), S1 = (a, fn) => r2(a.filter(fn).reduce((t, x) => t + x.imp, 0)), sel = (k, opts, lab) => `<select class="inp" style="width:auto;min-width:140px" data-tf="${k}" aria-label="${lab}"><option value="">${lab}</option>${opts.map(o => `<option ${f[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
     const kp = [['Ventas', S1(l, x => x.tipo === 'Venta')], ['Cobrado', r2(l.reduce((t, x) => t + x.cob, 0))], ['Anticipos', r2(l.filter(x => x.tipo === 'Anticipo').reduce((t, x) => t + (x.memo || x.cob), 0))], ['Sin método', r2(l.filter(x => x.st === 'Sin método').reduce((t, x) => t + x.imp + num(x.tip), 0))], ['Movimientos', null]];
     return `${fhead('Transacciones', 'Cada movimiento de dinero: venta, anticipo o pago. Un depósito no es venta hasta que se usa.', `<button class="btn" data-fx="trans">${ic('dl')}CSV</button><button class="btn" data-fxl="trans">${ic('dl')}Excel</button>`)}${finNav()}
-      <section class="kpis" style="grid-template-columns:repeat(5,minmax(0,1fr))">${kp.map(([a, v]) => `<div class="kpi"><div class="lab">${a}</div><div class="val">${v == null ? intf(l.length) : F$(v)}</div><div class="sub">${v == null ? 'con los filtros actuales' : a === 'Cobrado' ? 'incluye propinas' : 'con los filtros actuales'}</div></div>`).join('')}</section>
+      <section class="kpis k5">${kp.map(([a, v]) => `<div class="kpi"><div class="lab">${a}</div><div class="val">${v == null ? intf(l.length) : F$(v)}</div><div class="sub">${v == null ? 'con los filtros actuales' : a === 'Cobrado' ? 'incluye propinas' : 'con los filtros actuales'}</div></div>`).join('')}</section>
       <div class="filters no-print" style="align-items:center;margin-bottom:14px"><label class="field" style="max-width:none;flex:1 1 220px">Buscar<input type="search" class="inp" data-tq value="${esc(f.q)}" placeholder="Clienta, concepto, ID o referencia"></label>${sel('cat', FIN.calc(...(r => [r.from, r.to])(FIN.fr())).cats.map(c => c.n), 'Categoría')}${sel('m', ['Tarjeta', 'Zelle', 'Efectivo', 'PayPal', 'Cash App', 'Booksy', 'Dividido', 'Paquete', 'Sin registrar'], 'Método')}${sel('st', TXST, 'Estado')}
         <div class="segmented small">${[['', 'Todo'], ['Venta', 'Ventas'], ['Anticipo', 'Anticipos']].map(([v, a]) => `<button class="${f.tipo === v ? 'on' : ''}" data-ttipo="${v}">${a}</button>`).join('')}</div></div>
       ${txTable(pg)}<div class="pager"><span>${intf(l.length)} movimientos · página ${f.page + 1} de ${Math.max(1, Math.ceil(l.length / PER))}</span><span><button class="btn sm" data-tp="-1" ${f.page ? '' : 'disabled'}>Anterior</button> <button class="btn sm" data-tp="1" ${(f.page + 1) * PER < l.length ? '' : 'disabled'}>Siguiente</button></span></div>
@@ -8756,12 +8758,12 @@ Views.cconc = {
     const ords = (Store.orders || []).filter(o => o.status !== 'Cancelado' && Dates.ym(o.day) === ym);
     return `${fhead('Conciliación', 'Compara lo registrado en Fluffy Master con lo que reportan Clover, PayPal, Zelle, Booksy, Cash App y el banco.', `<button class="btn" data-fx="conc">${ic('dl')}Exportar</button>`)}
       <div class="chips" style="margin:-6px 0 18px"><button class="btn sm" data-cm="-1" aria-label="Mes anterior">${ic('left')}</button><b style="min-width:130px;text-align:center">${esc(ymLabel(ym))}</b><button class="btn sm" data-cm="1" aria-label="Mes siguiente">${ic('right')}</button>${closed ? '<span class="tag app">Mes cerrado</span>' : ''}</div>
-      <section class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="kpi lead"><div class="lab">Cobrado según Fluffy</div><div class="val">${F$(c.cobrado)}</div><div class="sub">${rows.length} formas de pago</div></div><div class="kpi"><div class="lab">Por capturar o aclarar</div><div class="val">${open}</div><div class="sub">de ${rows.length} formas de pago</div></div><div class="kpi"><div class="lab">Sin forma de pago</div><div class="val">${F$(c.sinMetodo)}</div><div class="sub">recepción debe asignarla</div></div><div class="kpi"><div class="lab">Comisión de pedidos en línea</div><div class="val">${F$(c.onl.fees)}</div><div class="sub">${c.onl.n} pedidos entregados</div></div></section>
+      <section class="kpis k4"><div class="kpi lead"><div class="lab">Cobrado según Fluffy</div><div class="val">${F$(c.cobrado)}</div><div class="sub">${rows.length} formas de pago</div></div><div class="kpi"><div class="lab">Por capturar o aclarar</div><div class="val">${open}</div><div class="sub">de ${rows.length} formas de pago</div></div><div class="kpi"><div class="lab">Sin forma de pago</div><div class="val">${F$(c.sinMetodo)}</div><div class="sub">recepción debe asignarla</div></div><div class="kpi"><div class="lab">Comisión de pedidos en línea</div><div class="val">${F$(c.onl.fees)}</div><div class="sub">${c.onl.n} pedidos entregados</div></div></section>
       <section class="panel"><h2>Por forma de pago</h2><p class="hint">Escribe lo que reporta cada proveedor o el banco para ${esc(ymLabel(ym).toLowerCase())}. Lo guardado queda con tu nombre.</p><div class="tablewrap"><table><thead><tr><th>Forma de pago</th><th class="r">En Fluffy</th><th class="r">Reportado</th><th class="r">Diferencia</th><th>Nota</th><th>Estado</th></tr></thead><tbody>
         ${rows.map(({ m, rec, rep, dif }, i) => `<tr><td><b>${esc(mk(m.key))}</b><br><span class="mutedc" style="font-size:12px">${esc(m.detail)}</span></td><td class="r">${F$(m.value)}</td><td class="r"><input class="inp num" style="width:120px;text-align:right" type="number" step="0.01" data-rep="${i}" value="${rep ?? ''}" ${ro ? 'disabled' : ''} aria-label="Reportado ${esc(m.key)}"></td><td class="r" style="${dif != null && Math.abs(dif) >= 0.01 ? 'color:var(--bad);font-weight:700' : ''}">${dif == null ? '—' : F$(dif)}</td><td><input class="inp" style="min-width:160px" data-note="${i}" value="${esc(rec.note || '')}" placeholder="Opcional" ${ro ? 'disabled' : ''}></td><td>${dif == null ? '<span class="tag">Falta capturar</span>' : Math.abs(dif) < 0.01 ? '<span class="tag app">Coincide</span>' : '<span class="tag warn">Con diferencia</span>'}</td></tr>`).join('')}</tbody></table></div>
         <div class="acts" style="justify-content:space-between;align-items:center"><span class="mutedc" style="font-size:13px">${done ? `Conciliación confirmada por ${esc((FIN.rc(ym, 'done') || {}).by || '')}.` : unexplained ? `Para confirmar: captura lo reportado de cada forma de pago y explica con una nota las diferencias (faltan ${unexplained}).` : open ? 'Las diferencias están explicadas con nota. Puedes confirmar la conciliación.' : 'Todo coincide. Puedes confirmar la conciliación.'}</span>${closed ? '' : `<button class="btn ${done ? '' : 'primary'}" data-cdone ${(!done && unexplained) || (!Mode.accountant && !Store.writable()) ? 'disabled' : ''}>${done ? 'Quitar confirmación' : 'Confirmar conciliación del mes'}</button>`}</div></section>
       <section class="panel"><h2>Pedidos en línea</h2><p class="hint">La tienda web todavía no está conectada: los pedidos se capturan a mano en Pedidos en línea. Compara este total con el reporte de PayPal.</p>
-        <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr));box-shadow:none;margin:0"><div class="kpi"><div class="lab">Pedidos registrados</div><div class="val">${ords.length}</div></div><div class="kpi"><div class="lab">Productos</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.subtotal), 0))}</div></div><div class="kpi"><div class="lab">Tax y envío cobrados</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.tax) + num(o.shipping), 0))}</div></div><div class="kpi"><div class="lab">Total cobrado</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.total), 0))}</div></div></div>
+        <div class="kpis k4" style="box-shadow:none;margin:0"><div class="kpi"><div class="lab">Pedidos registrados</div><div class="val">${ords.length}</div></div><div class="kpi"><div class="lab">Productos</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.subtotal), 0))}</div></div><div class="kpi"><div class="lab">Tax y envío cobrados</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.tax) + num(o.shipping), 0))}</div></div><div class="kpi"><div class="lab">Total cobrado</div><div class="val">${F$(ords.reduce((a, o) => a + num(o.total), 0))}</div></div></div>
         <p class="formula">Si PayPal muestra más pagos que pedidos registrados, avisa a recepción para que registren los que faltan (Pedidos en línea, Nuevo pedido).</p></section>`;
   },
   mount(root) {
