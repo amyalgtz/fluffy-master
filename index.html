@@ -544,7 +544,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-28 21:00';
+window.FM_VERSION = '2026-10-28 22:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -8958,6 +8958,192 @@ Views.cacc = {
       try { await Store.db.doc('accountingAdjustments/' + id).set({ status: st, note, by: Mode.who(), at: new Date().toISOString() }); await FIN.audit(`${st === 'Aprobado' ? 'Aprobó' : 'Rechazó'} el ajuste: ${p.type} · ${p.ref}`); UI.toast(`Ajuste ${st.toLowerCase()}`); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } });
   },
 };
+
+
+/* =========================================================
+   AGENDA · Importar citas desde Booksy
+   Lee dos archivos que descarga Booksy: "Lista de reservas" y "Prepagos" (.xlsx o .csv).
+   · Siempre muestra una vista previa y no guarda nada hasta confirmar.
+   · Guarda el ID de reserva de Booksy: si subes el archivo otra vez no duplica; solo actualiza o cancela lo que cambió.
+   · Los depósitos salen del informe de prepagos (método Booksy) y se ligan a su cita.
+   · Los complementos solo traen monto (Booksy no dice cuál): se anotan en la cita para elegirlos al cobrar.
+   · No usa colecciones ni permisos nuevos: escribe citas y depósitos como lo hace la Agenda.
+   ========================================================= */
+const BK = {
+  STD: 40,
+  st: { res: null, pre: null, files: [], incPast: false, basis: 'std', pick: {}, sel: {}, busy: false, done: null, m: null },
+  norm(s) { return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\(\s*\+\s*complement\w*\s*\)/g, ' ').replace(/\brefil\b/g, 'refill').replace(/volumen/g, 'volume').replace(/minutes?/g, 'min').replace(/weeks/g, 'week').replace(/\bhena\b/g, 'henna').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); },
+  toks(s) { return BK.norm(s).split(' ').filter(Boolean); },
+  dl(a, b) { const d = []; for (let i = 0; i <= a.length; i++) { d[i] = [i]; } for (let j = 0; j <= b.length; j++) d[0][j] = j;
+    for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) { const c = a[i - 1] === b[j - 1] ? 0 : 1; d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c); if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1); }
+    return d[a.length][b.length]; },
+  jac(a, b) { const A = new Set(BK.toks(a)), B = new Set(BK.toks(b)); let i = 0; A.forEach(x => { if (B.has(x)) i++; }); return i / Math.max(1, new Set([...A, ...B]).size); },
+  n(v) { return typeof v === 'number' ? v : (parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')) || 0); },
+  pdate(s) { if (s instanceof Date && !isNaN(s)) return { iso: `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, '0')}-${String(s.getDate()).padStart(2, '0')}`, time: `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}` }; const m = /(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})\s*([ap])\.?\s*m\.?)?/i.exec(String(s || '')); if (!m) return null; let h = m[4] != null ? +m[4] : null; if (h != null) { const pm = /p/i.test(m[6]); h = h % 12 + (pm ? 12 : 0); }
+    return { iso: `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`, time: h == null ? '' : `${String(h).padStart(2, '0')}:${m[5]}` }; },
+  pdur(s) { const m = /(\d+)\s*h[^0-9]*(\d+)?/i.exec(String(s || '')); const mm = /(\d+)\s*min/i.exec(String(s || '')); return m ? (+m[1]) * 60 + (+(mm ? mm[1] : m[2] || 0)) : (mm ? +mm[1] : null); },
+  clean(raw) {
+    const notes = []; let s = String(raw || '').trim(); const orig = s;
+    s = s.replace(/\(([^)]*)\)/g, (m, t) => { if (t.trim()) notes.push(t.trim()); return ' '; }).replace(/\b(ig|insta(?:gram)?|whats?app|whastapp|wa)\b/ig, m => { notes.push(m); return ' '; }).replace(/\s+/g, ' ').trim();
+    let t = s.split(' ').filter(Boolean); if (notes.length && t.length > 2) { notes.push(t.slice(2).join(' ')); t = t.slice(0, 2); }
+    const first = title(t[0] || ''), last = title(t.slice(1).join(' '));
+    return { first, last, notes: notes.filter(Boolean), changed: !!notes.length || BK.norm(orig) !== BK.norm(first + ' ' + last), raw: orig };
+  },
+  /* ---------- leer archivos ---------- */
+  async read(file) {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true }), ws = wb.Sheets[wb.SheetNames[0]], rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    const hi = rows.findIndex(r => r.some(c => /^fecha y hora$/i.test(String(c).trim())) && r.some(c => /id de reserva/i.test(String(c)))), pi = rows.findIndex(r => r.some(c => /fecha de transacci/i.test(String(c))) && r.some(c => /nombre del cliente/i.test(String(c))));
+    const kind = hi >= 0 ? 'reservas' : pi >= 0 ? 'prepagos' : null; if (!kind) throw new Error(`"${file.name}" no parece un archivo de Booksy (Lista de reservas o Prepagos).`);
+    const h = rows[kind === 'reservas' ? hi : pi].map(c => String(c).trim()), out = [];
+    rows.slice((kind === 'reservas' ? hi : pi) + 1).forEach(r => { const o = {}; h.forEach((k, i) => { if (k) o[k] = typeof r[i] === 'string' ? r[i].trim() : r[i]; }); if (kind === 'reservas' ? o['ID de reserva'] : o['Fecha de transacción'] && o['Tipo de transacción']) out.push(o); });
+    const per = rows.map(r => r.join(' ')).find(t => /Periodo de/i.test(t)) || '';
+    return { kind, name: file.name, rows: out, period: (/Periodo de\s+([\d/]+)\s+a\s+([\d/]+)/i.exec(per) || []).slice(1) };
+  },
+  /* ---------- lo que la app ya aprendió de importaciones anteriores ---------- */
+  learned(kind) { const m = {}; Store.appointments.forEach(a => { if (!a.booksy) return; const raw = kind === 'service' ? a.booksy.service : a.booksy.employee, id = kind === 'service' ? a.serviceId : a.artistId; if (!raw || !id) return; const k = BK.norm(raw); (m[k] = m[k] || {})[id] = ((m[k] || {})[id] || 0) + 1; });
+    const out = {}; Object.keys(m).forEach(k => { out[k] = Object.entries(m[k]).sort((a, b) => b[1] - a[1])[0][0]; }); return out; },
+  matchSvc(raw, L) {
+    const k = BK.norm(raw), pk = BK.st.pick['s:' + k]; if (pk !== undefined) return { id: pk, lvl: pk ? 'auto' : 'none' };
+    const act = Store.config.services.filter(s => s.active !== false); if (L[k] && act.some(s => s.id === L[k])) return { id: L[k], lvl: 'auto' };
+    const ex = act.filter(s => BK.norm(s.name) === k); if (ex.length === 1) return { id: ex[0].id, lvl: 'auto' }; if (ex.length > 1) return { id: ex[0].id, lvl: 'revisar' };
+    const best = act.map(s => [BK.jac(raw, s.name), s]).sort((a, b) => b[0] - a[0])[0]; return best && best[0] >= .5 ? { id: best[1].id, lvl: 'revisar' } : { id: '', lvl: 'none' };
+  },
+  matchArt(raw, L) {
+    const k = BK.norm(raw), pk = BK.st.pick['a:' + k]; if (pk !== undefined) return { id: pk, lvl: pk ? 'auto' : 'none' };
+    const arts = Store.config.artists.filter(a => a.active !== false); if (L[k] && arts.some(a => a.id === L[k])) return { id: L[k], lvl: 'auto' };
+    const f = BK.toks(raw)[0] || '', ex = arts.filter(a => BK.norm(a.name) === k); if (ex.length === 1) return { id: ex[0].id, lvl: 'auto' };
+    const c = arts.map(a => { const n = BK.norm(a.name), d = Math.min(BK.dl(n, k), BK.dl(n, f)); return [a, d, n.length >= 4 && (f.startsWith(n) || n.startsWith(f))]; }).filter(x => x[1] <= 1 || x[2]).sort((a, b) => a[1] - b[1]);
+    if (c.length === 1) return { id: c[0][0].id, lvl: c[0][1] <= 1 ? 'auto' : 'revisar' }; return c.length ? { id: c[0][0].id, lvl: 'revisar' } : { id: '', lvl: 'none' };
+  },
+  /* ---------- cruzar todo y decidir qué hacer con cada cita ---------- */
+  analyze() {
+    const S = BK.st, today = Dates.today(), LS = BK.learned('service'), LA = BK.learned('employee'), byId = new Map(); Store.appointments.forEach(a => { if (a.booksy && a.booksy.id) byId.set(String(a.booksy.id), a); });
+    const rows = (S.res ? S.res.rows : []).map(r => {
+      const when = BK.pdate(r['Fecha y hora']); if (!when) return null; const st = String(r['Estado'] || '').trim(), svcRaw = String(r['Servicio'] || '').trim(), emp = String(r['Empleado'] || '').trim();
+      const svc = BK.matchSvc(svcRaw, LS), art = BK.matchArt(emp, LA), cat = Store.config.services.find(s => s.id === svc.id), val = BK.n(r['Valor de servicios']), compl = BK.n(r['Valor de los complementos']), cl = BK.clean(r['Cliente']);
+      const o = { key: String(r['ID de reserva']), id: String(r['ID de reserva']), date: when.iso, time: when.time, day: Dates.fromISO(when.iso), dur: BK.pdur(r['Duración del servicio']), status: st, cl, svcRaw, emp, svc, art, val, compl, price: val > 0 ? val : (cat ? num(cat.price) : 0), fromCat: !(val > 0), ex: byId.get(String(r['ID de reserva'])) || null, dep: null, action: '', reason: '', changes: [] };
+      return o; }).filter(Boolean);
+    rows.forEach(o => {
+      const canc = /cancel/i.test(o.status), noshow = /inasist|no.?show/i.test(o.status);
+      if (canc) { if (o.ex && o.ex.status === 'Agendada') { o.action = 'cancel'; o.reason = 'Cancelada en Booksy'; } else { o.action = 'skip'; o.reason = 'Cancelada en Booksy'; } return; }
+      if (noshow) { o.action = 'review'; o.reason = 'Inasistencia: si dejó depósito, regístrala como no-show en la Agenda'; return; }
+      if (o.day < today && !S.incPast && !o.ex) { o.action = 'skip'; o.reason = 'Día anterior'; o.past = true; return; }
+      if (o.ex) {
+        const sn = o.ex.booksy || {}, ch = [];
+        if (o.ex.status !== 'Agendada') { o.action = 'same'; o.reason = 'Ya está ' + (o.ex.status || '').toLowerCase(); return; }
+        if (sn.date && sn.date !== o.date) ch.push(`fecha ${sn.date} → ${o.date}`); if (sn.time != null && sn.time !== o.time) ch.push(`hora ${sn.time || '—'} → ${o.time}`);
+        if (sn.employee && BK.norm(sn.employee) !== BK.norm(o.emp)) ch.push(`lashista ${sn.employee} → ${o.emp}`); if (sn.service && BK.norm(sn.service) !== BK.norm(o.svcRaw)) ch.push(`servicio ${sn.service} → ${o.svcRaw}`);
+        if (sn.duration != null && sn.duration !== o.dur) ch.push(`duración ${sn.duration} → ${o.dur} min`);
+        o.changes = ch; o.action = ch.length ? 'update' : 'same'; o.reason = ch.length ? '' : 'Sin cambios'; return; }
+      const same = Store.appointments.find(a => !a.booksy && a.status !== 'Cancelada' && a.date === o.date && o.art.id && a.artistId === o.art.id && (a.time === o.time || BK.norm(a.first) === BK.norm(o.cl.first)));
+      if (same) { o.ex = same; o.action = 'link'; o.reason = 'Ya estaba capturada a mano'; return; }
+      if (o.day < today && Store.sales.some(s => s.day === o.day && BK.norm(s.first) === BK.norm(o.cl.first) && BK.norm(s.last || '').slice(0, 3) === BK.norm(o.cl.last || '').slice(0, 3))) { o.action = 'skip'; o.reason = 'Ya cobrada'; return; }
+      o.action = 'new';
+    });
+    // prepagos → cita
+    const pre = (S.pre ? S.pre.rows : []).map(p => {
+      const w = BK.pdate(p['Fecha de servicio']), t = BK.pdate(p['Fecha de transacción']), cl = BK.clean(p['Nombre del cliente']), emp = String(p['Empleado'] || '').trim(), receipt = String(p['Número de recibo'] || '').trim();
+      const q = { p, w, t, cl, emp, receipt, paid: BK.n(p['Cantidad de transacción']), fee: Math.abs(BK.n(p['Tarifa de proceso'])), net: BK.n(p['Cantidad neta']), svc: String(p['Nombre del servicio'] || '').replace(/^prepago para\s+/i, ''), appt: null, out: '' };
+      if (!w) { q.out = 'sin fecha'; return q; }
+      const cand = rows.filter(o => o.date === w.iso && o.time === w.time && (BK.norm(o.emp) === BK.norm(emp) || (o.art.id && o.art.id === BK.matchArt(emp, LA).id)));
+      const score = o => (BK.norm(o.cl.first + ' ' + o.cl.last) === BK.norm(cl.first + ' ' + cl.last) ? 3 : 0) + (BK.norm(o.cl.first) === BK.norm(cl.first) && cl.first ? 2 : 0) + BK.jac(o.svcRaw, q.svc);
+      const best = cand.sort((a, b) => score(b) - score(a))[0] || rows.filter(o => o.date === w.iso && BK.norm(o.cl.first) === BK.norm(cl.first) && cl.first && BK.jac(o.svcRaw, q.svc) >= .5).sort((a, b) => score(b) - score(a))[0];
+      q.row = best || null;
+      if (!best) { const ap = Store.appointments.find(a => a.date === w.iso && a.time === w.time && BK.norm(a.first) === BK.norm(cl.first)); if (ap) { q.appt = ap; q.out = ap.depositId ? 'exists' : 'create'; } else q.out = 'nomatch'; return q; }
+      if (/cancel/i.test(best.status)) { q.out = 'cancelled'; return q; }
+      const exAppt = best.ex; if (exAppt) q.appt = exAppt;
+      const dupe = Store.deposits.find(d => d.booksyReceipt && String(d.booksyReceipt) === receipt); if (dupe) { q.out = 'exists'; q.dupe = dupe; return q; }
+      if (exAppt && exAppt.depositId) { q.out = 'exists'; return q; }
+      q.out = best.action === 'skip' || best.action === 'review' ? 'omitted' : 'create'; best.dep = q; return q; });
+    return { rows, pre };
+  },
+  depPlan(A, sel) { const ok = new Set(sel); return A.pre.filter(q => q.out === 'create' && (q.row ? (ok.has(q.row) || (q.row.action === 'same' && q.appt && !q.appt.depositId)) : !!q.appt)); },
+  amount(q) { const b = BK.st.basis; return r2(b === 'paid' ? q.paid : b === 'net' ? q.net : BK.STD); },
+  /* ---------- pantalla ---------- */
+  open() {
+    BK.st = { res: null, pre: null, files: [], incPast: false, basis: 'std', pick: {}, sel: {}, busy: false, done: null, m: null };
+    UI.modal(`<h3>Importar citas de Booksy</h3><div data-bk></div>`, m => { m.classList.add('wide'); BK.st.m = m; BK.draw(); });
+  },
+  draw() {
+    const m = BK.st.m, box = m && $('[data-bk]', m); if (!box) return; const S = BK.st;
+    if (S.done) return BK.drawDone(box);
+    if (!S.res && !S.pre) { box.innerHTML = BK.drawPick(''); BK.bindPick(box); return; }
+    const A = BK.analyze(); S.A = A; const rows = A.rows, act = rows.filter(o => ['new', 'update', 'link', 'cancel'].includes(o.action)), on = o => S.sel[o.key] !== false;
+    const miss = { s: new Map(), a: new Map() }; rows.forEach(o => { if (!['new', 'update', 'link'].includes(o.action)) return; if (o.svc.lvl !== 'auto') { const k = BK.norm(o.svcRaw); miss.s.set(k, { raw: o.svcRaw, svc: o.svc, n: (miss.s.get(k) || { n: 0 }).n + 1 }); } if (o.art.lvl !== 'auto') { const k = BK.norm(o.emp); miss.a.set(k, { raw: o.emp, art: o.art, n: (miss.a.get(k) || { n: 0 }).n + 1 }); } });
+    const sel = act.filter(on), nDep = BK.depPlan(A, sel).length;
+    const cnt = k => rows.filter(o => o.action === k).length, pastN = rows.filter(o => o.past).length, blocked = sel.some(o => o.action !== 'cancel' && (o.svc.lvl !== 'auto' || o.art.lvl !== 'auto' || !o.svc.id || !o.art.id));
+    const svcOpts = id => `<option value="">Elige un servicio</option>${Store.config.services.filter(s => s.active !== false).map(s => `<option value="${s.id}" ${s.id === id ? 'selected' : ''}>${esc(s.name)} · ${money(s.price)}</option>`).join('')}`, artOpts = id => `<option value="">Elige lashista</option>${Store.config.artists.filter(a => a.active !== false).map(a => `<option value="${a.id}" ${a.id === id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}`;
+    const files = [S.res ? `Lista de reservas · ${S.res.rows.length} filas${S.res.period.length ? ' · ' + S.res.period.join(' a ') : ''}` : '', S.pre ? `Prepagos · ${S.pre.rows.length} filas` : ''].filter(Boolean);
+    const tag = o => ({ new: '<span class="tag app">Nueva</span>', update: '<span class="tag warn">Actualizar</span>', link: '<span class="tag">Ya estaba</span>', cancel: '<span class="tag warn">Cancelar</span>' })[o.action];
+    box.innerHTML = `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${files.map(f => `<span class="tag app">${esc(f)}</span>`).join('')}<button class="btn sm" data-bk-more>Cambiar o agregar archivo</button></div>
+      <div class="chips" style="gap:8px;margin-bottom:12px">${[['Nuevas', cnt('new'), 'app'], ['Ya estaban', cnt('link'), ''], ['Con cambios', cnt('update'), 'warn'], ['A cancelar', cnt('cancel'), 'warn'], ['Sin cambios', cnt('same'), ''], ['Con depósito', A.pre.filter(q => q.out === 'create').length, 'app'], ['Canceladas en Booksy', rows.filter(o => /cancel/i.test(o.status) && o.action === 'skip').length, ''], ['Inasistencias', cnt('review'), 'warn'], ['Días anteriores', pastN, '']].filter(x => x[1]).map(([l, n, c]) => `<span class="tag ${c}">${l}: ${n}</span>`).join('')}</div>
+      ${miss.s.size || miss.a.size ? `<div class="banner" style="margin-bottom:12px"><b>Confirma estos nombres una sola vez.</b> La app los recordará en la siguiente importación.<div class="tablewrap" style="margin-top:8px"><table><thead><tr><th>En Booksy</th><th>Citas</th><th>En tu catálogo</th><th></th></tr></thead><tbody>${[...miss.a.entries()].map(([k, v]) => `<tr><td><b>${esc(v.raw)}</b><br><span class="mutedc" style="font-size:12px">Lashista</span></td><td>${v.n}</td><td><select class="inp" data-bkpick="a:${esc(k)}">${artOpts(v.art.id)}</select></td><td>${v.art.id ? `<button class="btn sm" data-bkuse="a:${esc(k)}" data-v="${v.art.id}">Usar esta</button>` : ''}</td></tr>`).join('')}${[...miss.s.entries()].map(([k, v]) => `<tr><td><b>${esc(v.raw)}</b><br><span class="mutedc" style="font-size:12px">Servicio</span></td><td>${v.n}</td><td><select class="inp" data-bkpick="s:${esc(k)}">${svcOpts(v.svc.id)}</select></td><td>${v.svc.id ? `<button class="btn sm" data-bkuse="s:${esc(k)}" data-v="${v.svc.id}">Usar esta</button>` : ''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">${pastN || S.incPast ? `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-bk-past ${S.incPast ? 'checked' : ''}> Incluir días anteriores (${pastN})</label>` : ''}${S.pre ? `<label class="field" style="max-width:340px;margin:0">Monto del depósito que se acredita<select class="inp" data-bk-basis><option value="std" ${S.basis === 'std' ? 'selected' : ''}>Depósito estándar (${money(BK.STD, 1)})</option><option value="paid" ${S.basis === 'paid' ? 'selected' : ''}>Lo que pagó la clienta (${A.pre[0] ? money(A.pre[0].paid, 1) : ''})</option><option value="net" ${S.basis === 'net' ? 'selected' : ''}>Neto después de la comisión de Booksy (${A.pre[0] ? money(A.pre[0].net, 1) : ''})</option></select></label>` : '<span class="mutedc" style="font-size:13px">Sin el informe de Prepagos no se registran depósitos. Puedes agregarlo con "Cambiar o agregar archivo".</span>'}</div>
+      ${act.length ? `<div class="tablewrap"><table><thead><tr><th></th><th>Fecha y hora</th><th>Clienta</th><th>Servicio</th><th>Lashista</th><th class="r">Precio</th><th>Depósito</th><th>Acción</th></tr></thead><tbody>${act.map(o => { const svc = Store.config.services.find(s => s.id === o.svc.id), art = Store.config.artists.find(a => a.id === o.art.id), dq = o.dep && o.dep.out === 'create' ? o.dep : null;
+        return `<tr><td><input type="checkbox" data-bksel="${esc(o.key)}" ${on(o) ? 'checked' : ''} aria-label="Importar"></td><td style="white-space:nowrap">${Dates.fmt(o.day, { weekday: 'short', day: 'numeric', month: 'short' })}<br><span class="mutedc" style="font-size:12px">${esc(o.time)}${o.dur ? ' · ' + o.dur + ' min' : ''}</span></td><td style="white-space:normal;min-width:140px"><b>${esc((o.cl.first + ' ' + o.cl.last).trim())}</b>${o.cl.notes.length ? `<br><span class="mutedc" style="font-size:12px">${esc(o.cl.notes.join(' · '))}</span>` : ''}</td><td style="white-space:normal;min-width:150px">${svc ? esc(svc.name) : '<span class="tag warn">Sin servicio</span>'}${o.compl ? `<br><span class="mutedc" style="font-size:12px">+ complementos ${money(o.compl, 1)} (por detallar)</span>` : ''}</td><td>${art ? esc(art.name) : '<span class="tag warn">Sin lashista</span>'}</td><td class="r">${money(o.price, 1)}${o.fromCat ? '<br><span class="mutedc" style="font-size:12px">catálogo</span>' : ''}</td><td>${dq ? `<span class="tag app">${money(BK.amount(dq), 1)}</span>` : (o.ex && o.ex.depositId) || (o.dep && o.dep.out === 'exists') ? '<span class="tag">Ya tiene</span>' : '<span class="mutedc">—</span>'}</td><td>${tag(o)}${o.changes.length ? `<br><span class="mutedc" style="font-size:12px;white-space:normal">${esc(o.changes.join('; '))}</span>` : ''}${o.action === 'cancel' ? `<br><span class="mutedc" style="font-size:12px">${esc(o.reason)}</span>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : '<p class="mutedc">No hay citas nuevas ni cambios para importar con estos archivos.</p>'}
+      ${(() => { const oth = [...rows.filter(o => o.action === 'review').map(o => [o, o.reason]), ...A.pre.filter(q => ['nomatch', 'cancelled'].includes(q.out)).map(q => [q, q.out === 'cancelled' ? 'Prepago de una cita cancelada en Booksy: decide qué hacer con ese depósito' : 'Prepago sin cita en esta lista'])]; return oth.length ? `<div class="banner" style="margin-top:12px"><b>Para revisar a mano (no se importan):</b><ul style="margin:6px 0 0 18px">${oth.map(([x, why]) => x.cl ? `<li>${esc((x.cl.first + ' ' + x.cl.last).trim())}${x.w ? ' · ' + esc(x.w.iso) : x.date ? ' · ' + esc(x.date) : ''}: ${esc(why)}</li>` : '').join('')}</ul></div>` : ''; })()}
+      <p class="err" data-bkerr style="color:var(--bad);font-weight:600"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-bk-go ${!sel.length && !A.pre.some(q => q.out === 'create' && q.appt) || blocked || S.busy ? 'disabled' : ''}>${S.busy ? 'Importando…' : `Importar ${sel.length} cita${sel.length === 1 ? '' : 's'}${nDep ? ` y ${nDep} depósito${nDep === 1 ? '' : 's'}` : ''}`}</button></div>${blocked ? '<p class="formula">Confirma los nombres de la tabla amarilla (servicio y lashista) de las citas marcadas para poder importar.</p>' : ''}`;
+    BK.bind(box);
+  },
+  drawPick(msg) {
+    return `<p style="color:var(--muted);margin:0 0 12px">Sube los dos archivos que descargas de Booksy: <b>Lista de reservas</b> (las citas) y, si quieres que se registren los depósitos, <b>Prepagos</b>. Puedes subir ambos a la vez. Antes de guardar nada verás una vista previa.</p>
+      <label class="field">Archivos de Booksy (.xlsx o .csv)<input type="file" class="inp" accept=".xlsx,.xls,.csv" multiple data-bkfile></label><p class="err" data-bkerr style="color:var(--bad);font-weight:600">${esc(msg)}</p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button></div>`;
+  },
+  bindPick(box) { $('[data-x=no]', box).onclick = UI.close; const f = $('[data-bkfile]', box); f.onchange = () => BK.load([...f.files]); },
+  async load(files) {
+    const box = $('[data-bk]', BK.st.m), err = $('[data-bkerr]', box); err.textContent = 'Leyendo…';
+    try { for (const f of files) { const r = await BK.read(f); BK.st[r.kind === 'reservas' ? 'res' : 'pre'] = r; } BK.draw(); } catch (e) { err.textContent = e.message || 'No se pudo leer el archivo.'; }
+  },
+  bind(box) {
+    const S = BK.st; $('[data-x=no]', box).onclick = UI.close;
+    $('[data-bk-more]', box).onclick = () => { const f = document.createElement('input'); f.type = 'file'; f.multiple = true; f.accept = '.xlsx,.xls,.csv'; f.onchange = async () => { try { for (const x of [...f.files]) { const r = await BK.read(x); S[r.kind === 'reservas' ? 'res' : 'pre'] = r; } S.sel = {}; BK.draw(); } catch (e) { $('[data-bkerr]', box).textContent = e.message; } }; f.click(); };
+    $$('[data-bkpick]', box).forEach(s => s.onchange = () => { S.pick[s.dataset.bkpick] = s.value; BK.draw(); });
+    $$('[data-bkuse]', box).forEach(s => s.onclick = () => { S.pick[s.dataset.bkuse] = s.dataset.v; BK.draw(); });
+    $$('[data-bksel]', box).forEach(c => c.onchange = () => { S.sel[c.dataset.bksel] = c.checked; BK.draw(); });
+    const p = $('[data-bk-past]', box); if (p) p.onchange = () => { S.incPast = p.checked; BK.draw(); };
+    const b = $('[data-bk-basis]', box); if (b) b.onchange = () => { S.basis = b.value; BK.draw(); };
+    $('[data-bk-go]', box).onclick = () => BK.run();
+  },
+  /* ---------- guardar ---------- */
+  async run() {
+    const S = BK.st, A = S.A, box = $('[data-bk]', S.m), sel = A.rows.filter(o => ['new', 'update', 'link', 'cancel'].includes(o.action) && S.sel[o.key] !== false), res = { nuevas: 0, actualizadas: 0, ligadas: 0, canceladas: 0, depositos: 0, errores: [] }, now = new Date().toISOString();
+    S.busy = true; BK.draw(); const bar = $('[data-bk-go]', S.m); const prog = (i) => { const b = $('[data-bk-go]', S.m); if (b) b.textContent = `Importando ${i} de ${sel.length}…`; };
+    const snap = o => ({ id: o.id, status: o.status, service: o.svcRaw, employee: o.emp, client: o.cl.raw, date: o.date, time: o.time, duration: o.dur, price: o.val, addonsAmount: o.compl, importedAt: now, importedBy: Mode.who() });
+    const mkDep = async (q, ap, appt) => { const art = Store.config.artists.find(a => a.id === ap.artistId) || {}, amt = BK.amount(q), fee = r2(q.fee);
+      return Store.saveDeposit({ first: ap.first, last: ap.last, phone: ap.phone || '', date: ap.date, time: ap.time, artistId: ap.artistId, artistName: ap.artistName, service: ap.serviceName, amount: amt, method: 'Booksy', txn: `Booksy #${q.receipt}`, status: 'Verificado', note: `Prepago de Booksy · la clienta pagó ${money(q.paid, 1)} · comisión ${money(fee, 1)} · neto ${money(q.net, 1)}`, booksyReceipt: q.receipt, booksyPaid: q.paid, booksyFee: fee, booksyNet: q.net, receivedAt: q.t ? q.t.iso : '', verifiedAt: now, verifiedByName: Mode.who() + ' (importado de Booksy)', _event: 'Importado del informe de Prepagos de Booksy' }); };
+    let i = 0;
+    for (const o of sel) { prog(++i);
+      try {
+        if (o.action === 'cancel') { await Store.saveAppointment({ status: 'Cancelada', depositId: '', booksy: { ...(o.ex.booksy || {}), status: o.status, cancelledAt: now } }, o.ex.id); if (o.ex.depositId) await Store.saveDeposit({ appointmentId: '', _event: 'Se desvinculó de la cita (cancelada en Booksy)' }, o.ex.depositId); res.canceladas++; continue; }
+        const svc = Store.config.services.find(s => s.id === o.svc.id), art = Store.config.artists.find(a => a.id === o.art.id); if (!svc || !art) throw new Error('Falta servicio o lashista');
+        const note = [o.cl.changed || o.cl.notes.length ? `Booksy: "${o.cl.raw}"` : '', o.compl ? `Booksy: complementos ${money(o.compl, 1)} sin detalle (elige el complemento al cobrar)` : '', o.fromCat ? 'Booksy no trae precio: se usó el del catálogo' : ''].filter(Boolean).join(' · ');
+        const data = { date: o.date, time: o.time, first: o.cl.first, last: o.cl.last, phone: '', email: '', artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: o.price, duration: o.dur || null, addons: [], notes: note, booksy: snap(o), source: 'booksy' };
+        if (o.action === 'update') { const ch = { booksy: snap(o) }; if (o.changes.some(c => /^fecha|^hora/.test(c))) { ch.date = o.date; ch.time = o.time; } if (o.changes.some(c => /^lashista/.test(c))) { ch.artistId = art.id; ch.artistName = art.name; } if (o.changes.some(c => /^servicio/.test(c))) { ch.serviceId = svc.id; ch.serviceName = svc.name; ch.price = o.price; } if (o.changes.some(c => /^duración/.test(c))) ch.duration = o.dur || null;
+          await Store.saveAppointment(ch, o.ex.id); res.actualizadas++; continue; }
+        if (o.action === 'link') { const ch = { booksy: snap(o) }; await Store.saveAppointment(ch, o.ex.id); res.ligadas++; continue; }
+        let did = ''; if (o.dep && o.dep.out === 'create') { did = await mkDep(o.dep, data); o.dep.made = true; }
+        const id = await Store.saveAppointment({ ...data, depositId: did }); if (did) { await Store.saveDeposit({ appointmentId: id, _event: 'Vinculado a la cita' }, did); res.depositos++; } res.nuevas++;
+      } catch (e) { res.errores.push(`${(o.cl.first + ' ' + o.cl.last).trim()} (${o.date} ${o.time}): ${e.message || e.code || e}`); } }
+    // depósitos de las citas que ya existían en la agenda (con cambios, ya capturadas a mano o sin cambios)
+    for (const q of BK.depPlan(A, sel).filter(x => x.appt && !x.made)) { try { const ap = Store.appointments.find(a => a.id === q.appt.id) || q.appt; if (ap.depositId) continue; const did = await mkDep(q, ap); await Store.saveAppointment({ depositId: did }, ap.id); await Store.saveDeposit({ appointmentId: ap.id, _event: 'Vinculado a la cita' }, did); q.made = true; res.depositos++; } catch (e) { res.errores.push(`Depósito de ${q.cl.first}: ${e.message || e}`); } }
+    try { await Audit.log({ action: 'IMPORT', entity: 'APPT', entityId: '', byName: Mode.who(), detail: `Importó de Booksy: ${res.nuevas} citas nuevas, ${res.actualizadas} actualizadas, ${res.ligadas} ya capturadas, ${res.canceladas} canceladas y ${res.depositos} depósitos` }); } catch (e) {}
+    S.busy = false; S.done = res; BK.draw();
+  },
+  drawDone(box) {
+    const r = BK.st.done; box.innerHTML = `<div class="banner" style="border-color:var(--ok)"><b>Listo.</b> ${[r.nuevas && `${r.nuevas} cita${r.nuevas === 1 ? '' : 's'} nueva${r.nuevas === 1 ? '' : 's'}`, r.actualizadas && `${r.actualizadas} actualizada${r.actualizadas === 1 ? '' : 's'}`, r.ligadas && `${r.ligadas} ya capturada${r.ligadas === 1 ? '' : 's'} (quedaron ligadas a Booksy)`, r.canceladas && `${r.canceladas} cancelada${r.canceladas === 1 ? '' : 's'}`, r.depositos && `${r.depositos} depósito${r.depositos === 1 ? '' : 's'} registrado${r.depositos === 1 ? '' : 's'}`].filter(Boolean).join(' · ') || 'No hubo cambios.'}</div>
+      ${r.errores.length ? `<div class="banner" style="border-color:var(--bad);margin-top:10px"><b>No se pudieron guardar ${r.errores.length}:</b><ul style="margin:6px 0 0 18px">${r.errores.map(e => `<li>${esc(e)}</li>`).join('')}</ul></div>` : ''}
+      <p class="formula">Los complementos de Booksy solo traen el monto: quedan anotados en la cita para que elijas cuál fue al cobrar.</p>
+      <div class="acts"><button class="btn" data-x="no">Cerrar</button><button class="btn primary" data-bk-ag>Ver la agenda</button></div>`;
+    $('[data-x=no]', box).onclick = UI.close; $('[data-bk-ag]', box).onclick = () => { UI.close(); UI.go('agenda'); };
+  },
+};
+{
+  const h0 = Views.agenda.html, m0 = Views.agenda.mount;
+  Views.agenda.html = function () { return h0.call(this).replace('<button class="btn" data-agpdf>', `<button class="btn" data-bkimport ${Store.writable() ? '' : 'disabled'}>${ic('dl')}Importar de Booksy</button><button class="btn" data-agpdf>`); };
+  Views.agenda.mount = function (root) { m0.call(this, root); const b = $('[data-bkimport]', root); if (b) b.onclick = () => BK.open(); };
+}
 
 
 window.FM_BOOT = function () {
