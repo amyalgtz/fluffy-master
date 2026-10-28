@@ -544,7 +544,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-28 22:30';
+window.FM_VERSION = '2026-10-28 23:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -7325,10 +7325,12 @@ function calHtml(day) {
         return { start: Math.max(st, m - 60), dur: 60, sale: s.id, who: client(s) || 'Sin nombre', what: s.service + ' · cobro sin cita', cls: 'walk', color: '#D6E3F3', icons: ' <i class="ci ok">$</i>' }; }))
       .sort((a, b) => a.start - b.start);
     // carriles para citas que se enciman
-    const lanes = []; bl.forEach(b => { let i = lanes.findIndex(end => end <= b.start); if (i < 0) { i = lanes.length; lanes.push(0); } lanes[i] = b.start + b.dur; b.lane = i; });
-    const nl = Math.max(1, lanes.length);
+    // el ancho se reparte solo entre las citas que realmente se enciman (cada grupo de encimes aparte);
+    // antes, un solo encime partía a la mitad TODAS las citas de la lashista ese día
+    const groups = []; let g = [], gEnd = -1; bl.forEach(b => { if (g.length && b.start >= gEnd) { groups.push(g); g = []; gEnd = -1; } g.push(b); gEnd = Math.max(gEnd, b.start + b.dur); }); if (g.length) groups.push(g);
+    groups.forEach(grp => { const lanes = []; grp.forEach(b => { let i = lanes.findIndex(end => end <= b.start); if (i < 0) { i = lanes.length; lanes.push(0); } lanes[i] = b.start + b.dur; b.lane = i; }); grp.forEach(b => { b.nl = Math.max(1, lanes.length); }); });
     return `<div class="calcol"><div class="calhead"><span class="dot" style="background:${CAL.colors[(colIdx.get(ar.id) || 0) % CAL.colors.length]}"></span><b>${esc(ar.name)}</b><span class="mutedc">${bl.filter(b => b.appt).length} citas</span></div>
-      <div class="calbody" data-calcol="${ar.id}" style="height:${H}px">${hours.map(m => `<div class="calhr" style="top:${(m - st) * CAL.ppm}px"></div><div class="calhh" style="top:${(m + 30 - st) * CAL.ppm}px"></div>`).join('')}${bl.map(b => block(b, b.lane, nl)).join('')}</div></div>`;
+      <div class="calbody" data-calcol="${ar.id}" style="height:${H}px">${hours.map(m => `<div class="calhr" style="top:${(m - st) * CAL.ppm}px"></div><div class="calhh" style="top:${(m + 30 - st) * CAL.ppm}px"></div>`).join('')}${bl.map(b => block(b, b.lane, b.nl)).join('')}</div></div>`;
   }).join('');
   const now = new Date(), nm = now.getHours() * 60 + now.getMinutes(), showNow = day === Dates.today() && nm >= st && nm <= en;
   return `<div class="calwrap" data-calst="${st}"><div class="calgrid" style="--cols:${Math.max(1, arts.length)}">
@@ -8985,7 +8987,9 @@ const BK = {
   clean(raw) {
     const notes = []; let s = String(raw || '').trim(); const orig = s;
     s = s.replace(/\(([^)]*)\)/g, (m, t) => { if (t.trim()) notes.push(t.trim()); return ' '; }).replace(/\b(ig|insta(?:gram)?|whats?app|whastapp|wa)\b/ig, m => { notes.push(m); return ' '; }).replace(/\s+/g, ' ').trim();
-    let t = s.split(' ').filter(Boolean); if (notes.length && t.length > 2) { notes.push(t.slice(2).join(' ')); t = t.slice(0, 2); }
+    let t = s.split(' ').filter(Boolean); const ki = t.findIndex((w, i) => i >= 1 && /^(tiene|tienen|deposito|depositos|no|nueva|nuevo|new|viene|llega|pero|pago|paga|cancel\w*|reagend\w*|confirm\w*|efectivo|zelle|caja|cliente|clienta|mcm)$/.test(BK.norm(w)));
+    if (ki > 0) { notes.push(t.slice(ki).join(' ')); t = t.slice(0, ki); }
+    if (notes.length && t.length > 2) { notes.push(t.slice(2).join(' ')); t = t.slice(0, 2); }
     const first = title(t[0] || ''), last = title(t.slice(1).join(' '));
     return { first, last, notes: notes.filter(Boolean), changed: !!notes.length || BK.norm(orig) !== BK.norm(first + ' ' + last), raw: orig };
   },
