@@ -492,6 +492,7 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
 .cbtns.cbtns4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:6px 0 4px}.cbtns.cbtns4 .cnote{grid-column:1/-1}
 .tag.bad{background:var(--bad-wash,#F6E2DF);color:var(--bad)}
 @media (max-width:440px){.cbtns.cbtns4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wl-acts .cbtn{min-height:38px;padding:0 12px;font-size:13px}.wlcard .nbdg,.nbdg.own{flex:none}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -554,7 +555,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-29 02:00';
+window.FM_VERSION = '2026-10-29 05:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -9319,9 +9320,10 @@ CL.ficha = function (id, tab) {
     <div class="kpis k4" style="box-shadow:none"><div class="kpi"><div class="lab">Visitas</div><div class="val">${intf(st.visits)}</div></div><div class="kpi"><div class="lab">Total gastado</div><div class="val">${money(st.spent, 1)}</div></div><div class="kpi"><div class="lab">No-shows</div><div class="val">${intf(st.noshow)}</div></div><div class="kpi"><div class="lab">Última visita</div><div class="val" style="font-size:18px">${st.last != null ? esc(Dates.fmt(st.last, { day: 'numeric', month: 'short' })) : '—'}</div></div></div>
     <div class="segmented small" style="margin:6px 0 10px;flex-wrap:wrap">${[['citas', 'Citas · ' + H.appts.length], ['servicios', 'Servicios y ventas · ' + H.sales.length], ['compras', 'Compras'], ['notas', 'Notas'], ['cambios', 'Cambios']].map(([k, l]) => `<button class="${tb === k ? 'on' : ''}" data-cl-t="${k}">${l}</button>`).join('')}</div>
     <div data-cl-body>${T[tb]}</div>
-    <div class="acts"><button class="btn" data-x="c">Cerrar</button>${adm && c.status !== 'merged' ? '<button class="btn" data-cl-mg>Fusionar con…</button>' : ''}<button class="btn primary" data-cl-ed ${can && c.status !== 'merged' ? '' : 'disabled'}>Editar</button></div>`, m => {
+    <div class="acts"><button class="btn" data-x="c">Cerrar</button>${adm && c.status !== 'merged' ? '<button class="btn" data-cl-mg>Fusionar con…</button>' : ''}${typeof WL !== 'undefined' && can && c.status !== 'merged' ? '<button class="btn" data-cl-wl>A lista de espera</button>' : ''}<button class="btn primary" data-cl-ed ${can && c.status !== 'merged' ? '' : 'disabled'}>Editar</button></div>`, m => {
     m.classList.add('wide'); $('[data-x=c]', m).onclick = UI.close; $$('[data-cl-t]', m).forEach(b => b.onclick = () => { UI.close(); CL.ficha(id, b.dataset.clT); });
     const ed = $('[data-cl-ed]', m); if (ed) ed.onclick = () => { UI.close(); CL.edit(JSON.parse(JSON.stringify(c)), false); };
+    const wl = $('[data-cl-wl]', m); if (wl) wl.onclick = () => { UI.close(); const e = WL.blank(); Object.assign(e, { first: c.first || '', last: c.last || '', phone: ((c.phones || [])[0] || {}).raw || '', email: ((c.emails || [])[0] || {}).e || '', clientId: c.id }); WL.edit(e, true); };
     const mg = $('[data-cl-mg]', m); if (mg) mg.onclick = () => { UI.close(); CL.elegirFusion(c); };
     const sv = $('[data-cl-savenotes]', m); if (sv) sv.onclick = async () => { try { await CL.save({ ...c, notes: $('[data-cl-notes]', m).value }); UI.toast('Notas guardadas'); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } };
   });
@@ -9490,6 +9492,142 @@ CL.imRun = async IM => {
   finally { CL.bulk = false; CL._c = null; CL._d = null; Store.invalidate(); }
   IM.R = { nuevas: nuevas - Math.min(fail, nuevas), unidas: changed.length, omit: omit.length, fail, errRows: omit }; IM.step = 4; CL.imDraw(IM);
 };
+
+
+/* =========================================================
+   LISTA DE ESPERA (Recepción y administración)
+   · Colección nueva waitlist dentro de docs: entradas (kind 'entry') y avisos de espacio liberado (kind 'slot').
+   · Una clienta sale de la lista sola cuando se le guarda una cita (por el botón "Asignar cita" o por cualquier otro
+     camino, reconocida por teléfono, correo o nombre) o cuando Recepción la quita indicando el motivo.
+   · Las atendidas o quitadas se conservan 30 días a la vista (en la base no se borra nada).
+   · Cuando se cancela una cita futura se crea un aviso de espacio libre y se muestra a quién de la lista le encaja.
+     Solo sugiere: nunca escribe ni agenda por su cuenta.
+   · No cambia citas, ventas ni pagos; solo lee las citas y marca la entrada de la lista.
+   ========================================================= */
+Store.waitlist = [];
+Store.connectHooks.push(db => db.collection('waitlist').onSnapshot(s => { Store.waitlist = s.docs.map(d => ({ id: d.id, ...d.data() })); Store.invalidate(); }, () => {}));
+ICON.wl = '<circle cx="12" cy="12" r="8.500"/><path d="M12 7.500V12l3 2"/>';
+NAV.splice(NAV.findIndex(n => n.id === 'clientas') + 1, 0, { id: 'espera', label: 'Lista de espera', icon: 'wl' });
+RECEP_ROUTES.push('espera'); if (typeof RECEP_MENU !== 'undefined') RECEP_MENU.splice(Math.max(0, RECEP_MENU.findIndex(x => x[0] === 'clientas')) + 1, 0, ['espera', 'Lista de espera', 'wl']);
+UI2.NAVIC.espera = '<circle cx="12" cy="12" r="8.500"/><path d="M12 7.500V12l3 2"/>';
+['admin', 'recep'].forEach(k => { const g = UI2.GROUPS[k].find(x => x[0] === 'Operación')[1]; g.splice(Math.max(0, g.indexOf('clientas')) + 1, 0, 'espera'); });
+{ const R = UI.renderNav; UI.renderNav = function () { R(); if (Mode.accountant) return; const n = WL.active().length;
+    if (Mode.reception && !$('#side .nav [data-go=espera]')) { const c = $('#side .nav [data-go=clientas]'), html = `<a class="${UI.route === 'espera' ? 'on' : ''}" data-go="espera">${ic('wl')}Lista de espera</a>`; if (c) c.insertAdjacentHTML('afterend', html); }
+    const a = $('#side .nav [data-go=espera]'); if (a && n && !$('.nbdg', a)) a.insertAdjacentHTML('beforeend', `<span class="nbdg own">${n}</span>`); }; }
+
+const WL = {
+  pending: null, st: { tab: 'espera' },
+  entries() { return Store.waitlist.filter(x => x.kind !== 'slot'); },
+  active() { return WL.entries().filter(e => e.status === 'espera' || e.status === 'contactada').sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt))); },
+  closed() { const lim = Date.now() - 30 * 864e5; return WL.entries().filter(e => (e.status === 'agendada' || e.status === 'descartada') && new Date(e.closedAt || e.updatedAt || 0).getTime() >= lim).sort((a, b) => String(b.closedAt).localeCompare(String(a.closedAt))); },
+  ago(iso) { const d = Math.floor((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? 'hoy' : d === 1 ? 'hace 1 día' : 'hace ' + d + ' días'; },
+  t12(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; const h = +m[1]; return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'a. m.' : 'p. m.'}`; },
+  name(e) { return title(((e.first || '') + ' ' + (e.last || '')).trim()) || 'Sin nombre'; },
+  put(doc) { return Store.db.doc('waitlist/' + doc.id).set(doc); },
+  blank() { return { id: 'w' + genId(), kind: 'entry', first: '', last: '', key: '', phone: '', phoneN: '', email: '', clientId: '', serviceId: '', serviceName: '', artistId: '', artistName: '', when: '', notes: '', status: 'espera', createdAt: new Date().toISOString(), createdBy: Mode.who() }; },
+  pn(p) { const r = typeof CL !== 'undefined' ? CL.phone(p) : { ok: false }; return r.ok ? r.n : ''; },
+  /* ---------- espacios liberados ---------- */
+  slots() {
+    const now = Date.now(), act = WL.active();
+    return Store.waitlist.filter(x => x.kind === 'slot' && x.status === 'abierto').map(s => {
+      const st = new Date(`${s.date}T${s.time}:00`).getTime(), sm = CAL.mins(s.time), dur = s.durationMin || 60; if (!(st > now) || sm == null) return null;
+      const taken = Store.appointments.some(a => a.date === s.date && a.artistId === s.artistId && a.status !== 'Cancelada' && CAL.mins(a.time) != null && CAL.mins(a.time) < sm + dur && CAL.mins(a.time) + CAL.dur(a) > sm); if (taken) return null;
+      const c = act.filter(e => !e.artistId || e.artistId === s.artistId).sort((a, b) => (b.artistId === s.artistId) - (a.artistId === s.artistId) || String(a.createdAt).localeCompare(String(b.createdAt)));
+      return c.length ? { ...s, cands: c } : null; }).filter(Boolean).sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+  },
+  slotFor(e) { return WL.slots().find(s => s.cands.some(c => c.id === e.id)) || null; },
+  links(e, big) { const n = Contact.num(e.phone || e.phoneN), mail = e.email;
+    const b = (k, href, label, ext, ok) => ok ? `<a class="cbtn" data-contact="${k}" href="${href}"${ext ? ' target="_blank" rel="noopener"' : ''}>${Contact.ic[k]}<span>${label}</span></a>` : '';
+    return b('tel', 'tel:+' + n, 'Llamar', 0, n) + b('wa', 'https://wa.me/' + n, 'WhatsApp', 1, n) + b('sms', 'sms:+' + n, 'Texto', 0, n) + (!n && mail ? `<a class="cbtn" data-contact="mail" href="mailto:${esc(mail)}">${typeof mailIc !== 'undefined' ? mailIc : ''}<span>Correo</span></a>` : ''); },
+  alertHtml(max) {
+    const S = WL.slots().slice(0, max || 3); if (!S.length) return '';
+    return S.map(s => `<div class="banner wlalert" style="border-color:var(--ok);background:var(--ok-wash);margin-bottom:12px"><div style="display:flex;gap:10px;align-items:baseline;flex-wrap:wrap"><b>Se liberó ${esc(Dates.fmt(Dates.fromISO(s.date), { weekday: 'long', day: 'numeric', month: 'long' }))}, ${esc(WL.t12(s.time))} con ${esc(s.artistName)}</b><span class="mutedc">${esc(s.label || '')}</span><button class="btn sm" style="margin-left:auto" data-wl-dismiss="${esc(s.id)}">Descartar aviso</button></div>
+      <div style="margin-top:6px"><b>En lista de espera que encaja:</b></div>${s.cands.slice(0, 3).map(e => `<div class="wlcand" style="padding:8px 0;border-top:1px solid var(--line)"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(WL.name(e))}</b>${e.artistId === s.artistId ? `<span class="tag app">Prefiere ${esc(e.artistName)}</span>` : '<span class="tag">Cualquier lashista</span>'}${e.when ? `<span class="mutedc">${esc(e.when)}</span>` : ''}</div><div class="wl-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">${WL.links(e)}<button class="btn primary sm" data-wl-assign="${esc(e.id)}" data-wl-slot="${esc(s.id)}" ${Store.writable() ? '' : 'disabled'}>Asignar a este horario</button></div></div>`).join('')}</div>`).join('');
+  },
+  bind(root) {
+    $$('[data-wl-assign]', root).forEach(b => b.onclick = () => WL.assign(b.dataset.wlAssign, b.dataset.wlSlot));
+    $$('[data-wl-dismiss]', root).forEach(b => b.onclick = async () => { const s = Store.waitlist.find(x => x.id === b.dataset.wlDismiss); if (!s) return; try { await WL.put({ ...s, status: 'descartado', dismissedAt: new Date().toISOString(), dismissedBy: Mode.who() }); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } });
+    $$('[data-wl-go]', root).forEach(b => b.onclick = () => UI.go('espera'));
+  },
+  /* ---------- asignar cita ---------- */
+  assign(id, slotId) { const e = Store.waitlist.find(x => x.id === id), s = slotId ? Store.waitlist.find(x => x.id === slotId) : null; if (!e) return; if (!Store.writable()) return UI.toast('No tienes permiso para agendar.', true);
+    WL.pending = { id: e.id, ts: Date.now() }; apptForm(null, { first: e.first || '', last: e.last || '', phone: e.phone || '', email: e.email || '', artistId: s ? s.artistId : (e.artistId || ''), serviceId: e.serviceId || '', date: s ? s.date : Dates.toISO(Dates.today()), time: s ? s.time : '', notes: e.when ? 'Lista de espera: ' + e.when : '' }); },
+  async close(e, status, extra) { const d = { ...e, status, closedAt: new Date().toISOString(), closedBy: Mode.who(), updatedAt: new Date().toISOString(), updatedBy: Mode.who(), ...(extra || {}) }; await WL.put(d); return d; },
+  same(e, a) { const p = WL.pn(a.phone), em = String(a.email || '').trim().toLowerCase(); if (p && e.phoneN && p === e.phoneN) return true; if (em && e.email && em === String(e.email).toLowerCase()) return true;
+    return !!e.key && ckey(a.first, a.last) === e.key && (!p || !e.phoneN) && (!em || !e.email); },
+  /* se llama después de guardar una cita (sin frenar el guardado) */
+  async afterSave(data, id, prev, rid) {
+    if (!prev) { const pend = WL.pending && Date.now() - WL.pending.ts < 30 * 60e3 ? WL.pending.id : null; WL.pending = null; const act = WL.active();
+      let hit = pend ? act.filter(e => e.id === pend) : []; if (!hit.length) { const strong = act.filter(e => { const p = WL.pn(data.phone), em = String(data.email || '').trim().toLowerCase(); return (p && e.phoneN === p) || (em && e.email && String(e.email).toLowerCase() === em); }); const byName = act.filter(e => WL.same(e, data)); hit = strong.length ? strong : byName.length === 1 ? byName : []; }
+      for (const e of hit) await WL.close(e, 'agendada', { apptId: rid, apptDate: data.date, apptTime: data.time, closeReason: pend ? 'Se le asignó una cita' : 'Se agendó su cita' });
+      if (hit.length) setTimeout(() => UI.toast(`${hit.map(WL.name).join(', ')} salió de la lista de espera`), 1300); return; }
+    if (prev.status !== 'Cancelada' && data.status === 'Cancelada' && prev.time && prev.artistId && prev.date >= Dates.toISO(Dates.today()) && new Date(`${prev.date}T${prev.time}:00`).getTime() > Date.now()) {
+      const sid = 's' + genId(); await WL.put({ id: sid, kind: 'slot', date: prev.date, time: prev.time, durationMin: CAL.dur(prev), artistId: prev.artistId, artistName: prev.artistName || '', label: 'Cancelación de ' + apptClient(prev), status: 'abierto', createdAt: new Date().toISOString(), createdBy: Mode.who() }); } },
+  /* ---------- formularios ---------- */
+  edit(e, isNew) {
+    const arts = Store.config.artists.filter(a => a.active !== false), svcs = Store.config.services.filter(s => s.active !== false && !/^DEPOSITO/i.test(s.name));
+    UI.modal(`<h3>${isNew ? 'Agregar a la lista de espera' : 'Editar'}</h3>${isNew && typeof CL !== 'undefined' ? '<label class="field">Buscar en Clientas (opcional)<input class="inp" data-wl-s placeholder="Nombre, teléfono o correo" autocomplete="off"></label><div data-wl-sr style="margin-bottom:8px"></div>' : ''}
+      <div class="formgrid"><label class="field">Nombre<input class="inp" data-w="first" value="${esc(e.first)}"></label><label class="field">Apellido<input class="inp" data-w="last" value="${esc(e.last)}"></label>
+        <label class="field">Teléfono<input class="inp" type="tel" data-w="phone" value="${esc(e.phone)}" inputmode="tel" placeholder="(305) 555-0123"></label><label class="field">Correo<input class="inp" type="email" data-w="email" value="${esc(e.email)}" placeholder="clienta@correo.com"></label>
+        <label class="field">Servicio que busca<select class="inp" data-w="serviceId"><option value="">Sin definir</option>${svcs.map(s => `<option value="${s.id}" ${s.id === e.serviceId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
+        <label class="field">Lashista (opcional)<select class="inp" data-w="artistId"><option value="">Cualquier lashista</option>${arts.map(a => `<option value="${a.id}" ${a.id === e.artistId ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>
+        <label class="field full">Días u horarios que le sirven<input class="inp" data-w="when" value="${esc(e.when)}" placeholder="Ej.: tardes entre semana, sábados"></label>
+        <label class="field full">Nota (opcional)<textarea class="inp" rows="2" data-w="notes">${esc(e.notes)}</textarea></label></div>
+      <p class="err" data-wl-err style="color:var(--bad);font-weight:600"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-wl-ok>${isNew ? 'Agregar a la lista' : 'Guardar'}</button></div>`, m => {
+      const g = k => $(`[data-w=${k}]`, m), set = (k, v) => { g(k).value = v || ''; }; $('[data-x=no]', m).onclick = UI.close;
+      const sr = $('[data-wl-s]', m); if (sr) sr.oninput = () => { const q = sr.value.trim().toLowerCase(), tq = ckey(q, '').split(' ').filter(Boolean), dg = q.replace(/\D/g, ''); const box = $('[data-wl-sr]', m);
+        const r = q.length < 2 ? [] : CL.idx().act.filter(c => { const w = CL.keys(c).join(' ').split(' '); return (tq.length && tq.every(t => w.some(y => y.startsWith(t)))) || (dg.length >= 3 && (c.phones || []).some(p => p.n.includes(dg))) || (q.includes('@') && (c.emails || []).some(x => x.e.includes(q))); }).slice(0, 5);
+        box.innerHTML = r.map(c => `<button type="button" class="rlist" data-pick="${esc(c.id)}" style="display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:8px 4px;cursor:pointer"><b>${esc(CL.name(c))}</b> <span class="mutedc">${esc(((c.phones || [])[0] || {}).raw || '')} ${esc(((c.emails || [])[0] || {}).e || '')}</span></button>`).join('');
+        $$('[data-pick]', box).forEach(b => b.onclick = () => { const c = CL.idx().byId.get(b.dataset.pick); set('first', c.first); set('last', c.last); set('phone', ((c.phones || [])[0] || {}).raw || CL.show(((c.phones || [])[0] || {}).n)); set('email', ((c.emails || [])[0] || {}).e); e.clientId = c.id; box.innerHTML = `<p class="formula" style="margin:0">Se usaron los datos de ${esc(CL.name(c))} (ya está en Clientas).</p>`; }); };
+      $('[data-wl-ok]', m).onclick = async () => { const err = $('[data-wl-err]', m), v = k => g(k).value.trim(); const d = { ...e, first: title(v('first')), last: title(v('last')), phone: v('phone'), email: v('email').toLowerCase(), serviceId: v('serviceId'), artistId: v('artistId'), when: v('when'), notes: v('notes') };
+        if (!d.first && !d.last) return (err.textContent = 'Escribe el nombre de la clienta.'); if (!d.phone && !d.email) return (err.textContent = 'Agrega un teléfono o un correo para poder contactarla.');
+        if (d.phone) { d.phoneN = WL.pn(d.phone); if (!d.phoneN) return (err.textContent = `El teléfono “${d.phone}” no es válido. Para números fuera de EE. UU. escríbelo con + y el código de país.`); } else d.phoneN = '';
+        if (d.email && !(typeof CL !== 'undefined' ? CL.email(d.email) : /\S+@\S+\.\S+/.test(d.email))) return (err.textContent = `El correo “${d.email}” no es válido.`);
+        const dup = WL.active().find(x => x.id !== d.id && ((d.phoneN && x.phoneN === d.phoneN) || (d.email && x.email && x.email.toLowerCase() === d.email))); if (dup) return (err.textContent = `${WL.name(dup)} ya está en la lista de espera (${WL.ago(dup.createdAt)}). Edita esa entrada en lugar de agregarla otra vez.`);
+        d.key = ckey(d.first, d.last); const sv = Store.config.services.find(s => s.id === d.serviceId), ar = Store.config.artists.find(a => a.id === d.artistId); d.serviceName = sv ? sv.name : ''; d.artistName = ar ? ar.name : '';
+        if (!d.clientId && d.phoneN && typeof CL !== 'undefined') { const c = (CL.idx().ph.get(d.phoneN) || [])[0]; if (c) d.clientId = c.id; } d.updatedAt = new Date().toISOString(); d.updatedBy = Mode.who();
+        const b = $('[data-wl-ok]', m); b.disabled = true; try { await WL.put(d); UI.close(); UI.toast(isNew ? `${WL.name(d)} está en la lista de espera` : 'Cambios guardados'); } catch (x) { b.disabled = false; err.textContent = 'No se pudo guardar: ' + (x.message || x.code); } }; });
+  },
+  contacted(e) { UI.modal(`<h3>Ya la contactaste</h3><p style="color:var(--muted);margin:0 0 10px">${esc(WL.name(e))} sigue en la lista. Anota qué pasó para que nadie más la llame dos veces.</p><label class="field">Qué pasó (opcional)<textarea class="inp" rows="2" data-wl-n placeholder="Ej.: no contestó, avisa el viernes">${esc(e.contactNote || '')}</textarea></label><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-wl-ok>Guardar</button></div>`, m => { $('[data-x=no]', m).onclick = UI.close;
+      $('[data-wl-ok]', m).onclick = async () => { try { await WL.put({ ...e, status: 'contactada', contactedAt: new Date().toISOString(), contactedBy: Mode.who(), contactNote: $('[data-wl-n]', m).value.trim(), updatedAt: new Date().toISOString() }); UI.close(); } catch (x) { UI.toast('No se pudo guardar: ' + (x.message || x.code), true); } }; }); },
+  REASONS: ['Ya no quiere agendar', 'Ya agendó por su cuenta (Booksy, llamada…)', 'No contestó o no se pudo contactar', 'Se agregó por error', 'Otro motivo'],
+  remove(e) { UI.modal(`<h3>Quitar de la lista de espera</h3><p style="color:var(--muted);margin:0 0 10px">${esc(WL.name(e))} saldrá de la lista y del contador. Se conserva 30 días en “Atendidas” por si cambia de opinión.</p><div data-wl-r>${WL.REASONS.map((r, i) => `<label style="display:flex;gap:8px;align-items:center;padding:6px 0"><input type="radio" name="wlr" value="${i}" ${i === 0 ? 'checked' : ''}> ${esc(r)}</label>`).join('')}</div><label class="field" style="margin-top:8px">Nota (opcional)<textarea class="inp" rows="2" data-wl-n></textarea></label><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-wl-ok>Quitar de la lista</button></div>`, m => { $('[data-x=no]', m).onclick = UI.close;
+      $('[data-wl-ok]', m).onclick = async () => { const i = +($('input[name=wlr]:checked', m) || { value: 0 }).value; try { await WL.close(e, 'descartada', { closeReason: WL.REASONS[i], closeNote: $('[data-wl-n]', m).value.trim() }); UI.close(); UI.toast(`${WL.name(e)} salió de la lista de espera`); } catch (x) { UI.toast('No se pudo guardar: ' + (x.message || x.code), true); } }; }); },
+  reopen(e) { return WL.put({ ...e, status: 'espera', closedAt: '', closedBy: '', closeReason: '', closeNote: '', apptId: '', updatedAt: new Date().toISOString(), updatedBy: Mode.who() }); },
+};
+/* ---------- pantalla ---------- */
+Views.espera = {
+  html() {
+    const s = WL.st, A = WL.active(), C = WL.closed(), can = Store.writable();
+    const card = e => { const sl = WL.slotFor(e), n = Contact.num(e.phone || e.phoneN);
+      return `<div class="wlcard ${sl ? 'hot' : ''}" style="border:1px solid ${sl ? 'var(--ok)' : 'var(--line)'};${sl ? 'box-shadow:0 0 0 3px var(--ok-wash);' : ''}border-radius:14px;padding:14px 16px;background:var(--bg);margin-bottom:12px"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="font-size:16px">${esc(WL.name(e))}</b>${e.artistId ? `<span class="tag app">Prefiere ${esc(e.artistName)}</span>` : '<span class="tag">Cualquier lashista</span>'}${e.status === 'contactada' ? `<span class="tag warn">Contactada ${esc(WL.ago(e.contactedAt))}${e.contactNote ? ' · ' + esc(e.contactNote) : ''}</span>` : ''}${sl ? `<span class="tag app" style="background:var(--ok-wash);color:var(--ok)">Hay espacio ${esc(Dates.fmt(Dates.fromISO(sl.date), { weekday: 'short', day: 'numeric', month: 'short' }))} ${esc(WL.t12(sl.time))} con ${esc(sl.artistName)}</span>` : ''}</div>
+        <div class="mutedc" style="margin-top:4px">${esc([e.phone, e.email].filter(Boolean).join(' · '))}${e.serviceName ? ' · ' + esc(e.serviceName) : ''}${e.when ? ' · ' + esc(e.when) : ''}</div>${e.notes ? `<div class="mutedc" style="margin-top:2px">${esc(e.notes)}</div>` : ''}<div class="mutedc" style="font-size:12.5px;margin-top:2px">En espera desde ${esc(WL.ago(e.createdAt))}</div>
+        <div class="wl-acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${WL.links(e)}<button class="btn ${sl ? 'primary' : ''} sm" data-wl-assign="${esc(e.id)}" ${sl ? `data-wl-slot="${esc(sl.id)}"` : ''} ${can ? '' : 'disabled'}>${sl ? 'Asignar a este horario' : 'Asignar cita'}</button><button class="btn sm" data-wl-contacted="${esc(e.id)}" ${can ? '' : 'disabled'}>Ya contactada</button><button class="btn sm" data-wl-edit="${esc(e.id)}" ${can ? '' : 'disabled'}>Editar</button><button class="btn sm" data-wl-remove="${esc(e.id)}" ${can ? '' : 'disabled'}>Quitar de la lista…</button></div></div>`; };
+    const closed = C.length ? `<div class="tablewrap"><table><thead><tr><th>Clienta</th><th>Resultado</th><th>Cuándo</th><th></th></tr></thead><tbody>${C.map(e => `<tr><td><b>${esc(WL.name(e))}</b><br><span class="mutedc" style="font-size:12px">${esc(e.phone || e.email || '')}</span></td><td style="white-space:normal">${e.status === 'agendada' ? `<span class="tag app">Agendada</span>${e.apptDate ? ' ' + esc(Dates.fmt(Dates.fromISO(e.apptDate), { day: 'numeric', month: 'short' })) + ' ' + esc(WL.t12(e.apptTime)) : ''}` : `<span class="tag">Quitada</span> ${esc(e.closeReason || '')}`}${e.closeNote ? `<br><span class="mutedc" style="font-size:12px">${esc(e.closeNote)}</span>` : ''}</td><td style="white-space:nowrap">${esc(WL.ago(e.closedAt))}<br><span class="mutedc" style="font-size:12px">${esc(e.closedBy || '')}</span></td><td class="r"><button class="btn sm" data-wl-reopen="${esc(e.id)}" ${can ? '' : 'disabled'}>Volver a la lista</button></td></tr>`).join('')}</tbody></table></div><p class="formula">Se muestran los últimos 30 días.</p>` : '<div class="tablewrap"><div class="empty"><b>Nada atendido todavía</b>Aquí aparecen las clientas que ya agendaron o que quitaste de la lista, durante 30 días.</div></div>';
+    return `<div class="head"><div><h1>Lista de espera</h1><p>Clientas que esperan un espacio. Salen solas de la lista cuando se les guarda una cita.</p></div><div class="chips"><button class="btn primary" data-wl-add ${can ? '' : 'disabled'}>${ic('plus')}Agregar a la lista</button></div></div>
+      ${WL.alertHtml(5)}<div class="segmented small" style="margin-bottom:14px"><button class="${s.tab === 'espera' ? 'on' : ''}" data-wl-tab="espera">En espera · ${A.length}</button><button class="${s.tab === 'atendidas' ? 'on' : ''}" data-wl-tab="atendidas">Atendidas · ${C.length}</button></div>
+      ${s.tab === 'espera' ? (A.length ? A.map(card).join('') : '<div class="tablewrap"><div class="empty"><b>No hay nadie en la lista de espera</b>Cuando una clienta quiera un horario que no hay, agrégala aquí con su teléfono y, si tiene, su lashista preferida. Cuando se libere un espacio, la app te dirá a quién ofrecérselo.</div></div>') : closed}`;
+  },
+  mount(root) {
+    WL.bind(root); const by = id => Store.waitlist.find(x => x.id === id), s = WL.st;
+    $$('[data-wl-tab]', root).forEach(b => b.onclick = () => { s.tab = b.dataset.wlTab; UI.render(); }); const ad = $('[data-wl-add]', root); if (ad) ad.onclick = () => WL.edit(WL.blank(), true);
+    $$('[data-wl-edit]', root).forEach(b => b.onclick = () => WL.edit({ ...by(b.dataset.wlEdit) }, false)); $$('[data-wl-contacted]', root).forEach(b => b.onclick = () => WL.contacted(by(b.dataset.wlContacted))); $$('[data-wl-remove]', root).forEach(b => b.onclick = () => WL.remove(by(b.dataset.wlRemove)));
+    $$('[data-wl-reopen]', root).forEach(b => b.onclick = async () => { try { await WL.reopen(by(b.dataset.wlReopen)); UI.toast('Volvió a la lista de espera'); } catch (e) { UI.toast('No se pudo guardar: ' + (e.message || e.code), true); } });
+  },
+};
+/* ---------- aparece también en el Panel de hoy y en la Agenda ---------- */
+{ const H = Views.recepcion.html, M = Views.recepcion.mount;
+  Views.recepcion.html = function () { const h = H.call(this), A = WL.active(), al = WL.alertHtml(2); if (!A.length && !al) return h;
+    const card = `<section class="panel"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Lista de espera</h2><span class="nbdg own" style="position:static">${A.length}</span><button class="btn sm" style="margin-left:auto" data-wl-go>Ver lista</button></div>${al ? `<div style="margin-top:10px">${al}</div>` : ''}${A.slice(0, 3).map(e => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)"><b>${esc(WL.name(e))}</b>${e.artistId ? `<span class="tag app">Prefiere ${esc(e.artistName)}</span>` : '<span class="tag">Cualquiera</span>'}<span class="mutedc">${esc(e.when || '')} · ${esc(WL.ago(e.createdAt))}</span></div>`).join('')}${A.length > 3 ? `<p class="mutedc" style="margin:6px 0 0">y ${A.length - 3} más</p>` : ''}</section>`;
+    const i = h.indexOf('<section class="panel"'); return i < 0 ? h + card : h.slice(0, i) + card + h.slice(i); };
+  Views.recepcion.mount = function (root) { M.call(this, root); WL.bind(root); }; }
+{ const H = Views.agenda.html, M = Views.agenda.mount;
+  Views.agenda.html = function () { let h = H.call(this); const n = WL.active().length, al = WL.alertHtml(3);
+    if (n) h = h.replace('<button class="btn primary" data-newappt', `<button class="btn" data-wl-go>Lista de espera · ${n}</button><button class="btn primary" data-newappt`);
+    return al ? h.replace('<div class="filters no-print"', al + '<div class="filters no-print"') : h; };
+  Views.agenda.mount = function (root) { M.call(this, root); WL.bind(root); }; }
+/* ---------- engancha el guardado de citas: cancelar crea el aviso; agendar saca de la lista ---------- */
+{ const S0 = Store.saveAppointment; Store.saveAppointment = async function (data, id) { const prev = id ? this.appointments.find(a => a.id === id) : null, rid = await S0.call(this, data, id); try { await WL.afterSave(data, id, prev, rid); } catch (e) { /* la lista de espera nunca debe impedir guardar una cita */ } return rid; }; }
 
 
 window.FM_BOOT = function () {
