@@ -482,6 +482,13 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
   .page{padding:18px 16px 110px}.head h1{font-size:27px}
 }
 @media (min-width:1101px){.kpis.k5{grid-template-columns:repeat(5,minmax(0,1fr))}.kpis.k4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+/* botones de contacto de la cita */
+.dl .cbtns{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 4px;font-weight:400}
+.cbtn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;min-width:0;padding:0 10px;border:1px solid var(--petal);border-radius:var(--r-m);background:var(--accent-wash);color:var(--ink);font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s ease,transform .1s ease;-webkit-tap-highlight-color:transparent;cursor:pointer}
+.cbtn:hover{background:var(--blush)}.cbtn:active{transform:scale(.98)}.cbtn svg{width:20px;height:20px;flex:none;fill:none;stroke:var(--accent-strong);stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.cbtn[aria-disabled="true"]{background:var(--blush);border:1px dashed var(--field);color:var(--muted);cursor:not-allowed}.cbtn[aria-disabled="true"]:hover{background:var(--blush)}.cbtn[aria-disabled="true"]:active{transform:none}.cbtn[aria-disabled="true"] svg{stroke:var(--faint)}
+.cbtns .cnote{grid-column:1/-1;margin:2px 0 0;font-size:12.5px;color:var(--muted);white-space:normal}
+@media (max-width:440px){.cbtn{flex-direction:column;gap:3px;min-height:58px;font-size:13px}}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -544,7 +551,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-28 23:00';
+window.FM_VERSION = '2026-10-28 23:30';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3569,7 +3576,7 @@ function apptForm(a, preset) {
 function apptDetail(a) {
   const d = apptDeposit(a), s = apptSale(a), can = Store.writable();
   UI.modal(`<h3>${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + esc(a.time) : ''} · ${APPT_STATUS[a.status] || ''}</p>
-    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(a.phone || '—')}</dd><dt>Correo</dt><dd>${a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '—'}</dd>
+    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(a.phone || (d && d.phone) || '—')}</dd><dt>Correo</dt><dd>${a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '—'}</dd>${Contact.html(a.phone || (d && d.phone))}
     <dt>Depósito</dt><dd>${d ? `${money(d.amount, 1)} · ${esc(d.method || '')} · ${d.status === 'Verificado' ? 'verificado' : String(d.status || '').toLowerCase()}` : 'Sin depósito'}</dd>
     <dt>Pago</dt><dd style="white-space:normal">${s ? `Pagó ${money(r2(s.price - s.discount + s.tip - s.depositAmount), 1)} con ${esc(s.method || 'sin método')}${s.depositAmount ? ` + depósito ${money(s.depositAmount, 1)}` : ''} · cobró ${esc(s.cashierName || a.paidByName || '—')}` : a.status === 'Pagada' ? 'Pagada' : 'Pendiente'}</dd>
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
@@ -9148,6 +9155,18 @@ const BK = {
   Views.agenda.mount = function (root) { m0.call(this, root); const b = $('[data-bkimport]', root); if (b) b.onclick = () => BK.open(); };
 }
 
+
+/* Botones de contacto del detalle de la cita: Llamar (tel:), WhatsApp (wa.me) y Texto (sms:).
+   Usan el teléfono que ya está en la cita; no guardan nada. 10 dígitos se toman como EE. UU. (+1);
+   los números con "+" se respetan tal cual (p. ej. +52 de México). */
+const Contact = {
+  num(p) { const raw = String(p == null ? '' : p).trim(), d = raw.replace(/\D/g, ''); if (d.length === 10) return '1' + d; if (d.length === 11 && d[0] === '1') return d; if (raw[0] === '+' && d.length >= 8 && d.length <= 15) return d; return ''; },
+  ic: { tel: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4h3l1.5 4-2 1.3a11 11 0 0 0 5.700 5.700L16 13l4 1.500v3a2 2 0 0 1-2.200 2A15.500 15.500 0 0 1 4.500 6.200 2 2 0 0 1 6.500 4z"/></svg>', wa: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.300-4A8 8 0 1 1 8 18.700z"/><path d="M9 8.500c.2 2.700 2.800 5.800 5.800 6.500l1.500-1.300-2-1.200-1 .8c-1-.4-2-1.400-2.400-2.400l.8-1-1.200-2z"/></svg>', sms: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9.500L5 20v-4H4z"/></svg>' },
+  html(phone) {
+    const n = this.num(phone), b = (k, href, label, ext) => n ? `<a class="cbtn" data-contact="${k}" href="${href}"${ext ? ' target="_blank" rel="noopener"' : ''}>${this.ic[k]}<span>${label}</span></a>` : `<span class="cbtn" data-contact="${k}" role="button" aria-disabled="true">${this.ic[k]}<span>${label}</span></span>`;
+    return `<dd class="cbtns">${b('tel', 'tel:+' + n, 'Llamar')}${b('wa', 'https://wa.me/' + n, 'WhatsApp', true)}${b('sms', 'sms:+' + n, 'Texto')}${n ? '' : '<p class="cnote">Esta cita no tiene un teléfono válido. Agrégalo en “Editar cita” para poder llamar o escribir.</p>'}</dd>`;
+  },
+};
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
