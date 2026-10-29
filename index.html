@@ -556,10 +556,13 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
 @media (pointer:coarse){.sb3 .nav a{height:44px}.sb3 .gh{min-height:36px}.app.sb-rail .sb3 .nav a,.app.sb-rail .sb3.sbadmin .grp:not(.first) .gicon{height:44px}.app.sb-rail .sb3.sbadmin .grp.fly .gitems a{height:44px}.sbpop .acts3 button{height:44px}.sb3 .sbtog,.sb3 .gear{width:44px;height:44px}}
 @media (prefers-reduced-motion:reduce){.app,.sb3 .sbtog svg,.sb3 .gch{transition:none}}
 .sbpop .acts3 [data-logout]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9'/></svg>")}
+.sbpop .acts3 [data-rec-off]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 8l-4 4 4 4M6 12h11'/></svg>")}
 .sbpop .acts3 [data-sync]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M20 11a8 8 0 0 0-14-4M4 4v4h4M4 13a8 8 0 0 0 14 4M20 20v-4h-4'/></svg>")}
 .sbpop .acts3 [data-theme-toggle]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z'/></svg>")}
 .sbpop .acts3 [data-rec-on]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z'/></svg>")}
 .sbpop .acts3 [data-rec-shift]{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M7 7h12l-3-3M17 17H5l3 3'/></svg>")}
+.dtrow{display:grid;grid-template-columns:1.35fr 1fr 1.15fr;gap:12px}.dtrow .field{min-width:0}.dtrow input,.dtrow select{min-width:0;width:100%}
+@media (max-width:420px){.dtrow{gap:8px}.dtrow input,.dtrow select{padding-left:8px;padding-right:6px;font-size:15px}}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -622,7 +625,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-29 10:00';
+window.FM_VERSION = '2026-10-29 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3472,7 +3475,7 @@ Views.nueva.html = function () {
   const f = this.form, avail = Store.deposits.filter(d => d.status !== 'Rechazado' && (!d.outcome || d.id === f.depositId)).sort((a, b) => Math.abs((a.day || 0) - Dates.fromISO(f.date)) - Math.abs((b.day || 0) - Dates.fromISO(f.date)));
   const sel = depositBlockHtml(f);
   h = h.replace('<label class="field full">Comentarios', sel + '<label class="field full">Comentarios');
-  if (Mode.reception) h = h.replace('<h1>Nueva venta</h1>', '<h1>Cobrar</h1>').replace(/<div class="full"><label class="check"><input type="checkbox" name="manualOn"[\s\S]*?<\/label><\/div>/, '');
+  if (Mode.reception) h = h.replace('<h1>Nueva venta</h1>', '<h1>Cobrar</h1>');
   return h;
 };
 Views.nueva.blank = (function (b) { return function () { return { ...b.call(this), depositId: '' }; }; })(Views.nueva.blank);
@@ -3594,10 +3597,9 @@ function apptForm(a, preset) {
   const avail = Store.deposits.filter(d => !d.outcome && d.status !== 'Rechazado' && (!d.appointmentId || d.appointmentId === (a && a.id)) && (d.id === st.depositId || (st.first && sameClient(d, st.first, st.last))));
   UI.modal(`<h3>${a ? 'Editar cita' : 'Nueva cita'}</h3>
     <div class="formgrid">
-      <label class="field">Fecha<input type="date" data-a="date" value="${esc(st.date)}"></label><label class="field">Hora<input type="time" data-a="time" value="${esc(st.time || '')}"></label>
-      <div class="full chips" data-quick>${[1, 2, 3, 4].map(n => `<button type="button" class="chip" data-wk="${n}">En ${n} semana${n > 1 ? 's' : ''}</button>`).join('')}</div>
+      <div class="full dtrow"><label class="field">Fecha<input type="date" data-a="date" value="${esc(st.date)}"></label><label class="field">Hora<input type="time" data-a="time" value="${esc(st.time || '')}"></label></div>
       <label class="field">Nombre<input data-a="first" value="${esc(st.first)}"></label><label class="field">Apellido<input data-a="last" value="${esc(st.last)}"></label>
-      <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono (opcional)<input type="tel" data-a="phone" value="${esc(st.phone || '')}"></label>
+      <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono<input type="tel" data-a="phone" value="${esc(st.phone || '')}" required inputmode="tel" placeholder="(305) 555-0123" autocomplete="off"></label>
       <label class="field full">Correo electrónico (opcional)<input type="email" data-a="email" value="${esc(st.email || '')}" placeholder="clienta@correo.com" autocomplete="off"></label>
       <label class="field full">Servicio<select data-a="serviceId">${serviceOptions(st.serviceId, 0, !!a)}</select></label>
       <div class="full xbox"><div class="xhead"><b>Complementos</b><span class="mutedc">Bottom lashes, wax, brow lamination, lash removal… lo que la clienta agregue.</span></div><div data-addons></div><button type="button" class="btn sm" data-addaddon>${ic('plus')}Agregar complemento</button></div>
@@ -3619,6 +3621,8 @@ function apptForm(a, preset) {
       const v = k => $(`[data-a="${k}"]`, m).value.trim(), err = $('[data-aerr]', m);
       if (!Dates.fromISO(v('date'))) { err.textContent = 'Escribe la fecha.'; return; }
       if (!v('first')) { err.textContent = 'Escribe el nombre de la clienta.'; return; }
+      if (!v('phone')) { err.textContent = 'Escribe el teléfono de la clienta.'; return; }
+      if (!(typeof CL !== 'undefined' ? CL.phone(v('phone')).ok : v('phone').replace(/\D/g, '').length >= 10)) { err.textContent = 'Revisa el teléfono: 10 dígitos (EE. UU.), o con + y el código de país si es de otro país.'; return; }
       if (!v('artistId')) { err.textContent = 'Elige la lashista.'; return; }
       if (!v('serviceId')) { err.textContent = 'Elige el servicio.'; return; }
       if (v('email') && !/^\S+@\S+\.\S+$/.test(v('email'))) { err.textContent = 'Revisa el correo electrónico.'; return; }
@@ -9829,6 +9833,7 @@ const SB = {
     if (sync) $('[data-st]', pop).appendChild(sync); const A = $('[data-acts]', pop);
     [btn('[data-sync]'), btn('[data-theme-toggle]'), btn('[data-rec-on]')].forEach(b => b && A.appendChild(row(b)));
     const sh = btn('[data-rec-shift]'); if (sh) { const who = [...foot.querySelectorAll('b')].find((b, k) => k > 0); A.appendChild(row(sh)); if (who) sh.insertAdjacentHTML('beforeend', `<span class="sub">Turno: ${esc(who.textContent)}</span>`); }
+    $$('button', foot).forEach(b => { if (!A.contains(b) && !b.matches('[data-logout]')) A.appendChild(row(b)); }); /* cualquier otro botón del pie (p. ej. Salir del modo recepción) también pasa al menú */
     A.insertAdjacentHTML('beforeend', '<hr>'); const lo = btn('[data-logout]'); if (lo) A.appendChild(row(lo)); if (!rec) pop.insertAdjacentHTML('beforeend', '<p class="note3">Los registros nuevos se guardan en la nube.</p>');
     foot.replaceWith(sbfoot); document.body.appendChild(pop); SB.pop && SB.pop.remove(); SB.pop = pop;
     side.classList.add('sb3'); side.classList.toggle('sbadmin', !rec); side.classList.toggle('sbrecep', rec);
