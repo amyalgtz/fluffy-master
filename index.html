@@ -555,7 +555,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-29 05:00';
+window.FM_VERSION = '2026-10-29 07:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3578,14 +3578,14 @@ function apptForm(a, preset) {
 }
 
 function apptDetail(a) {
-  const d = apptDeposit(a), s = apptSale(a), can = Store.writable();
+  const d = apptDeposit(a), s = apptSale(a), can = Store.writable(), ac = typeof CL !== 'undefined' ? CL.apptContact(a, d) : { phone: a.phone || (d && d.phone) || '', email: a.email || '', c: null, from: {} };
   UI.modal(`<h3>${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + esc(a.time) : ''} · ${APPT_STATUS[a.status] || ''}</p>
-    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(a.phone || (d && d.phone) || '—')}</dd><dt>Correo</dt><dd>${a.email ? `<a href="mailto:${esc(a.email)}">${esc(a.email)}</a>` : '—'}</dd>${Contact.html(a.phone || (d && d.phone))}
+    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(ac.phone || '—')}${ac.from.phone ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd><dt>Correo</dt><dd>${ac.email ? `<a href="mailto:${esc(ac.email)}">${esc(ac.email)}</a>` : '—'}${ac.from.email ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd>${Contact.html(ac.phone)}
     <dt>Depósito</dt><dd>${d ? `${money(d.amount, 1)} · ${esc(d.method || '')} · ${d.status === 'Verificado' ? 'verificado' : String(d.status || '').toLowerCase()}` : 'Sin depósito'}</dd>
     <dt>Pago</dt><dd style="white-space:normal">${s ? `Pagó ${money(r2(s.price - s.discount + s.tip - s.depositAmount), 1)} con ${esc(s.method || 'sin método')}${s.depositAmount ? ` + depósito ${money(s.depositAmount, 1)}` : ''} · cobró ${esc(s.cashierName || a.paidByName || '—')}` : a.status === 'Pagada' ? 'Pagada' : 'Pendiente'}</dd>
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
     ${(a.history || []).length ? `<h4 style="margin:16px 0 6px">Historial</h4><ul class="audit">${a.history.slice().reverse().map(h => `<li><b>${esc(h.by || '')}</b> <span class="mutedc">${esc(new Date(h.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))}</span><br>${esc(h.what)}</li>`).join('')}</ul>` : ''}
-    <div class="acts">${a.email && a.status === 'Agendada' ? `<a class="btn" href="${apptMailto(a)}">Enviar confirmación</a>` : ''}${can && a.status === 'Agendada' ? '<button class="btn" data-x="linksale">Ya se cobró</button><button class="btn" data-x="resched">Reagendar</button><button class="btn" data-x="cancel">Cancelar cita</button><button class="btn" data-x="ns">No-show</button><button class="btn" data-x="ed">Editar</button><button class="btn primary" data-x="pay">Cobrar</button>' : ''}
+    <div class="acts">${ac.c ? `<button class="btn" data-cl-ficha="${esc(ac.c.id)}">Ver ficha</button>` : ''}${ac.email && a.status === 'Agendada' ? `<a class="btn" href="${apptMailto(ac.email === a.email ? a : { ...a, email: ac.email })}">Enviar confirmación</a>` : ''}${can && a.status === 'Agendada' ? '<button class="btn" data-x="linksale">Ya se cobró</button><button class="btn" data-x="resched">Reagendar</button><button class="btn" data-x="cancel">Cancelar cita</button><button class="btn" data-x="ns">No-show</button><button class="btn" data-x="ed">Editar</button><button class="btn primary" data-x="pay">Cobrar</button>' : ''}
       ${s && s.source === 'app' && can ? '<button class="btn" data-x="chdep">Cambiar depósito</button>' : ''}${s ? '<button class="btn" data-x="sale">Ver venta</button>' : ''}${can && a.status !== 'Agendada' && a.status !== 'Pagada' ? '<button class="btn" data-x="reopen">Volver a agendada</button>' : ''}<button class="btn ${can && a.status === 'Agendada' ? '' : 'primary'}" data-x="c">Cerrar</button></div>`, m => {
     const on = (k, fn) => { const b = $(`[data-x=${k}]`, m); if (b) b.onclick = fn; };
     on('c', UI.close); on('ed', () => { UI.close(); apptForm(a); }); on('resched', () => { UI.close(); rescheduleForm(a); }); on('linksale', () => { UI.close(); linkApptToSale(a); }); on('pay', () => { UI.close(); chargeAppt(a); }); on('sale', () => { UI.close(); saleDetail(s); }); on('chdep', () => { UI.close(); changeSaleDeposit(s, a); });
@@ -3660,7 +3660,7 @@ Views.agenda = {
     const sum = { tot: list.length, dep: list.filter(a => apptDeposit(a)).length, paid: list.filter(a => a.status === 'Pagada').length, pend: list.filter(a => a.status === 'Agendada').length };
     const groups = new Map(); list.forEach(a => { if (!groups.has(a.day)) groups.set(a.day, []); groups.get(a.day).push(a); });
     const rows = l => table([{ label: '#', r: 1, html: 1 }, { label: 'Hora' }, { label: 'Clienta', html: 1 }, { label: 'Lashista', html: 1 }, { label: 'Servicio', html: 1 }, { label: 'Depósito', html: 1 }, { label: 'Pago', html: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
-      l.map((a, k) => [`<span class="apnum">${k + 1}</span>`, a.time || '—', `<b>${esc(apptClient(a))}</b>${a.phone || a.email ? `<br><span class="mutedc" style="font-size:12px">${esc([a.phone, a.email].filter(Boolean).join(' · '))}</span>` : ''}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${(a.addons || []).length && typeof AddOns !== 'undefined' ? '+ ' + esc(AddOns.text(a)) + ' · ' : ''}${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
+      l.map((a, k) => [`<span class="apnum">${k + 1}</span>`, a.time || '—', `<b>${esc(apptClient(a))}</b>${(() => { const c2 = typeof CL !== 'undefined' ? CL.apptContact(a) : a; return c2.phone || c2.email ? `<br><span class="mutedc" style="font-size:12px">${esc([c2.phone, c2.email].filter(Boolean).join(' · '))}</span>` : ''; })()}`, `${esc(a.artistName)}${a.scheduledArtistName && a.scheduledArtistName !== a.artistName ? `<br><span class="mutedc" style="font-size:12px">agendada con ${esc(a.scheduledArtistName)}</span>` : ''}`, `${esc(a.serviceName)}<br><span class="mutedc" style="font-size:12px">${(a.addons || []).length && typeof AddOns !== 'undefined' ? '+ ' + esc(AddOns.text(a)) + ' · ' : ''}${money(a.price)}${a.scheduledServiceName ? ' · agendado: ' + esc(a.scheduledServiceName) : ''}${(a.extraSaleIds || []).length ? ' · + ' + a.extraSaleIds.map(id => (Store.sales.find(x => x.id === id) || {}).service).filter(Boolean).map(esc).join(', ') : ''}</span>`, depCell(a), payCell(a), APPT_STATUS[a.status] || '',
         a.status === 'Agendada' && Store.writable() ? `<button class="btn sm primary" data-pay="${a.id}">Cobrar</button>` : '']), null, { click: 1 });
     return `<div class="head"><div><h1>Agenda</h1><p>${intf(sum.tot)} citas · ${intf(sum.dep)} con depósito · ${intf(sum.paid)} pagadas · ${intf(sum.pend)} por cobrar</p></div><div class="chips"><button class="btn primary" data-newappt ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva cita</button></div></div>
       <div class="filters no-print" style="align-items:center">
@@ -9270,7 +9270,7 @@ Views.clientas = {
   },
   html() {
     const s = CL.st, adm = CL.admin(), can = Store.writable(), I = CL.idx(); if (!adm && s.tab !== 'dir' && s.tab !== 'dup') s.tab = 'dir';
-    const head = (sub) => `<div class="head"><div><h1>Clientas</h1><p>${sub}</p></div><div class="chips">${adm ? '<button class="btn" data-cl-imp>Importar Excel</button><button class="btn" data-cl-hist>Crear fichas desde el historial</button>' : ''}<button class="btn primary" data-cl-new ${can ? '' : 'disabled'}>${ic('plus')}Nueva clienta</button></div></div>`;
+    const head = (sub) => `<div class="head"><div><h1>Clientas</h1><p>${sub}</p></div><div class="chips">${adm ? '<button class="btn" data-cl-imp>Importar Excel</button><button class="btn" data-cl-hist>Crear fichas desde el historial</button><button class="btn" data-cl-fill>Completar citas con las fichas</button>' : ''}<button class="btn primary" data-cl-new ${can ? '' : 'disabled'}>${ic('plus')}Nueva clienta</button></div></div>`;
     const dg = CL.dupes(), tabs = `<div class="segmented small" style="margin-bottom:14px"><button class="${s.tab === 'dir' ? 'on' : ''}" data-cl-tab="dir">Directorio</button><button class="${s.tab === 'dup' ? 'on' : ''}" data-cl-tab="dup">Posibles duplicados · ${dg.length}</button>${adm ? `<button class="${s.tab === 'fus' ? 'on' : ''}" data-cl-tab="fus">Fusiones · ${Store.clientMerges.length}</button>` : ''}</div>`;
     if (!I.act.length && s.tab === 'dir') return `${head('Un solo lugar para buscar a cada clienta por nombre, teléfono o correo.')}${tabs}<div class="tablewrap"><div class="empty"><b>Todavía no hay fichas de clientas</b>${adm ? 'Crea las fichas a partir de tus citas y ventas, o importa tu Excel. Antes de guardar verás una vista previa.<br><br><button class="btn primary" data-cl-hist>Crear fichas desde el historial</button> <button class="btn" data-cl-imp>Importar Excel</button>' : 'Pídele a administración que cree las fichas, o usa “Nueva clienta”.'}</div></div>`;
     if (s.tab === 'dup') return `${head('Posibles duplicados: coinciden por teléfono o correo, o tienen nombres iguales o parecidos sin datos para compararlos.')}${tabs}${this.dupHtml(dg, adm)}`;
@@ -9300,7 +9300,7 @@ Views.clientas = {
     const q = $('[data-cl-q]', root); if (q) { let tm; q.oninput = () => { clearTimeout(tm); tm = setTimeout(() => { s.q = q.value; s.page = 0; UI.render(); const n = $('[data-cl-q]'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 200); }; }
     $$('[data-cl-open]', root).forEach(r => { const o = () => CL.ficha(r.dataset.clOpen); r.onclick = o; r.onkeydown = e => { if (e.key === 'Enter') o(); }; });
     const nw = $('[data-cl-new]', root); if (nw) nw.onclick = () => CL.edit(CL.blank(), true);
-    $$('[data-cl-imp]', root).forEach(b => b.onclick = () => CL.importar()); $$('[data-cl-hist]', root).forEach(b => b.onclick = () => CL.desdeHistorial());
+    $$('[data-cl-imp]', root).forEach(b => b.onclick = () => CL.importar()); $$('[data-cl-hist]', root).forEach(b => b.onclick = () => CL.desdeHistorial()); $$('[data-cl-fill]', root).forEach(b => b.onclick = () => CL.completarCitas());
     $$('[data-cl-merge]', root).forEach(b => b.onclick = () => CL.fusion(CL.dupes()[+b.dataset.clMerge].members)); $$('[data-cl-undo]', root).forEach(b => b.onclick = () => CL.deshacer(b.dataset.clUndo));
   },
 };
@@ -9491,6 +9491,62 @@ CL.imRun = async IM => {
     try { await Audit.log({ action: 'IMPORT', entity: 'CLIENTAS', entityId: '', byName: Mode.who(), detail: `Importó clientas desde Excel: ${nuevas} nuevas, ${changed.length} completadas, ${omit.length} omitidas` }); } catch (e) { /* la bitácora no debe frenar la importación */ } }
   finally { CL.bulk = false; CL._c = null; CL._d = null; Store.invalidate(); }
   IM.R = { nuevas: nuevas - Math.min(fail, nuevas), unidas: changed.length, omit: omit.length, fail, errRows: omit }; IM.step = 4; CL.imDraw(IM);
+};
+
+/* ---------- CITAS ↔ FICHAS: la Agenda usa los datos de la ficha de la clienta ---------- */
+CL.forAppt = a => { // ficha de la clienta de una cita (o null si no hay una sola ficha clara)
+  const I = CL.idx(); if (!I.act.length) return null; if (a.clientId) { const r = CL.resolve(a.clientId); if (r) return { c: r, by: 'id' }; }
+  const p = CL.phone(a.phone), em = CL.email(a.email), ph = p.ok ? (I.ph.get(p.n) || []) : [], ml = em ? (I.em.get(em) || []) : [];
+  if (ph.length === 1) return { c: ph[0], by: 'teléfono' }; if (ml.length === 1) return { c: ml[0], by: 'correo' };
+  const k = CL.key(a.first, a.last), l = k ? (I.ky.get(k) || []) : []; if (l.length === 1) { const c = l[0]; if (p.ok && (c.phones || []).length && !c.phones.some(x => x.n === p.n)) return null; return { c, by: 'nombre' }; } return null;
+};
+CL.apptContact = (a, d) => { // lo que la cita trae, completado con la ficha cuando falta
+  const f = CL.forAppt(a), c = f && f.c, p0 = ((c && c.phones) || [])[0], e0 = ((c && c.emails) || [])[0], own = a.phone || (d && d.phone) || '';
+  const phone = own || (p0 ? (p0.raw || CL.show(p0.n)) : ''), email = a.email || (e0 ? e0.e : '');
+  return { phone, email, c, from: { phone: !own && !!phone, email: !a.email && !!email } };
+};
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-cl-ficha]'); if (b) { const m = document.querySelector('.modal'); if (m) UI.close(); CL.ficha(b.dataset.clFicha); } });
+/* al escribir el nombre en una cita nueva: sugerencias de Clientas (se llenan nombre, teléfono y correo) */
+CL.picked = null;
+CL.attachAppt = a => {
+  const m = document.querySelector('.modal'); if (!m || !m.querySelector('[data-a=first]') || m.querySelector('[data-cl-sug]')) return; const F = k => m.querySelector(`[data-a=${k}]`), lab = F('last').closest('label'); if (!lab) return;
+  lab.insertAdjacentHTML('afterend', '<div class="full" data-cl-sug></div>'); const box = m.querySelector('[data-cl-sug]'); let linked = a && (a.clientId ? CL.resolve(a.clientId) : null);
+  const fill = c => { const p0 = (c.phones || [])[0], e0 = (c.emails || [])[0]; F('first').value = c.first || F('first').value; F('last').value = c.last || ''; if (p0) F('phone').value = p0.raw || CL.show(p0.n); if (F('email') && e0) F('email').value = e0.e; CL.picked = { id: c.id, ts: Date.now() }; linked = c;
+    box.innerHTML = `<p class="formula" style="margin:0"><b>✓ ${esc(CL.name(c))}</b>: se usaron los datos de su ficha${p0 ? '' : ' (no tiene teléfono registrado)'}. <button type="button" class="linkbtn" data-cl-unlink>Quitar</button></p>`; const u = box.querySelector('[data-cl-unlink]'); if (u) u.onclick = () => { linked = null; CL.picked = null; box.innerHTML = ''; }; };
+  const draw = () => { if (linked) return; const q = ckey(F('first').value, F('last').value), tq = q.split(' ').filter(Boolean), dg = (F('phone').value || '').replace(/\D/g, ''); if (tq.join('').length < 3 && dg.length < 4) { box.innerHTML = ''; return; }
+    const r = CL.idx().act.filter(c => { const w = CL.keys(c).join(' ').split(' '); return (tq.length && tq.every(t => w.some(y => y.startsWith(t)))) || (dg.length >= 4 && (c.phones || []).some(p => p.n.includes(dg))); }).slice(0, 4);
+    box.innerHTML = r.length ? `<div class="banner" style="margin:0"><b>¿Es una de tus clientas?</b>${r.map(c => `<button type="button" class="rlist" data-cl-use="${esc(c.id)}" style="display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:8px 2px;cursor:pointer"><b>${esc(CL.name(c))}</b> <span class="mutedc">${esc(((c.phones || [])[0] || {}).raw || '')} ${esc(((c.emails || [])[0] || {}).e || '')} · ${intf(CL.stats(c).visits)} visitas</span></button>`).join('')}</div>` : '';
+    $$('[data-cl-use]', box).forEach(b => b.onclick = () => fill(CL.idx().byId.get(b.dataset.clUse))); };
+  ['first', 'last', 'phone'].forEach(k => F(k).addEventListener('input', draw));
+  if (a && !a.phone) { const f = CL.forAppt(a); if (f && (f.c.phones || []).length) box.innerHTML = `<div class="banner" style="margin:0">Su ficha tiene teléfono${(f.c.emails || []).length ? ' y correo' : ''}. <button type="button" class="btn sm" data-cl-fillnow>Usar los datos de su ficha</button></div>`, box.querySelector('[data-cl-fillnow]').onclick = () => fill(f.c); }
+  else if (!a) draw();
+};
+{ const AF = apptForm; window.apptForm = apptForm = function (a, preset) { const r = AF.call(this, a, preset); setTimeout(() => { try { CL.attachAppt(a); } catch (e) { /* las sugerencias nunca deben impedir agendar */ } }, 0); return r; }; }
+/* al guardar: la cita queda ligada a su ficha y se completan los datos que falten (solo con coincidencia fuerte) */
+CL.enrich = (data, id, prev) => {
+  if (!data || !('first' in data) || data.type === 'bloqueo' || data.clientId) return data; const I = CL.idx(); if (!I.act.length) return data; let c = null;
+  if (CL.picked && Date.now() - CL.picked.ts < 30 * 60e3) { const x = I.byId.get(CL.picked.id); if (x && x.status !== 'merged' && (CL.key(data.first, data.last) === x.key || CL.keys(x).includes(CL.key(data.first, data.last)) || (CL.phone(data.phone).ok && (x.phones || []).some(p => p.n === CL.phone(data.phone).n)))) c = x; CL.picked = null; }
+  if (!c) { const p = CL.phone(data.phone), em = CL.email(data.email), ph = p.ok ? (I.ph.get(p.n) || []) : [], ml = em ? (I.em.get(em) || []) : []; c = ph.length === 1 ? ph[0] : ml.length === 1 ? ml[0] : null; }
+  if (!c) return data; const out = { ...data, clientId: c.id }; if (!out.phone && (c.phones || [])[0]) out.phone = c.phones[0].raw || CL.show(c.phones[0].n); if (!out.email && (c.emails || [])[0]) out.email = c.emails[0].e; return out;
+};
+{ const S0 = Store.saveAppointment; Store.saveAppointment = async function (data, id) { let d = data; try { d = CL.enrich(data, id, id ? this.appointments.find(a => a.id === id) : null); } catch (e) { d = data; } return S0.call(this, d, id); }; }
+/* citas que ya existen: completar con los datos de su ficha (solo lo vacío; vista previa y respaldo) */
+CL.completarCitas = function () {
+  if (!CL.admin()) return; const st = { past: false }, plan = () => { const today = Dates.today(); const rows = []; let amb = 0;
+    Store.appointments.filter(a => a.status !== 'Cancelada' && (st.past || a.day >= today)).forEach(a => { const f = CL.forAppt(a); if (!f) return; const c = f.c, p0 = (c.phones || [])[0], e0 = (c.emails || [])[0], ch = {};
+      if (!a.phone && p0) ch.phone = p0.raw || CL.show(p0.n); if (!a.email && e0) ch.email = e0.e; if (!ch.phone && !ch.email) return; if (a.clientId !== c.id) ch.clientId = c.id; rows.push({ a, ch, by: f.by }); }); return rows; };
+  const draw = m => { const r = plan(), nt = r.filter(x => x.ch.phone).length, ne = r.filter(x => x.ch.email).length, nn = r.filter(x => x.by === 'nombre').length;
+    $('[data-cl-body]', m).innerHTML = `<div class="kpis k4" style="box-shadow:none"><div class="kpi lead"><div class="lab">Citas que se completan</div><div class="val">${intf(r.length)}</div></div><div class="kpi"><div class="lab">Teléfonos que faltaban</div><div class="val">${intf(nt)}</div></div><div class="kpi"><div class="lab">Correos que faltaban</div><div class="val">${intf(ne)}</div></div><div class="kpi"><div class="lab">Reconocidas solo por nombre</div><div class="val">${intf(nn)}</div><div class="sub">el nombre es único entre tus fichas</div></div></div>
+      <label style="display:flex;gap:8px;margin:8px 0"><input type="checkbox" data-cl-past ${st.past ? 'checked' : ''}> Incluir también citas de días anteriores</label>
+      ${r.length ? `<div class="tablewrap" style="max-height:230px;overflow:auto"><table><thead><tr><th>Cita</th><th>Clienta</th><th>Se agrega</th></tr></thead><tbody>${r.slice(0, 40).map(x => `<tr><td style="white-space:nowrap">${esc(Dates.fmt(x.a.day, { day: 'numeric', month: 'short' }))} ${esc(x.a.time || '')}</td><td><b>${esc(apptClient(x.a))}</b></td><td style="white-space:normal">${[x.ch.phone && 'teléfono', x.ch.email && 'correo', x.ch.clientId && 'vínculo a su ficha'].filter(Boolean).join(', ')} <span class="mutedc" style="font-size:12px">(${x.by})</span></td></tr>`).join('')}</tbody></table></div>${r.length > 40 ? `<p class="mutedc">y ${r.length - 40} más</p>` : ''}` : '<p class="mutedc">No hay citas por completar: ya tienen sus datos o no coinciden con una ficha.</p>'}
+      <p class="formula">Solo se llenan los campos que están vacíos; nunca se cambia un teléfono o correo que ya tenga la cita. Antes de guardar se descarga un respaldo.</p><p class="err" data-cl-err style="color:var(--bad);font-weight:600"></p>`;
+    const go = $('[data-cl-go]', m); go.disabled = !r.length; go.textContent = r.length ? `Completar ${intf(r.length)} cita${r.length === 1 ? '' : 's'}` : 'Nada que completar'; $('[data-cl-past]', m).onchange = e => { st.past = e.target.checked; draw(m); }; m._r = r; };
+  UI.modal(`<h3>Completar citas con los datos de las fichas</h3><p style="color:var(--muted);margin:0 0 10px">Las citas que se agendaron sin teléfono o correo toman los de la ficha de su clienta, para que la Agenda y los botones de contacto los tengan.</p><div data-cl-body></div><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-cl-go>Completar</button></div>`, m => { m.classList.add('wide'); draw(m); $('[data-x=no]', m).onclick = UI.close;
+    $('[data-cl-go]', m).onclick = async () => { const r = m._r, b = $('[data-cl-go]', m), now = new Date().toISOString(); b.disabled = true; let done = 0, fail = 0;
+      CL.download(`respaldo-citas-antes-de-completar-${CL.stamp()}.json`, JSON.stringify({ tipo: 'respaldo antes de completar citas', fecha: now, citas: r.map(x => ({ id: x.a.id, fecha: x.a.date, hora: x.a.time, antes: { phone: x.a.phone || '', email: x.a.email || '', clientId: x.a.clientId || '' }, despues: x.ch })) }, null, 1));
+      try { await CL.pool(r, 4, async x => { try { await Store.saveAppointment(x.ch, x.a.id); } catch (e) { fail++; } b.textContent = `Guardando ${++done} de ${r.length}…`; });
+        const lid = 'fill-' + CL.stamp(); await Store.db.doc('clientImports/' + lid).set({ id: lid, hash: 'citas', fileName: 'Completar citas con datos de las fichas', rows: r.length, counts: { completadas: r.length - fail, errores: fail }, status: fail ? 'parcial' : 'completa', by: Mode.who(), at: now }); } finally { Store.invalidate(); }
+      UI.close(); UI.toast(fail ? `${r.length - fail} citas completadas; ${fail} no se pudieron guardar.` : `${r.length} cita${r.length === 1 ? '' : 's'} completada${r.length === 1 ? '' : 's'}`, !!fail); }; });
 };
 
 
