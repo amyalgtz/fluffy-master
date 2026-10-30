@@ -618,6 +618,88 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
 .page.c2 .c2row>.chips::-webkit-scrollbar{display:none}.page.c2 .c2row>.chips .chip{flex:none;white-space:nowrap}
 }
 @media (pointer:coarse){.mnu .menu2 .btn{height:44px}}
+/* ===== COBRAR · rediseño (solo Cobrar › Servicio, venta nueva) ===== */
+.page.c3 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.page.c3 .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+.page.c3 .head>div:first-child{flex:1;min-width:0}
+.page.c3 .sale-layout{grid-template-columns:minmax(0,1fr) 340px;gap:22px}
+.page.c3 form.cob-form{display:block}.page.c3 .cob-left{display:none}.page.c3 .cob-src{display:none}
+.cob-main{display:flex;flex-direction:column;gap:12px}
+.cob-card{border:1px solid var(--line);border-radius:16px;background:var(--bg);padding:14px 16px;min-width:0}
+.cob-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}.cob-h h3{margin:0;font-size:16px;font-weight:700;font-family:var(--display)}
+.cob-n{width:26px;height:26px;border-radius:50%;background:var(--pink);display:grid;place-items:center;font-size:13px;font-weight:700;color:var(--ink);flex:none}
+.cob-ha{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.page.c3 .cob-card .field{margin:0;min-width:0}.page.c3 .cob-lb{font-size:12.5px;font-weight:600;color:var(--muted)}.page.c3 .err:empty{display:none}
+/* clienta */
+.cob-client .cc-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.cc-av{width:48px;height:48px;border-radius:50%;background:var(--pink);display:grid;place-items:center;font-weight:700;font-size:16px;color:var(--ink);flex:none}
+.cc-id{flex:1;min-width:180px}.cc-nm{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.cc-nm b{font-family:var(--display);font-size:20px;line-height:1.2}
+.cc-tag{background:var(--blush);color:var(--pink-deep);border:1px solid var(--pink);border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600}.cc-tag[hidden]{display:none}
+.cc-stats{display:flex;gap:4px 14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:3px}.cc-stats span{display:inline-flex;align-items:center;gap:5px}.cc-bad{color:var(--bad);font-weight:700}
+.cc-act{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.cc-act [hidden]{display:none}
+.cc-edit{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.cc-edit[hidden]{display:none}
+/* cita */
+.cob-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}.cob-appt{padding:12px 16px}
+.cob-ro .cob-rov{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;padding:9px 12px;background:var(--blush);color:var(--ink);font-size:14px;min-height:40px}
+/* servicios */
+.svc-row,.page.c3 .xline{display:grid;grid-template-columns:minmax(0,1fr) 150px 96px 76px 34px;gap:8px;align-items:start;background:var(--blush);border:1px solid var(--line);border-radius:12px;padding:10px;margin:0}
+.page.c3 .xline{margin-top:8px;align-items:center}.page.c3 .xline .inp{width:100%;min-width:0}
+.svc-row.main .svc-kind{font-size:12px;color:var(--muted);font-weight:500;margin-top:3px}.svc-row .field{gap:3px}
+.svc-row.main>label:nth-child(3){grid-column:3}
+.cob-svc [data-xadd]{background:var(--bg)}
+.cob-svc{container-type:inline-size}
+@container (max-width:620px){.svc-row,.page.c3 .xline{grid-template-columns:minmax(0,1fr) 100px 76px 34px}.svc-row.main>label:first-child,.page.c3 .xline>select:first-child{grid-column:1/-1}.svc-row.main>label:nth-child(3){grid-column:2}.svc-row.main .svc-kind{display:inline}}
+/* descuento y propina */
+.cob-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.cob-hint{margin:8px 0 0;font-size:12.5px;color:var(--muted)}.cob-hint[hidden]{display:none}
+.cob-dp .tipbox{margin-top:12px}
+/* método de pago */
+.pay-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px}.pay-grid[hidden]{display:none}
+.pay-b{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 6px;min-height:66px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;font-family:inherit}
+.pay-b svg{color:var(--muted)}.pay-b:hover{border-color:var(--pink-deep)}
+.pay-b.on{border:2px solid var(--pink-deep);background:var(--blush);background:color-mix(in srgb,var(--pink) 40%,var(--bg));font-weight:700;padding:9px 5px}.pay-b.on svg{color:var(--pink-deep)}
+.pay-b:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.pay-ex{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:12px}.pay-ex:empty{display:none}.pay-ex label[hidden]{display:none}
+.cob-pm .cob-hide{display:none}.cob-pm .splitbox.on,.cob-pm .splitbox:has([data-splitbody]:not([style*="none"])){margin-top:12px}
+.cob-ha .segmented{margin:0}
+/* depósito */
+.dep-ok{display:flex;align-items:center;gap:12px;background:rgba(76,122,90,.12);border:1px solid rgba(76,122,90,.35);border-radius:12px;padding:10px 12px}.dep-ok b{display:block;font-size:14px}.dep-ok small{color:var(--muted);font-size:12.5px}
+.dep-ck{width:28px;height:28px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;flex:none}.dep-ok .btn{margin-left:auto}
+.dep-more{margin-top:8px}.dep-more>summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;padding:4px 2px}.dep-more .depq{margin-top:8px}
+.cob-dep .depq{margin:0;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px}.cob-dep .depq [data-dbody]{flex:1 1 100%}
+/* más opciones */
+.cob-more{padding:0}.cob-more>summary{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;list-style:none}.cob-more>summary::-webkit-details-marker{display:none}
+.cob-more summary b{display:block;font-size:14.5px}.cob-more summary small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.mo-chip{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--ok);background:rgba(76,122,90,.12);border-radius:999px;padding:3px 10px;white-space:nowrap}.mo-chip[hidden]{display:none}.mo-chip+.mo-c{margin-left:8px}
+.mo-i{width:36px;height:36px;border-radius:10px;background:var(--blush);display:grid;place-items:center;color:var(--muted);flex:none}.mo-c{margin-left:auto;transition:transform .15s;color:var(--muted);display:flex}.cob-more[open] .mo-c{transform:rotate(180deg)}
+.cob-more .cob-b{padding:0 16px 16px;display:flex;flex-direction:column;gap:12px}
+/* pie fijo */
+.cob-foot{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:14px;background:var(--bg);border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 -8px 22px rgba(51,37,42,.07)}
+.cob-foot .due{display:none;flex-direction:column;line-height:1.15}.cob-foot .due span{font-size:12px;color:var(--muted)}.cob-foot .due b{font-size:20px;color:var(--accent-strong,#8E3B4B)}
+.cob-foot .acts{flex:1;display:flex;gap:10px;align-items:center;justify-content:flex-end}.cob-foot .btn.primary{flex:1;min-width:180px;height:48px;font-size:16px;justify-content:center}
+/* resumen lateral */
+.page.c3 .receipt{padding:18px;top:76px}
+.page.c3 .receipt h3{font-size:19px}
+.rs-rows .rline{padding:6px 0}.rs-rows .rline small{color:var(--muted);font-weight:500;margin-left:4px;font-size:12px}.rs-sub{border-top:1px solid var(--line);margin-top:4px;padding-top:10px!important}.rs-sub span{color:var(--ink)!important;font-weight:700}.rs-zero{opacity:.6}
+.rs-due{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:12px 14px;border-radius:12px;background:rgba(244,194,194,.55);background:color-mix(in srgb,var(--pink) 55%,var(--blush))}
+.rs-due span{font-weight:700;font-size:15px;color:var(--ink)}.rs-due b{font-size:30px;line-height:1;font-weight:700;color:var(--accent-strong,#8E3B4B);font-variant-numeric:tabular-nums}
+.rs-split{margin-top:8px}.rs-split .rline{padding:4px 0;font-size:13px}
+.rs-det{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.rs-det>summary{cursor:pointer;font-weight:700;font-size:14.5px;list-style:none;display:flex;justify-content:space-between;align-items:center}.rs-det>summary::-webkit-details-marker{display:none}
+.rs-det>summary::after{content:"";width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-2px);transition:transform .15s}.rs-det[open]>summary::after{transform:rotate(-135deg) translateY(-2px)}
+.rs-ing{background:color-mix(in srgb,var(--pink) 45%,var(--blush));border-radius:8px;padding:7px 10px!important;margin:8px 0 4px;font-weight:700}.rs-ing span:first-child{color:var(--ink)!important}
+.rs-det .rline{padding:5px 0;font-size:13.5px}.rs-det .formula{margin-top:8px}.rs-det .tipsplit{margin-top:6px}
+.svc-i{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13.5px}.svc-i:first-of-type{border-top:0}.svc-i small{display:block;color:var(--muted);font-size:12px;margin-top:1px}.svc-i .r{text-align:right;flex:none}
+@media (min-width:901px){.cob-foot .acts{justify-content:stretch}}
+@media (max-width:900px){
+.page.c3 .sale-layout{grid-template-columns:1fr;gap:14px}.page.c3 .receipt{position:static}
+.cob-foot{bottom:calc(66px + env(safe-area-inset-bottom,0px))}.cob-foot .due{display:flex}.cob-foot .btn.primary{min-width:0}.cob-foot .acts{flex:1}
+.cob-foot [data-reset]{display:none}
+}
+@media (max-width:700px){
+.cob-3{grid-template-columns:1fr 1fr}.cob-3>label:first-child{grid-column:1/-1}
+.svc-row,.page.c3 .xline{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.svc-row.main>label:first-child,.page.c3 .xline>select:first-child{grid-column:1/-1}.svc-row.main>label:nth-child(3){grid-column:auto}
+.cc-edit{grid-template-columns:1fr}.cc-act{margin-left:0;justify-content:flex-start;width:100%}.cob-2{grid-template-columns:1fr 1fr}
+.page.c3 .head{flex-wrap:wrap}
+}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -680,7 +762,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-29 14:00';
+window.FM_VERSION = '2026-10-30 11:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -10009,6 +10091,153 @@ const C2 = {
   V.mount = function (root) { const r = M.apply(this, arguments); try { C2.apply(n, root); C2.bindOnce(); } catch (e) { /* si algo falla, la pantalla queda como estaba */ } return r; };
 });
 { const C0 = UI2.crumbs; UI2.crumbs = function () { try { if (C2.crumb()) { const h = $('#view .head > div:first-child .crumbs'); if (h) h.remove(); return; } } catch (e) { /* se usa la miga de siempre */ } return C0.apply(this, arguments); }; }
+
+
+/* =========================================================
+   COBRAR · REDISEÑO (Administración y Recepción comparten el mismo código)
+   · No recrea el formulario ni sus cálculos: MUEVE los mismos campos y botones a tarjetas numeradas
+     (Clienta · Cita · 1 Servicios · 2 Descuento y propina · 3 Método de pago · 4 Depósito · Más opciones)
+     y reformatea el panel de resumen cada vez que se actualiza. Toda la lógica de comisiones, tips, depósitos,
+     paquetes y pago dividido sigue siendo la de siempre.
+   · Solo la pestaña "Servicio" de una venta nueva. Producto, Pago de lashista y la edición de ventas no cambian.
+   · Administración ve el desglose financiero completo; Recepción solo total y por cobrar.
+   · Si algo fallara, el formulario queda como estaba.
+   ========================================================= */
+const C3 = {
+  open: { desg: true, svc: false },
+  IC: {
+    cash: '<rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.2"/>',
+    zelle: '<path d="M7 6h10L7 18h10M12 4v2M12 18v2"/>',
+    card: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h3"/>',
+    cashapp: '<rect x="6" y="3" width="12" height="18" rx="3"/><path d="M14 9c-.5-.6-1.2-.9-2-.9-1.1 0-1.9.6-1.9 1.5 0 2 3.9 1 3.9 3 0 .9-.8 1.5-2 1.5-.8 0-1.5-.3-2-.9M12 6.8v1.3M12 14.9v1.3"/>',
+    booksy: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+    other: '<circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/>',
+    dep: '<path d="M12 4v10m0 0-4-4m4 4 4-4M5 19h14"/>',
+  },
+  PM: [['Efectivo', 'Efectivo', 'cash'], ['Zelle', 'Zelle', 'zelle'], ['Tarjeta (Clover)', 'Tarjeta', 'card'], ['Cash App', 'Cash App', 'cashapp'], ['Booksy', 'Booksy', 'booksy'], ['Depósito', 'Depósito', 'dep'], ['Otro', 'Otro', 'other']],
+  TXN: ['Tarjeta (Clover)', 'Zelle', 'Cash App', 'Booksy', 'Otro'],
+  svg(k, sz) { return `<svg viewBox="0 0 24 24" width="${sz || 20}" height="${sz || 20}" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${C3.IC[k] || k}</svg>`; },
+  on() { return UI.route === 'nueva' && !UI.params.edit && S.cobro.tipo === 'servicio' && !Mode.accountant; },
+  t12(t) { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${m[2]} ${ap}`; },
+  sr(label) { [...label.childNodes].forEach(n => { if (n.nodeType === 3 && n.textContent.trim()) { const s = document.createElement('span'); s.className = 'sr'; s.textContent = n.textContent.trim(); n.replaceWith(s); } }); return label; },
+  card(num, title, cls) { const s = document.createElement('section'); s.className = 'cob-card ' + (cls || ''); s.innerHTML = `<header class="cob-h">${num ? `<span class="cob-n">${num}</span>` : ''}<h3>${title}</h3><div class="cob-ha"></div></header><div class="cob-b"></div>`; return s; },
+
+  /* ---------- panel de resumen (se rehace cada vez que la app lo actualiza) ---------- */
+  receipt(h, f) {
+    if (!f || !C3.on()) return h;
+    const d = new DOMParser().parseFromString(`<div id="r">${h}</div>`, 'text/html').getElementById('r'), all = [...d.querySelectorAll(':scope > .rline')], used = new Set();
+    const lab = r => r.children[0].textContent.trim(), val = r => r.children[1].textContent.trim();
+    const pick = fn => { const r = all.find(x => !used.has(x) && fn(lab(x))); if (r) used.add(r); return r; };
+    const xs = (f.extras || []).filter(x => x.serviceId), rec = !!Mode.reception;
+    ['Subtotal', 'Descuento', 'Tip'].forEach(k => pick(l => l === k));
+    all.filter(r => lab(r).startsWith('+ ')).forEach(r => used.add(r));
+    const total = pick(l => l === 'Total cobrado'), dep = pick(l => l.startsWith('Depósito')), pack = pick(l => l.startsWith('Ya pagado')), due = pick(l => l === 'Por cobrar hoy');
+    const neto = pick(l => l === 'Precio neto'), pct = pick(l => l.startsWith('%')), com = pick(l => l.startsWith('Comisión lashista')), comx = pick(l => l.startsWith('Comisión de los servicios')), pay = pick(l => l.startsWith('Pago a lashista')), ing = pick(l => l.startsWith('Ingreso'));
+    const sp = all.find(x => !used.has(x) && lab(x) === 'Pago dividido'); let split = '';
+    if (sp) { const i = all.indexOf(sp); const grp = [sp]; for (let k = i + 1; k < all.length && lab(all[k]).startsWith('·'); k++) grp.push(all[k]); grp.forEach(g => used.add(g)); split = `<div class="rs-split">${grp.map(g => g.outerHTML).join('')}</div>`; }
+    const rest = all.filter(x => !used.has(x) && !x.closest('.tipsplit')); rest.forEach(x => used.add(x));
+    const serv = r2(num(f.price) + xs.reduce((t, x) => t + num(x.price), 0)), desc = r2(num(f.discount) + xs.reduce((t, x) => t + num(x.discount), 0));
+    const dueTxt = due ? val(due) : total ? val(total) : money(0, 1), depLab = dep ? lab(dep).replace(/^Depósito\s*/, '') : '';
+    let html = `<h3>Resumen de la venta</h3><div class="rs-rows">
+      <div class="rline"><span>Servicios</span><span>${money(serv, 1)}</span></div>
+      <div class="rline"><span>Descuento</span><span>− ${money(desc, 1)}</span></div>
+      <div class="rline"><span>Propina</span><span>+ ${money(r2(num(f.tip)), 1)}</span></div>
+      <div class="rline rs-sub"><span>Subtotal</span><span>${total ? val(total) : money(0, 1)}</span></div>
+      <div class="rline${dep ? '' : ' rs-zero'}"><span>Depósito${depLab ? ` <small>${esc(depLab)}</small>` : ''}</span><span>${dep ? val(dep) : '− ' + money(0, 1)}</span></div>
+      ${pack ? `<div class="rline"><span>Paquete</span><span>${val(pack)}</span></div>` : ''}</div>
+      <div class="rs-due" data-rsdue><span>Por cobrar</span><b>${esc(dueTxt)}</b></div>${split}${rest.map(r => r.outerHTML).join('')}`;
+    if (!rec) {
+      const L = tipLines(f), man = f.tipMode === 'manual' && Array.isArray(f.tipMan) && f.tipMan.length === L.length, tips = L.length > 1 ? (man ? f.tipMan.map(v => r2(num(v))) : splitTip(num(f.tip), L.map(x => x.n))) : [r2(num(f.tip))];
+      const tipsplit = d.querySelector('.tipsplit'), fm = d.querySelector('p.formula'), art = id => Store.config.artists.find(a => a.id === id) || {};
+      const hl = r => r ? r.outerHTML.replace('class="rline', 'class="rline').replace(/class="rline\s*"/, 'class="rline"') : '';
+      html += `<details class="rs-det" data-rsk="desg"${C3.open.desg ? ' open' : ''}><summary>Desglose financiero</summary>
+        ${ing ? `<div class="rline rs-ing"><span>${esc(lab(ing))}</span><span>${val(ing)}</span></div>` : ''}${hl(pct)}${hl(com)}${hl(comx)}${hl(pay)}${hl(neto)}${tipsplit ? tipsplit.outerHTML : ''}${fm ? `<p class="formula">${fm.innerHTML}</p>` : ''}</details>
+        <details class="rs-det" data-rsk="svc"${C3.open.svc ? ' open' : ''}><summary>Servicios en esta venta</summary>${L.map((x, i) => {
+          const a = art(x.a), rate = a.rate != null ? Math.round(num(a.rate) * 1000) / 10 : null, cm = i === 0 ? (com ? val(com) : '') : money(r2(num(a.rate) * x.n), 1);
+          return `<div class="svc-i"><div><b>${esc(sName(x.s) || 'Servicio')}</b><small>${esc(aName(x.a))}${rate != null ? ` · ${rate}% comisión` : ''}${cm ? ` · ${esc(cm)}` : ''}</small></div><div class="r"><b>${money(r2(x.n), 1)}</b><small>${money(r2(tips[i] || 0), 1)} tip</small></div></div>`; }).join('')}</details>`;
+    }
+    return html;
+  },
+
+  /* ---------- formulario ---------- */
+  build(root, view) {
+    const form = $('[data-form]', root), f = view.form; if (!form || !f || form.dataset.c3) return; form.dataset.c3 = '1';
+    const page = form.closest('.page'), lab = nm => { const i = $(`[name="${nm}"]`, form); return i ? i.closest('label') : null; };
+    page.classList.add('c3'); form.classList.add('cob-form');
+    const ap = f._appt ? Store.appointments.find(a => a.id === f._appt) : null, grid = document.createElement('div'); grid.className = 'cob-main';
+    /* Encabezado: subtítulo nuevo y "Cobrar sin la cita" arriba a la derecha */
+    const head = $('.head', page), banner = $('.banner', page), un = banner && $('[data-unappt]', banner);
+    if (head) { const p = $('p', head); if (p) p.textContent = ap ? 'Registra el pago de esta cita.' : 'Registra el pago. Elige la cita de la clienta o cobra sin cita.'; if (un && ap) { un.className = 'btn'; un.textContent = 'Cobrar sin la cita'; head.appendChild(un); banner.remove(); } }
+    /* Clienta */
+    const first = lab('first'), last = lab('last'), fi = $('[name=first]', form), la = $('[name=last]', form), ci = $('.clientinfo', form), cc = document.createElement('section'); cc.className = 'cob-card cob-client';
+    cc.innerHTML = `<div class="cc-top"><div class="cc-av" data-ccav>?</div><div class="cc-id"><div class="cc-nm"><b data-ccname>Clienta</b><span class="cc-tag" data-cctag hidden>Clienta recurrente</span></div><div class="cc-stats" data-ccstats></div></div><div class="cc-act"><button type="button" class="btn sm" data-ccsame hidden>Repetir último servicio</button><button type="button" class="btn sm" data-cchist hidden>Ver historial ${C3.svg('<path d="m9 6 6 6-6 6"/>', 14)}</button><button type="button" class="linkbtn" data-ccedit>Editar nombre</button></div></div><div class="cc-edit" data-ccform></div>`;
+    const ef = $('[data-ccform]', cc); [first, last].forEach(l => { if (l) { C3.sr(l); const i = $('input', l); i.placeholder = l === first ? 'Nombre' : 'Apellido'; ef.appendChild(l); } });
+    const showEdit = on => { ef.hidden = !on; $('[data-ccedit]', cc).textContent = on ? 'Listo' : 'Editar nombre'; };
+    const refresh = () => {
+      const nm = `${fi.value} ${la.value}`.trim(), c = nm.length >= 2 ? ClientDir.find(fi.value, la.value) : null, t = $('[data-cctag]', cc), st = $('[data-ccstats]', cc);
+      $('[data-ccname]', cc).textContent = nm || 'Clienta'; $('[data-ccav]', cc).textContent = nm ? (fi.value.trim().charAt(0) + la.value.trim().charAt(0)).toUpperCase() : '?';
+      if (c) { const ls = c.lastSale; t.hidden = !(c.nvisits >= 2); st.innerHTML = `<span>${C3.svg('<path d="M9 7h6M9 12h6M9 17h3M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>', 14)} ${intf(c.nvisits)} visita${c.nvisits === 1 ? '' : 's'}</span><span>${money(r2(c.spent))} gastados</span>${ls ? `<span>Última: ${esc(Dates.fmt(ls.day, { day: 'numeric', month: 'short', year: 'numeric' }))}</span>` : ''}${c.noshow ? `<span class="cc-bad">${c.noshow} no-show${c.noshow > 1 ? 's' : ''}</span>` : ''}`; }
+      else { t.hidden = true; st.innerHTML = nm.length >= 2 ? '<span>Clienta nueva · sin visitas anteriores</span>' : '<span>Escribe el nombre de la clienta</span>'; }
+      const hb = $('[data-cl-hist]', form), sb = $('[data-cl-same]', form); $('[data-cchist]', cc).hidden = !hb; $('[data-ccsame]', cc).hidden = !sb;
+    };
+    $('[data-cchist]', cc).onclick = () => { const b = $('[data-cl-hist]', form); if (b) b.click(); }; $('[data-ccsame]', cc).onclick = () => { const b = $('[data-cl-same]', form); if (b) b.click(); };
+    $('[data-ccedit]', cc).onclick = () => showEdit(ef.hidden);
+    showEdit(!(ap && fi.value.trim())); refresh();
+    if (ci) { ci.classList.add('cob-src'); if (window.MutationObserver) new MutationObserver(refresh).observe(ci, { childList: true, subtree: true }); }
+    [fi, la].forEach(i => i.addEventListener('input', refresh)); grid.appendChild(cc); if (ci) grid.appendChild(ci);
+    /* Cita: fecha, hora y lashista */
+    const real = $('[name=artistId]', form), dl = lab('date'), apc = C3.card(0, 'Cita', 'cob-appt'); apc.querySelector('header').remove(); const ab = $('.cob-b', apc); ab.classList.add('cob-3');
+    if (dl) { C3.sr(dl); const s = document.createElement('span'); s.className = 'cob-lb'; s.textContent = 'Fecha'; dl.prepend(s); ab.appendChild(dl); }
+    if (ap) { const hh = document.createElement('div'); hh.className = 'field cob-ro'; hh.innerHTML = `<span class="cob-lb">Hora</span><div class="cob-rov">${C3.svg('<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>', 16)} ${esc(C3.t12(ap.time))}</div>`; ab.appendChild(hh); }
+    const ml = document.createElement('label'); ml.className = 'field'; ml.innerHTML = `<span class="cob-lb">Lashista</span><select aria-label="Lashista"></select>`; const mir = $('select', ml); mir.innerHTML = real.innerHTML; mir.value = real.value;
+    mir.onchange = () => { real.value = mir.value; real.dispatchEvent(new Event('input', { bubbles: true })); real.dispatchEvent(new Event('change', { bubbles: true })); }; real.addEventListener('change', () => { mir.value = real.value; }); ab.appendChild(ml); grid.appendChild(apc);
+    /* 1 · Servicios */
+    const sv = C3.card(1, 'Servicios', 'cob-svc'), xb = $('.xbox', form), xl = xb && $('[data-xlines]', xb), xa = xb && $('[data-xadd]', xb);
+    if (xa) { xa.innerHTML = `${C3.svg('<path d="M12 5v14M5 12h14"/>', 15)} Agregar servicio`; $('.cob-ha', sv).appendChild(xa); }
+    const row = document.createElement('div'); row.className = 'svc-row main'; const sl = lab('serviceId'), pl = lab('price'), al = real.closest('label');
+    if (sl) { C3.sr(sl); sl.classList.remove('full'); const sm = document.createElement('small'); sm.className = 'svc-kind'; sm.textContent = 'Servicio principal'; sl.appendChild(sm); row.appendChild(sl); }
+    if (al) { C3.sr(al); row.appendChild(al); } if (pl) { C3.sr(pl); row.appendChild(pl); }
+    $('.cob-b', sv).appendChild(row); if (xl) $('.cob-b', sv).appendChild(xl); grid.appendChild(sv); if (xb) xb.remove();
+    /* 2 · Descuento y propina */
+    const dp = C3.card(2, 'Descuento y propina', 'cob-dp'), dl2 = lab('discount'), tl = lab('tip'), two = document.createElement('div'); two.className = 'cob-2';
+    [[dl2, '$'], [tl, '$']].forEach(([l, pre]) => { if (l) { C3.sr(l); const s = document.createElement('span'); s.className = 'cob-lb'; s.textContent = l === dl2 ? 'Descuento' : 'Propina'; l.prepend(s); two.appendChild(l); } });
+    $('.cob-b', dp).appendChild(two); const hint = document.createElement('p'); hint.className = 'cob-hint'; hint.textContent = 'El descuento aplica al servicio principal; cada servicio adicional tiene el suyo en su fila.'; hint.hidden = !(f.extras || []).some(x => x.serviceId); $('.cob-b', dp).appendChild(hint);
+    const tb = $('.tipbox', form); if (tb) $('.cob-b', dp).appendChild(tb); grid.appendChild(dp);
+    /* 3 · Método de pago */
+    const pm = C3.card(3, 'Método de pago', 'cob-pm'), sbx = $('.splitbox', form), sw = sbx && $('.segmented', sbx), msel = $('[name=method]', form), ml2 = msel && msel.closest('label'), txl = lab('txn'), pkl = lab('packageId');
+    if (sw) { $('.cob-ha', pm).appendChild(sw); const lbl = $('.splitswitch', sbx); if (lbl) lbl.remove(); }
+    if (msel && !$('option[value="Booksy"]', msel)) { const o = document.createElement('option'); o.value = o.textContent = 'Booksy'; const other = [...msel.options].find(x => x.value === 'Otro'); msel.insertBefore(o, other || null); if (f.method === 'Booksy') msel.value = 'Booksy'; }
+    const grp = document.createElement('div'); grp.className = 'pay-grid'; grp.setAttribute('role', 'radiogroup'); grp.setAttribute('aria-label', 'Método de pago'); grp.hidden = !!f.split;
+    C3.PM.forEach(([v, t, k]) => { if (!msel || ![...msel.options].some(o => o.value === v)) return; if (v === 'Depósito' && !(f.depositId && f.depositId !== '__new') && msel.value !== 'Depósito') return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'pay-b'; b.dataset.pm = v; b.setAttribute('role', 'radio'); b.innerHTML = `${C3.svg(k, 22)}<span>${t}</span>`; grp.appendChild(b); });
+    const sync = () => { const v = msel ? msel.value : ''; $$('.pay-b', grp).forEach(b => { const on = b.dataset.pm === v; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); }); if (txl) txl.hidden = !!f.split || !C3.TXN.includes(v); };
+    grp.addEventListener('click', e => { const b = e.target.closest('.pay-b'); if (!b || !msel) return; msel.value = msel.value === b.dataset.pm ? '' : b.dataset.pm; msel.dispatchEvent(new Event('input', { bubbles: true })); msel.dispatchEvent(new Event('change', { bubbles: true })); sync(); });
+    if (msel) msel.addEventListener('change', sync); const pb = $('.cob-b', pm); pb.appendChild(grp);
+    const ex = document.createElement('div'); ex.className = 'pay-ex'; if (pkl) { C3.sr(pkl); const s = document.createElement('span'); s.className = 'cob-lb'; s.textContent = 'Paquete de sesiones'; pkl.prepend(s); ex.appendChild(pkl); } if (txl) { C3.sr(txl); const s = document.createElement('span'); s.className = 'cob-lb'; s.textContent = 'TXN'; txl.prepend(s); ex.appendChild(txl); }
+    pb.appendChild(ex); if (sbx) pb.appendChild(sbx); if (ml2) { ml2.classList.add('cob-hide'); pb.appendChild(ml2); } sync(); grid.appendChild(pm);
+    /* 4 · Depósito */
+    const dq = $('.depq', form), dc = C3.card(4, 'Depósito', 'cob-dep'), db = $('.cob-b', dc), dd = f.depositId && f.depositId !== '__new' ? Store.deposits.find(x => x.id === f.depositId) : null;
+    if (dd) { const bn = document.createElement('div'); bn.className = 'dep-ok'; bn.innerHTML = `<span class="dep-ck">${C3.svg('<path d="m5 12 5 5 9-10"/>', 16)}</span><div><b>Depósito registrado</b><small>${money(num(dd.amount), 1)} · ${esc(dd.method || '')}${dd.day != null ? ' · cita ' + esc(Dates.fmt(dd.day, { day: 'numeric', month: 'short' })) : ''}</small></div><button type="button" class="btn sm" data-depview>Ver depósito ${C3.svg('<path d="m9 6 6 6-6 6"/>', 14)}</button>`; $('[data-depview]', bn).onclick = () => depositDetail(dd); db.appendChild(bn); }
+    if (dq) { if (dd) { const dt = document.createElement('details'); dt.className = 'dep-more'; dt.innerHTML = '<summary>Cambiar qué se hace con el depósito</summary>'; dt.appendChild(dq); db.appendChild(dt); } else db.appendChild(dq); }
+    grid.appendChild(dc);
+    /* Más opciones (opcional) */
+    const mo = document.createElement('details'); mo.className = 'cob-card cob-more'; const cm = lab('comments'), nx = $('[data-nextappt]', form), nxl = nx && nx.closest('label'), mn = $('[name=manualOn]', form), mnb = mn && mn.closest('.full');
+    mo.innerHTML = `<summary><span class="mo-i">${C3.svg('<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/>', 20)}</span><span><b>Más opciones (opcional)</b><small>Comentarios · Ajuste manual de comisión · Agendar próxima cita</small></span><span class="mo-chip" data-mochip hidden>Próxima cita al guardar</span><span class="mo-c">${C3.svg('<path d="m6 9 6 6 6-6"/>', 18)}</span></summary><div class="cob-b"></div>`;
+    const mb = $('.cob-b', mo); if (cm) mb.appendChild(cm); if (mnb) mb.appendChild(mnb); if (nxl) mb.appendChild(nxl);
+    mo.open = !!((f.comments || '').trim() || f.manualOn); grid.appendChild(mo); const chip = () => { const c = $('[data-mochip]', mo); if (c) c.hidden = !(nx && nx.checked); }; if (nx) nx.addEventListener('change', chip); chip();
+    /* Pie fijo: Por cobrar + Guardar */
+    const sub = $('button.btn.primary', form), rs = $('[data-reset]', form), foot = document.createElement('div'); foot.className = 'cob-foot';
+    foot.innerHTML = '<div class="due"><span>Por cobrar</span><b data-footdue>$0.00</b></div><div class="acts"></div>'; if (rs) { rs.classList.add('btn'); $('.acts', foot).appendChild(rs); } if (sub) $('.acts', foot).appendChild(sub); grid.appendChild(foot);
+    /* lo que sobra (campos ocultos, etc.) se conserva dentro del formulario */
+    const left = [...form.children].filter(c => c !== grid && !c.matches('.cob-src')); left.forEach(c => { c.classList.add('cob-left'); });
+    form.insertBefore(grid, form.firstChild);
+    const rcp = $('[data-receipt]', root), upd = () => { const b = rcp && $('[data-rsdue] b', rcp), t = $('[data-footdue]', foot); if (b && t) t.textContent = b.textContent; const hh = $('.cob-hint', form); if (hh) hh.hidden = !(f.extras || []).some(x => x.serviceId); };
+    if (rcp) { upd(); if (window.MutationObserver) new MutationObserver(upd).observe(rcp, { childList: true, subtree: true }); }
+  },
+  bindOnce() { if (C3._b) return; C3._b = true; document.addEventListener('toggle', e => { const k = e.target && e.target.dataset && e.target.dataset.rsk; if (k) C3.open[k] = e.target.open; }, true); },
+};
+{ const R = Views.nueva.receipt; Views.nueva.receipt = function () { const h = R.apply(this, arguments); try { return C3.receipt(h, this.form); } catch (e) { return h; } }; }
+{ const M = Views.nueva.mount; Views.nueva.mount = function (root) { const r = M.apply(this, arguments); try { if (C3.on()) { C3.build(root, this); C3.bindOnce(); } } catch (e) { console.warn('cobrar3', e); } return r; }; }
 
 
 window.FM_BOOT = function () {
