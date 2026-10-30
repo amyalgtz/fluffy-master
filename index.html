@@ -700,6 +700,7 @@ tbody tr:hover td,tr.click:hover td{background:var(--hover)}
 .cc-edit{grid-template-columns:1fr}.cc-act{margin-left:0;justify-content:flex-start;width:100%}.cob-2{grid-template-columns:1fr 1fr}
 .page.c3 .head{flex-wrap:wrap}
 }
+.tar{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px}.tar .segmented{margin:0;padding:2px}.tar .segmented button{padding:4px 12px;font-size:12.5px}.tar-seg button.on[data-t=Master]{background:var(--gold-ink,#8C6A12);color:#fff}.tar-msg{font-size:12px;font-weight:600;color:var(--warn)}.tar-msg[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -762,7 +763,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-30 11:00';
+window.FM_VERSION = '2026-10-30 14:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1211,7 +1212,7 @@ const Store = {
     return { id, source: 'app', day: Dates.fromISO(x.date), artistKey: x.artistId, artistName: x.artistName, service: x.serviceName,
       serviceId: x.serviceId, servicePriceSnapshot: x.servicePriceSnapshot, price: num(x.price), discount: num(x.discount), tip: num(x.tip),
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
-      comments: x.comments || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
+      comments: x.comments || '', tarifa: x.tarifa || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
       packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '' };
   },
@@ -1237,7 +1238,7 @@ const Store = {
     const now = new Date().toISOString(), uid = await this.who();
     const doc = {
       date: form.date, artistId: artist.id, artistName: artist.name, serviceId: svc.id, serviceName: svc.name,
-      servicePriceSnapshot: prev && prev.serviceId === svc.id ? prev.servicePriceSnapshot : svc.price,
+      servicePriceSnapshot: prev && prev.serviceId === svc.id ? prev.servicePriceSnapshot : (form.tarifa === 'Master' && form.tarifaPrice != null ? num(form.tarifaPrice) : svc.price), tarifa: form.tarifa ? (form.tarifa === 'Master' ? 'Master' : 'Regular') : ((prev && prev.tarifa) || 'Regular'),
       commissionRateSnapshot: rate, price: calc.subtotal, discount: calc.discount, tip: calc.tip, totalPaid: calc.totalPaid,
       commission: calc.commission, manualCommission: !!form.manualOn, payout: calc.payout, fluffyIncome: calc.fluffyIncome,
       paymentMethod: form.method || '', clientFirstName: form.first.trim(), clientLastName: form.last.trim(), comments: form.comments.trim(),
@@ -1610,7 +1611,7 @@ Views.ventas = {
         <label class="field">Origen<select data-f="source"><option value="">Todo</option><option value="excel" ${f.source === 'excel' ? 'selected' : ''}>Histórico Excel</option><option value="app" ${f.source === 'app' ? 'selected' : ''}>Registradas en la app</option></select></label>
       </div>
       ${table([{ label: 'Fecha' }, { label: 'Lashista' }, { label: 'Servicio' }, { label: 'Cliente' }, { label: 'Precio', r: 1 }, { label: 'Desc.', r: 1 }, { label: 'Tip', r: 1 }, { label: 'Comisión', r: 1 }, { label: '', html: 1 }],
-        rows.map(s => [Dates.fmt(s.day), s.artistName, s.service, client(s), money(s.price, 1), s.discount ? money(s.discount, 1) : '—', money(s.tip, 1), money(s.commission, 1),
+        rows.map(s => [Dates.fmt(s.day), s.artistName, s.service + (s.tarifa === 'Master' ? ' · Master' : ''), client(s), money(s.price, 1), s.discount ? money(s.discount, 1) : '—', money(s.tip, 1), money(s.commission, 1),
           s.source === 'app' ? '<span class="tag app">App</span>' : (s.manual ? '<span class="tag warn">Comisión manual</span>' : '')]),
         null, { click: 1, emptyTitle: 'No hay ventas con estos filtros', empty: 'Prueba quitar algún filtro o cambia las fechas.' })}
       <div class="pager"><span>Página ${f.page + 1} de ${pages}</span><div class="chips"><button class="btn sm" data-p="-1" ${f.page === 0 ? 'disabled' : ''}>Anterior</button><button class="btn sm" data-p="1" ${f.page >= pages - 1 ? 'disabled' : ''}>Siguiente</button>${exportButtons('ventas')}</div></div>`;
@@ -1684,7 +1685,7 @@ Views.nueva = {
   },
   mount(root) {
     const form = $('[data-form]', root), f = this.form, rec = $('[data-receipt]', root);
-    const paint = () => { rec.innerHTML = this.receipt(); const s = Store.config.services.find(x => x.id === f.serviceId); $('[data-catalog]', root).textContent = s && f.price !== '' && num(f.price) !== num(s.price) ? `Precio de catálogo: ${money(s.price, 1)}` : ''; $('[data-catalog]', root).style.color = 'var(--warn)'; };
+    const paint = () => { rec.innerHTML = this.receipt(); const s = Store.config.services.find(x => x.id === f.serviceId); const mt = s && f.tarifa === 'Master' && typeof MT !== 'undefined' ? MT.price(s) : null, ref = mt != null ? mt : (s ? s.price : 0); $('[data-catalog]', root).textContent = s && f.price !== '' && num(f.price) !== num(ref) ? `Precio de catálogo${mt != null ? ' (Master)' : ''}: ${money(ref, 1)}` : ''; $('[data-catalog]', root).style.color = 'var(--warn)'; };
     paint();
     form.addEventListener('input', e => {
       const el = e.target; if (!el.name) return; UI.formDirty = true;
@@ -1805,20 +1806,20 @@ Views.servicios = {
     const cnt = new Map(Logic.groupBy(Store.sales, s => s.service, () => 1).map(x => [x.key, x.count]));
     const list = this.list();
     return `<div class="head"><div><h1>Servicios</h1><p>${list.filter(s => s.active).length} activos. Cambiar un precio no modifica ventas pasadas.</p></div><div class="chips"><button class="btn primary" data-add>${ic('plus')}Agregar servicio</button></div></div>
-      ${table([{ label: 'Código' }, { label: 'Servicio' }, { label: 'Categoría' }, { label: 'Precio', r: 1, f: v => money(v, 1) }, { label: 'Estado', html: 1 }, { label: 'Vendidos (histórico)', r: 1, f: intf }],
-        list.map(s => [s.code, s.name, s.category, s.price, s.active ? '<span class="tag app">Activo</span>' : '<span class="tag off">Inactivo</span>', cnt.get(s.name) || 0]), null, { click: 1 })}`;
+      ${table([{ label: 'Código' }, { label: 'Servicio' }, { label: 'Categoría' }, { label: 'Precio', r: 1, f: v => money(v, 1) }, { label: 'Precio Master', r: 1, f: v => v == null ? '—' : money(v, 1) }, { label: 'Estado', html: 1 }, { label: 'Vendidos (histórico)', r: 1, f: intf }],
+        list.map(s => [s.code, s.name, s.category, s.price, MT.price(s), s.active ? '<span class="tag app">Activo</span>' : '<span class="tag off">Inactivo</span>', cnt.get(s.name) || 0]), null, { click: 1 })}`;
   },
   list() { return Store.config.services.slice().sort((a, b) => (b.active - a.active) || (a.category || '').localeCompare(b.category || '') || b.price - a.price); },
   mount(root) {
     const list = this.list(), cats = [...new Set(Store.config.services.map(s => s.category).filter(Boolean))];
     const fields = [
       { name: 'name', label: 'Nombre del servicio', full: 1, validate: (v, all) => !v.trim() ? 'Escribe el nombre.' : '' },
-      { name: 'code', label: 'Código' }, { name: 'price', label: 'Precio', type: 'number', step: '0.01', validate: v => v !== '' && num(v) >= 0 ? '' : 'Escribe un precio válido.' },
+      { name: 'code', label: 'Código' }, { name: 'price', label: 'Precio regular', type: 'number', step: '0.01', validate: v => v !== '' && num(v) >= 0 ? '' : 'Escribe un precio válido.' }, { name: 'masterPrice', label: 'Precio Master (opcional)', type: 'number', step: '0.01', validate: v => v === '' || v == null || num(v) >= 0 ? '' : 'Escribe un precio válido o déjalo vacío.' },
       { name: 'category', label: 'Categoría', list: cats, full: 1, validate: v => v.trim() ? '' : 'Escribe o elige una categoría.' },
       { name: 'duration', label: 'Duración (minutos)', type: 'number', step: '5', validate: v => v === '' || (num(v) > 0 && num(v) <= 480) ? '' : 'Escribe minutos entre 5 y 480, o déjalo vacío.' },
       { name: 'active', label: 'Estado', type: 'check', hint: 'Activo (aparece al registrar ventas)', full: 1 }];
-    const open = s => editorModal(s ? 'Editar servicio' : 'Agregar servicio', fields, s || { active: true }, async v => {
-      const rec = { id: s ? s.id : 's' + Date.now().toString(36), name: v.name.trim(), code: v.code.trim(), price: Math.round(num(v.price) * 100) / 100, category: v.category.trim(), duration: v.duration === '' || v.duration == null ? null : Math.round(num(v.duration)), active: v.active };
+    const open = s => editorModal(s ? 'Editar servicio' : 'Agregar servicio', fields, s ? { ...s, masterPrice: MT.price(s) } : { active: true }, async v => {
+      const rec = { id: s ? s.id : 's' + Date.now().toString(36), name: v.name.trim(), code: v.code.trim(), price: Math.round(num(v.price) * 100) / 100, masterPrice: v.masterPrice === '' || v.masterPrice == null ? null : Math.round(num(v.masterPrice) * 100) / 100, category: v.category.trim(), duration: v.duration === '' || v.duration == null ? null : Math.round(num(v.duration)), active: v.active };
       if (Store.config.services.some(x => x.name.toLowerCase() === rec.name.toLowerCase() && x.id !== rec.id)) throw new Error('Ya existe un servicio con ese nombre.');
       await Store.saveConfig({ services: s ? Store.config.services.map(x => x.id === s.id ? rec : x) : Store.config.services.concat(rec) });
     });
@@ -3345,7 +3346,7 @@ Views.turno = {
 
 /* ---------- helpers ---------- */
 const ago = iso => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }); };
-const depStatusTag = d => d.status === 'Verificado' ? '<span class="tag app">Verificado</span>' : d.status === 'Rechazado' ? '<span class="tag off">Rechazado</span>' : '<span class="tag warn">Por verificar</span>';
+const depStatusTag = d => d.dupOf ? '<span class="tag warn">Duplicado</span>' : d.status === 'Verificado' ? '<span class="tag app">Verificado</span>' : d.status === 'Rechazado' ? '<span class="tag off">Rechazado</span>' : '<span class="tag warn">Por verificar</span>';
 const depUseTag = d => d.outcome === 'Aplicado' ? '<span class="tag">Aplicado a venta</span>' : d.outcome === 'No-show' ? '<span class="tag">No-show</span>' : d.outcome === 'Devuelto' ? '<span class="tag off">Devuelto</span>' : d.status === 'Rechazado' ? '' : '<span class="tag app">Disponible</span>';
 const depClient = d => title(((d.first || '') + ' ' + (d.last || '')).trim());
 const noShowService = () => Store.config.services.find(s => s.name === 'DEPOSITO - NO SHOW');
@@ -3560,7 +3561,7 @@ function dayNoteForm() {
 Views.recepcion = {
   html() {
     const today = Dates.today(), r = Logic.calculateDailySales(Store.sales, today), cobrado = r2(r.list.reduce((t, s) => t + s.price - s.discount + s.tip, 0));
-    const depHoy = Store.deposits.filter(d => (d.createdAt || '').slice(0, 10) === Dates.toISO(today));
+    const depHoy = Store.deposits.filter(d => !d.dupOf && locISO(depAt(d)) === Dates.toISO(today));
     const pend = Store.deposits.filter(d => d.status === 'Pendiente').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
     const citasHoy = Store.deposits.filter(d => d.day === today && d.status !== 'Rechazado' && !d.outcome);
     const cola = Store.requests.filter(x => (typeof hasPending === 'function' ? hasPending(x) : x.status === 'Pendiente')).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -4475,7 +4476,7 @@ Store.saveSale = async function (form, id) {
     const ids = [];
     for (const [k, x] of extras.entries()) {
       ids.push(await _saveSaleX.call(this, { date: form.date, artistId: x.artistId, serviceId: x.serviceId, price: x.price, discount: x.discount || 0, tip: shares[k + 1], method: form.method === 'Paquete prepagado' ? '' : form.method,
-        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', visitOf: saleId, payGroup: (form.payments || []).length > 1 ? saleId : '', manualOn: false, manualCommission: '', _isExtra: true }, null));
+        first: form.first, last: form.last, comments: 'Servicio adicional en el mismo cobro', tarifa: x.tarifa || 'Regular', tarifaPrice: x.tarifaPrice, visitOf: saleId, payGroup: (form.payments || []).length > 1 ? saleId : '', manualOn: false, manualCommission: '', _isExtra: true }, null));
     }
     if (form._appt) { const ap = this.appointments.find(a => a.id === form._appt); if (ap) await this.saveAppointment({ extraSaleIds: (ap.extraSaleIds || []).concat(ids) }, ap.id); }
   }
@@ -4939,7 +4940,7 @@ const sameClient = (d, first, last) => {
   if (!n(first)) return false;
   return n(d.first) === n(first) && (!n(last) || !n(d.last) || n(d.last) === n(last));
 };
-const ownDeposits = f => Store.deposits.filter(d => d.status !== 'Rechazado' && (!d.outcome || d.id === f.depositId) && (d.id === f.depositId || sameClient(d, f.first, f.last)));
+const ownDeposits = f => Store.deposits.filter(d => d.status !== 'Rechazado' && (!d.outcome || d.id === f.depositId) && (d.id === f.depositId || sameClient(d, f.first, f.last) || (!d.outcome && typeof DP !== 'undefined' && DP.like(d, f))));
 const depLabel = d => `${money(d.amount, 1)} · ${esc(d.method)}${d.txn ? ' · TXN ' + esc(d.txn) : ''}${d.day != null ? ' · cita ' + Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : ''}${d.status === 'Pendiente' ? ' · por verificar' : ''}`;
 
 function depositBlockHtml(f) {
@@ -4954,8 +4955,8 @@ function depositBlockHtml(f) {
   return `<div class="field full depq"><span>¿Dejó depósito?</span>
     <div class="segmented small" data-dq><button type="button" data-dv="no" class="${si ? '' : 'on'}">No</button><button type="button" data-dv="si" class="${si ? 'on' : ''}">Sí</button></div>
     <div data-dbody style="${si ? '' : 'display:none'}">
-      ${own.length ? `<div class="dep-opts">${own.map(d => `<label class="check"><input type="radio" name="dpick" value="${d.id}" ${f.depositId === d.id || (!useNew && f.depositId !== '__new' && own[0].id === d.id && !f.depositId) ? 'checked' : ''}> Usar el depósito que ya registró: ${depLabel(d)}</label>`).join('')}
-        ${own.map(d => `<label class="check keepdep"><input type="radio" name="dpick" value="keep:${d.id}" ${f.keepDep === d.id ? 'checked' : ''}> <span><b>Pagó completo y conserva su depósito</b> (${depLabel(d)}) para otra cita</span></label>`).join('')}
+      ${own.length ? `<div class="dep-opts">${own.map(d => `<label class="check"><input type="radio" name="dpick" value="${d.id}" ${f.depositId === d.id || (!useNew && f.depositId !== '__new' && own[0].id === d.id && !f.depositId) ? 'checked' : ''}> Usar el depósito que ya registró: ${depLabel(d)}${typeof DP !== 'undefined' ? DP.nameNote(d, f) : ''}</label>`).join('')}
+        ${own.map(d => `<label class="check keepdep"><input type="radio" name="dpick" value="keep:${d.id}" ${f.keepDep === d.id ? 'checked' : ''}> <span><b>Pagó completo y conserva su depósito</b> (${depLabel(d)}${typeof DP !== 'undefined' ? DP.nameNote(d, f) : ''}) para otra cita</span></label>`).join('')}
         <label class="check"><input type="radio" name="dpick" value="__new" ${f.depositId === '__new' ? 'checked' : ''}> Registrar un depósito nuevo</label></div>` : ''}
       <div data-dnew style="${useNew ? '' : 'display:none'}">${fields}</div>
     </div><span class="err" data-dephint style="color:var(--warn)"></span></div>`;
@@ -6518,8 +6519,8 @@ const CashLog = {
       const split = (s.payments || []).length > 1, cash = split ? cashOf(s.payments) : isCash(s.method) ? r2(tot - (s.depositAmount || 0)) : 0;
       if (cash > 0) out.push({ ts: s.createdAt, kind: 'Servicio', who: client(s), detail: `${s.service}${kids.length ? ' + ' + kids.map(x => x.service).join(', ') : ''} · ${s.artistName}`, total: tot, amount: cash, note: split ? 'parte en efectivo de un pago dividido' : s.depositAmount ? `depósito de ${money(s.depositAmount)} ya cobrado antes` : '', by: s.cashierName || '' });
     });
-    Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && d.createdAt && locISO(d.createdAt) === iso).forEach(d =>
-      out.push({ ts: d.createdAt, kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', by: d.createdByName || '' }));
+    Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && !d.dupOf && depAt(d) && locISO(depAt(d)) === iso).forEach(d =>
+      out.push({ ts: depAt(d), kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', by: d.createdByName || '' }));
     const mv = (Store.moves || []).filter(m => m.type === 'Venta en salón' && m.date === iso);
     mv.forEach(m => {
       if (m.payGroup && !m.payLead) return;
@@ -6630,8 +6631,8 @@ CashLog.entries = function (day) {
     if (cash > 0) out.push({ ts: s.createdAt, kind: 'Servicio', who: client(s), detail: `${s.service}${kids.length ? ' + ' + kids.map(x => x.service).join(', ') : ''} · ${s.artistName}`, total: tot, amount: cash, late: late(s.day),
       note: [split ? 'parte en efectivo de un pago dividido' : '', s.depositAmount ? `depósito de ${money(s.depositAmount)} ya cobrado antes` : ''].filter(Boolean).join(' · '), by: s.cashierName || '' });
   });
-  Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && d.createdAt && locISO(d.createdAt) === iso).forEach(d =>
-    out.push({ ts: d.createdAt, kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', late: '', by: d.createdByName || '' }));
+  Store.deposits.filter(d => d.status !== 'Rechazado' && isCash(d.method) && !d.dupOf && depAt(d) && locISO(depAt(d)) === iso).forEach(d =>
+    out.push({ ts: depAt(d), kind: 'Depósito', who: depClient(d), detail: `para su cita del ${d.day != null ? Dates.fmt(d.day, { day: '2-digit', month: 'short' }) : '—'}`, total: num(d.amount), amount: num(d.amount), note: '', late: '', by: d.createdByName || '' }));
   const mv = (Store.moves || []).filter(m => m.type === 'Venta en salón' && (m.createdAt ? locISO(m.createdAt) === iso : m.date === iso));
   mv.forEach(m => {
     if (m.payGroup && !m.payLead) return;
@@ -10154,7 +10155,7 @@ const C3 = {
         ${ing ? `<div class="rline rs-ing"><span>${esc(lab(ing))}</span><span>${val(ing)}</span></div>` : ''}${hl(pct)}${hl(com)}${hl(comx)}${hl(pay)}${hl(neto)}${tipsplit ? tipsplit.outerHTML : ''}${fm ? `<p class="formula">${fm.innerHTML}</p>` : ''}</details>
         <details class="rs-det" data-rsk="svc"${C3.open.svc ? ' open' : ''}><summary>Servicios en esta venta</summary>${L.map((x, i) => {
           const a = art(x.a), rate = a.rate != null ? Math.round(num(a.rate) * 1000) / 10 : null, cm = i === 0 ? (com ? val(com) : '') : money(r2(num(a.rate) * x.n), 1);
-          return `<div class="svc-i"><div><b>${esc(sName(x.s) || 'Servicio')}</b><small>${esc(aName(x.a))}${rate != null ? ` · ${rate}% comisión` : ''}${cm ? ` · ${esc(cm)}` : ''}</small></div><div class="r"><b>${money(r2(x.n), 1)}</b><small>${money(r2(tips[i] || 0), 1)} tip</small></div></div>`; }).join('')}</details>`;
+          return `<div class="svc-i"><div><b>${esc(sName(x.s) || 'Servicio')}${(i === 0 ? f.tarifa : ((f.extras || []).filter(z => z.serviceId)[i - 1] || {}).tarifa) === 'Master' ? ' <span class="tag app">Master</span>' : ''}</b><small>${esc(aName(x.a))}${rate != null ? ` · ${rate}% comisión` : ''}${cm ? ` · ${esc(cm)}` : ''}</small></div><div class="r"><b>${money(r2(x.n), 1)}</b><small>${money(r2(tips[i] || 0), 1)} tip</small></div></div>`; }).join('')}</details>`;
     }
     return html;
   },
@@ -10234,10 +10235,226 @@ const C3 = {
     const rcp = $('[data-receipt]', root), upd = () => { const b = rcp && $('[data-rsdue] b', rcp), t = $('[data-footdue]', foot); if (b && t) t.textContent = b.textContent; const hh = $('.cob-hint', form); if (hh) hh.hidden = !(f.extras || []).some(x => x.serviceId); };
     if (rcp) { upd(); if (window.MutationObserver) new MutationObserver(upd).observe(rcp, { childList: true, subtree: true }); }
   },
-  bindOnce() { if (C3._b) return; C3._b = true; document.addEventListener('toggle', e => { const k = e.target && e.target.dataset && e.target.dataset.rsk; if (k) C3.open[k] = e.target.open; }, true); },
+  bindOnce() { if (C3._b) return; C3._b = true; document.addEventListener('click', e => { const sm = e.target.closest && e.target.closest('.rs-det > summary'); if (sm) { const dt = sm.parentElement; if (dt.dataset.rsk) C3.open[dt.dataset.rsk] = !dt.open; } }, true); document.addEventListener('toggle', e => { const k = e.target && e.target.dataset && e.target.dataset.rsk; if (k) C3.open[k] = e.target.open; }, true); },
 };
 { const R = Views.nueva.receipt; Views.nueva.receipt = function () { const h = R.apply(this, arguments); try { return C3.receipt(h, this.form); } catch (e) { return h; } }; }
 { const M = Views.nueva.mount; Views.nueva.mount = function (root) { const r = M.apply(this, arguments); try { if (C3.on()) { C3.build(root, this); C3.bindOnce(); } } catch (e) { console.warn('cobrar3', e); } return r; }; }
+
+
+/* =========================================================
+   DEPÓSITOS · fecha de recepción, aviso de duplicados y vínculos
+   1) "Recibido el": el efectivo de un depósito cuenta en el corte del día en que la clienta lo entregó
+      (campo receivedAt, ya usado por los depósitos importados de Booksy). Sin él, se usa el día de registro, como siempre.
+   2) Aviso al registrar: compara nombre (tolera errores de escritura), teléfono, monto y fecha de cita.
+      En Cobrar, la lista de "depósitos de esta clienta" también muestra los de nombre parecido (con el nombre a la vista).
+   3) Vincular: "Es duplicado de…" en el detalle y panel "Posibles duplicados" en Depósitos.
+      El duplicado queda como Rechazado + dupOf (así lo excluyen corte, listas y Cobrar sin tocar esa lógica), con etiqueta
+      "Duplicado". No se borra nada y se puede deshacer. Nada se vincula solo: siempre confirma una persona.
+   ========================================================= */
+const depAt = d => d.receivedAt || d.createdAt;
+const DP = {
+  _recv: null,
+  norm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim(); },
+  lev(a, b) { const m = a.length, n = b.length; if (!m) return n; if (!n) return m; let p = Array.from({ length: n + 1 }, (_, j) => j); for (let i = 1; i <= m; i++) { const c = [i]; for (let j = 1; j <= n; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); p = c; } return p[n]; },
+  sameName(a, b) {
+    const A = DP.norm((a.first || '') + ' ' + (a.last || '')), B = DP.norm((b.first || '') + ' ' + (b.last || '')); if (!A || !B) return false; if (A === B) return true;
+    const A2 = DP.norm((a.last || '') + ' ' + (a.first || '')); if (A2 === B) return true;
+    const L = Math.min(A.length, B.length); if (L < 5) return false; const t = L >= 10 ? 2 : 1; if (Math.abs(A.length - B.length) > t) return false;
+    return DP.lev(A, B) <= t || DP.lev(A2, B) <= t;
+  },
+  phone(x) { return String(x.phone || '').replace(/\D/g, '').slice(-10); },
+  same(a, b) { const pa = DP.phone(a), pb = DP.phone(b); return DP.sameName(a, b) || (pa.length >= 10 && pa === pb && (!a.time || !b.time || a.time === b.time) && (!a.artistId || !b.artistId || a.artistId === b.artistId)); },
+  live(d) { return d.status !== 'Rechazado' && !d.dupOf; },
+  state(d) { return d.dupOf ? 'Duplicado' : d.status === 'Rechazado' ? 'Rechazado' : d.outcome ? 'Usado' : d.status === 'Pendiente' ? 'Por verificar' : 'Disponible'; },
+  when(ts) { return ts ? new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—'; },
+  sum(d) { return `<b>${esc(depClient(d))}</b> · ${money(d.amount, 1)} · ${esc(d.method)} · cita ${d.day != null ? esc(Dates.fmt(d.day, { day: '2-digit', month: 'short' })) : '—'}${d.time ? ' ' + esc(d.time) : ''}<br><span class="mutedc" style="font-size:12.5px">${DP.state(d)} · registrado ${esc(DP.when(d.createdAt))}${d.receivedAt ? ' · recibido ' + esc(Dates.fmt(Dates.fromISO(locISO(d.receivedAt)), { day: '2-digit', month: 'short' })) : ''}${d.createdByName ? ' · ' + esc(d.createdByName) : ''}</span>`; },
+  /* depósitos parecidos a x = { first, last, phone, date, amount } */
+  cands(x, exceptId) {
+    const day = Dates.fromISO(x.date); if (day == null) return [];
+    return Store.deposits.filter(d => d.id !== exceptId && DP.live(d) && d.day != null && Math.abs(d.day - day) <= 1 && Math.abs(num(d.amount) - num(x.amount)) < 0.005 && DP.same(d, x));
+  },
+  pairs() {
+    const t = Dates.today(), L = Store.deposits.filter(d => DP.live(d) && d.day != null && d.day >= t - 120), out = [];
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+      const a = L[i], b = L[j]; if (Math.abs(a.day - b.day) > 1 || Math.abs(num(a.amount) - num(b.amount)) > 0.004) continue;
+      if (a.outcome && b.outcome) continue; if ((a.notDup || []).includes(b.id) || (b.notDup || []).includes(a.id)) continue; if (!DP.same(a, b)) continue;
+      const main = a.outcome && !b.outcome ? a : b.outcome && !a.outcome ? b : ((a.createdAt || '') <= (b.createdAt || '') ? a : b); out.push({ main, dup: main === a ? b : a });
+    } return out;
+  },
+  /* ventana encimada (la de abajo sigue abierta) */
+  layer(html, bind, w) { const host = document.createElement('div'); host.className = 'modal-bg layer2'; host.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:${w || 580}px">${html}</div>`; document.body.appendChild(host); const close = () => host.remove(); if (bind) bind($('.modal', host), close); return close; },
+  closedOn(iso, d) { if (!isCash(d.method) || !iso) return false; const day = Dates.fromISO(iso); return day != null && Cortes.list(day, day).length > 0; },
+  isoAt(rv, keep) { const today = Dates.toISO(Dates.today()); return rv === today ? (keep || new Date().toISOString()) : new Date(rv + 'T12:00:00').toISOString(); },
+
+  /* ---------- 1 y 2: formulario de depósito ---------- */
+  form(d) {
+    const m = $('.modal'), amt = m && $('[data-d=amount]', m); if (!m || !amt || $('[data-dr=recv]', m)) return;
+    const today = Dates.toISO(Dates.today()), y = Dates.toISO(Dates.today() - 1), cur = d && depAt(d) ? locISO(depAt(d)) : today;
+    const min = Mode.reception ? (cur < y ? cur : y) : '';
+    amt.closest('label').insertAdjacentHTML('afterend', `<label class="field">Recibido el<input type="date" data-dr="recv" value="${cur}" max="${today}"${min ? ` min="${min}"` : ''}><span class="mutedc" style="font-weight:500;font-size:12px">Día en que la clienta entregó el dinero. El efectivo cuenta en el corte de ese día.</span></label>`);
+    const ok = $('[data-x=ok]', m), orig = ok.onclick;
+    ok.onclick = async ev => {
+      const v = k => ($(`[data-d="${k}"]`, m) || { value: '' }).value.trim(); if (!v('first') || !Dates.fromISO(v('date')) || !(num(v('amount')) > 0)) return orig.call(ok, ev);
+      const rv = $('[data-dr=recv]', m).value || today, changed = !d || rv !== cur, x = { first: v('first'), last: v('last'), phone: v('phone'), date: v('date'), amount: v('amount'), method: v('method') }, err = $('[data-derr]', m);
+      if (changed && rv !== today && DP.closedOn(rv, x)) {
+        if (Mode.reception) { err.textContent = `El corte del ${Dates.fmt(Dates.fromISO(rv), { day: 'numeric', month: 'short' })} ya está guardado. Pídele a administración que registre este depósito.`; return; }
+        if (!await UI.confirm('Ese día ya tiene corte guardado', `El corte del ${esc(Dates.fmt(Dates.fromISO(rv), { weekday: 'long', day: 'numeric', month: 'long' }))} ya está guardado. Al contar este depósito en ese día, el efectivo de ese corte cambiará y ya no coincidirá con lo que se contó. ¿Continuar?`, 'Sí, continuar')) return;
+      }
+      if (v('status') !== 'Rechazado') {
+        const cs = DP.cands(x, d && d.id);
+        if (cs.length) {
+          const r = await new Promise(res => DP.layer(`<h3>Ya hay un depósito parecido</h3><p style="color:var(--muted);margin:0 0 12px">Para no contar dos veces el mismo dinero, revisa si es el mismo depósito:</p>
+            ${cs.map((c, i) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center"><div style="flex:1">${DP.sum(c)}</div><button class="btn sm" data-same="${i}">Es este: abrirlo</button></div>`).join('')}
+            <div class="acts"><button class="btn" data-x="back">Volver al formulario</button><button class="btn primary" data-x="other">Es otro: registrar de todos modos</button></div>`, (mm, close) => {
+            $('[data-x=back]', mm).onclick = () => { close(); res('back'); }; $('[data-x=other]', mm).onclick = () => { close(); res('other'); }; $$('[data-same]', mm).forEach(b => b.onclick = () => { close(); res(cs[+b.dataset.same]); });
+          }));
+          if (r === 'back') return; if (r && r !== 'other') { UI.close(); depositDetail(r); return; }
+        }
+      }
+      DP._recv = changed ? DP.isoAt(rv, d && d.receivedAt && locISO(d.receivedAt) === rv ? d.receivedAt : null) : null; return orig.call(ok, ev);
+    };
+  },
+
+  /* ---------- 3: vincular ---------- */
+  async apply(main, dup, recvDay) {
+    const now = new Date().toISOString(), keepDay = locISO(depAt(main));
+    await Store.saveDeposit({ status: 'Rechazado', dupOf: main.id, dupPrev: { status: dup.status }, dupAt: now, dupByName: Mode.who(), _event: `Marcado como duplicado de ${depClient(main)} (${money(main.amount, 1)} · ${main.method}, registrado ${DP.when(main.createdAt)})` }, dup.id);
+    const upd = { _event: `Se enlazó un duplicado (${DP.when(dup.createdAt)}, ${dup.createdByName || '—'})` }; if (recvDay && recvDay !== keepDay) upd.receivedAt = DP.isoAt(recvDay);
+    await Store.saveDeposit(upd, main.id);
+  },
+  async undo(d) { await Store.saveDeposit({ status: (d.dupPrev && d.dupPrev.status) || 'Verificado', dupOf: '', dupPrev: null, _event: 'Se deshizo el vínculo de duplicado' }, d.id); },
+  confirmLink(main, dup, done) {
+    const e0 = locISO(depAt(main)), e1 = locISO(depAt(dup)), def = e0 < e1 ? e0 : e1, today = Dates.toISO(Dates.today());
+    DP.layer(`<h3>Vincular depósitos</h3><p style="color:var(--muted);margin:0 0 12px">Se contará <b>un solo</b> depósito. El otro queda como duplicado (no se borra y puedes deshacerlo).</p>
+      <div style="border:1px solid var(--ok);border-radius:12px;padding:10px 12px;margin-bottom:8px"><span class="mutedc" style="font-size:12px;font-weight:700">SE QUEDA</span><br>${DP.sum(main)}</div>
+      <div style="border:1px dashed var(--line);border-radius:12px;padding:10px 12px;margin-bottom:12px"><span class="mutedc" style="font-size:12px;font-weight:700">QUEDA COMO DUPLICADO</span><br>${DP.sum(dup)}</div>
+      <label class="field">¿Qué día entró realmente el dinero?<input type="date" data-lr value="${def}" max="${today}"></label>
+      <p class="err" data-lerr style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Vincular</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => {
+        const rv = $('[data-lr]', m).value || def, err = $('[data-lerr]', m), days = [...new Set([e1, rv !== e0 ? rv : ''].filter(Boolean))].filter(iso => iso !== today && DP.closedOn(iso, main));
+        if (days.length) { if (Mode.reception) { err.textContent = `El corte del ${Dates.fmt(Dates.fromISO(days[0]), { day: 'numeric', month: 'short' })} ya está guardado. Pídele a administración que vincule estos depósitos.`; return; } if (!await UI.confirm('Hay cortes ya guardados', `Se cambiará el efectivo de ${days.map(x => esc(Dates.fmt(Dates.fromISO(x), { day: 'numeric', month: 'short' }))).join(' y ')}, y esos cortes guardados ya no coincidirán. ¿Continuar?`, 'Sí, vincular')) return; }
+        try { await DP.apply(main, dup, rv); close(); UI.toast('Depósitos vinculados: se cuenta uno solo'); if (done) done(); else UI.render(); } catch (e) { err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+      };
+    }, 560);
+  },
+  /* desde el detalle de un depósito: elegir de cuál es duplicado */
+  pick(dup) {
+    const sim = Store.deposits.filter(x => x.id !== dup.id && DP.live(x) && ((DP.same(x, dup) && x.day != null && dup.day != null && Math.abs(x.day - dup.day) <= 7))).sort((a, b) => Math.abs(num(a.amount) - num(dup.amount)) - Math.abs(num(b.amount) - num(dup.amount)));
+    DP.layer(`<h3>¿De cuál depósito es duplicado?</h3><p style="color:var(--muted);margin:0 0 10px">Depósito a marcar: ${DP.sum(dup)}</p><label class="field">Buscar por nombre o teléfono<input data-ps placeholder="Escribe para buscar otra clienta" autocomplete="off"></label><div data-pl style="margin:10px 0;max-height:46vh;overflow:auto"></div><div class="acts"><button class="btn" data-x="no">Cancelar</button></div>`, (m, close) => {
+      const draw = () => { const q = DP.norm($('[data-ps]', m).value), list = q ? Store.deposits.filter(x => x.id !== dup.id && DP.live(x) && (DP.norm(depClient(x)).includes(q) || String(x.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '') || '§'))).slice(0, 8) : sim.slice(0, 8);
+        $('[data-pl]', m).innerHTML = list.length ? list.map((x, i) => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center"><div style="flex:1">${DP.sum(x)}</div><button class="btn sm" data-pk="${x.id}">Es duplicado de este</button></div>`).join('') : `<p class="mutedc">${q ? 'No encontré depósitos con ese nombre.' : 'No hay depósitos parecidos. Busca por nombre o teléfono.'}</p>`;
+        $$('[data-pk]', m).forEach(b => b.onclick = () => { const main = Store.deposits.find(z => z.id === b.dataset.pk); close(); DP.confirmLink(main, dup, () => { UI.close(); UI.render(); }); }); };
+      $('[data-ps]', m).oninput = draw; $('[data-x=no]', m).onclick = close; draw();
+    }, 600);
+  },
+  detail(d) {
+    const m = $('.modal'), acts = m && $('.acts', m); if (!m || !acts) return; const can = Store.writable();
+    if (d.dupOf) { const main = Store.deposits.find(x => x.id === d.dupOf); const p = m.querySelector('p'); if (p) p.insertAdjacentHTML('afterend', `<div class="banner" style="margin:0 0 12px">Es un <b>duplicado</b> de ${main ? DP.sum(main) : 'otro depósito'}. No cuenta en el corte ni en las listas.</div>`); if (can) { acts.insertAdjacentHTML('afterbegin', '<button class="btn" data-x="dpundo">Deshacer vínculo</button>'); $('[data-x=dpundo]', m).onclick = async () => { try { await DP.undo(d); UI.close(); UI.toast('Vínculo deshecho'); } catch (e) { UI.toast('No se pudo guardar', true); } }; } return; }
+    if (can && !d.outcome && d.status !== 'Rechazado') { const cs = Store.deposits.filter(x => x.id !== d.id && DP.live(x) && DP.same(x, d) && x.day != null && d.day != null && Math.abs(x.day - d.day) <= 1 && Math.abs(num(x.amount) - num(d.amount)) < 0.005);
+      if (cs.length) { const p = m.querySelector('p'); if (p) p.insertAdjacentHTML('afterend', `<div class="banner" style="margin:0 0 12px;border-color:var(--warn)">Hay ${cs.length === 1 ? 'un depósito parecido' : cs.length + ' depósitos parecidos'}: <b>${esc(depClient(cs[0]))}</b> · ${money(cs[0].amount, 1)} · ${DP.state(cs[0])}. ¿Es el mismo dinero? Usa “Es duplicado de…”.</div>`); }
+      const c = $('[data-x=c]', m); const b = document.createElement('button'); b.className = 'btn'; b.dataset.x = 'dpdup'; b.textContent = 'Es duplicado de…'; acts.insertBefore(b, c || null); b.onclick = () => DP.pick(d); }
+  },
+  /* Panel "Posibles duplicados" */
+  panel() {
+    const ps = DP.pairs(); DP.layer(`<h3>Posibles duplicados</h3><p style="color:var(--muted);margin:0 0 12px">Mismo dinero registrado dos veces: nombre igual o parecido (o mismo teléfono), mismo monto y cita del mismo día. Revísalos uno por uno; nada se vincula solo.</p><div data-pp style="max-height:60vh;overflow:auto"></div><div class="acts"><button class="btn primary" data-x="c">Cerrar</button></div>`, (m, close) => {
+      $('[data-x=c]', m).onclick = () => { close(); UI.render(); };
+      const draw = () => { const L = DP.pairs(); $('[data-pp]', m).innerHTML = L.length ? L.map((p, i) => `<div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px"><div style="margin-bottom:8px"><span class="mutedc" style="font-size:12px;font-weight:700">PRINCIPAL</span><br>${DP.sum(p.main)}</div><div style="margin-bottom:10px"><span class="mutedc" style="font-size:12px;font-weight:700">POSIBLE DUPLICADO</span><br>${DP.sum(p.dup)}</div><div class="acts" style="margin:0"><button class="btn sm" data-nd="${i}">No es duplicado</button><button class="btn sm primary" data-vl="${i}">Vincular</button></div></div>`).join('') : '<p class="mutedc">No hay posibles duplicados. ✓</p>'; this.L = L;
+        $$('[data-vl]', m).forEach(b => b.onclick = () => { const p = L[+b.dataset.vl]; DP.confirmLink(p.main, p.dup, () => draw()); });
+        $$('[data-nd]', m).forEach(b => b.onclick = async () => { const p = L[+b.dataset.nd]; try { await Store.saveDeposit({ notDup: (p.main.notDup || []).concat(p.dup.id), _event: 'Se marcó que no es duplicado de otro depósito' }, p.main.id); await Store.saveDeposit({ notDup: (p.dup.notDup || []).concat(p.main.id) }, p.dup.id); draw(); } catch (e) { UI.toast('No se pudo guardar', true); } }); };
+      draw();
+    }, 640);
+  },
+};
+/* el efectivo de un depósito cuenta por el día en que se recibió */
+{ const S0 = Store.saveDeposit; Store.saveDeposit = async function (data, id) { if (DP._recv && data && data.first !== undefined && data.amount !== undefined) { data = { ...data, receivedAt: DP._recv }; } DP._recv = null; return S0.call(this, data, id); }; }
+{ const F = depositForm; depositForm = function (d) { F.apply(this, arguments); try { DP.form(d); } catch (e) { console.warn('depos3', e); } }; }
+{ const D = depositDetail; depositDetail = function (d) { D.apply(this, arguments); try { DP.detail(d); } catch (e) { console.warn('depos3', e); } }; }
+{ const H = Views.depositos.html, M = Views.depositos.mount;
+  Views.depositos.html = function () { let h = H.apply(this, arguments); const n = DP.pairs().length; return n ? h.replace('<button class="btn primary" data-newdep', `<button class="btn" data-dpdup>Posibles duplicados · ${n}</button><button class="btn primary" data-newdep`) : h; };
+  Views.depositos.mount = function (root) { const r = M.apply(this, arguments); const b = $('[data-dpdup]', root); if (b) b.onclick = () => DP.panel(); return r; }; }
+/* Cobrar: también ofrece depósitos de la clienta con el nombre mal escrito (se ve a nombre de quién está) */
+DP.like = (d, f) => { if (!f || !DP.live(d) || d.day == null) return false; const ap = f._appt ? Store.appointments.find(a => a.id === f._appt) : null, day = Dates.fromISO(f.date); return day != null && Math.abs(d.day - day) <= 1 && DP.same(d, { first: f.first, last: f.last, phone: ap ? ap.phone : '' }); };
+DP.nameNote = (d, f) => DP.norm(d.first + ' ' + d.last) === DP.norm((f.first || '') + ' ' + (f.last || '')) ? '' : ` · <b>a nombre de ${esc(depClient(d))}</b>`;
+
+
+/* =========================================================
+   TARIFA MASTER · doble tarifa por servicio (Regular / Master)
+   · Catálogo: cada servicio puede tener masterPrice (opcional). El precio regular (price) NUNCA se toca.
+     Los 13 precios Master se asignan por nombre a servicios que YA existen (no se crea ni duplica nada). Mientras un
+     administrador no los "registre" (botón en Servicios), valen como valores iniciales; al registrarlos quedan guardados
+     en el catálogo y se pueden editar servicio por servicio. masterPrice null = sin tarifa Master a propósito.
+   · Cobrar: cada servicio (principal y adicionales) tiene su selector Regular | Master (Regular por defecto).
+     Master aplica el precio Master al instante (el resumen, la comisión y los totales usan las reglas de siempre);
+     sin precio Master configurado no inventa nada: avisa y deja Regular.
+   · Historial: cada venta guarda la tarifa (tarifa) y el precio aplicado (price); cambiar el catálogo después no la modifica.
+   ========================================================= */
+const MT = {
+  TABLE: [['Mega Wispy Full Set', 210], ['Mega Volume Full Set', 210], ['Volume Full Set', 190], ['Wispy Full Set', 190], ['Wet Full Set', 180], ['Hybrids Full Set', 180],
+    ['3 Weeks Mega Refill', 150], ['3 Weeks Refill', 130], ['Refill Mega Volumen', 130], ['Foreing Fill Mega Vol', 180, 'Foreign Fill'], ['Mini Mega Fill', 85, 'Mini Fill Mega Volume'], ['Mini Fill', 65, 'Mini Fill (60 min)'], ['Refill Mega Wispy', 130]],
+  norm: s => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''),
+  /* valores iniciales: id de servicio → { price, given, assumed } (se ligan por nombre, o por el nombre equivalente del catálogo) */
+  def() { const by = new Map(Store.config.services.map(s => [MT.norm(s.name), s])), out = new Map(); MT.TABLE.forEach(([name, price, alias]) => { const direct = by.get(MT.norm(name)), s = direct || (alias && by.get(MT.norm(alias))); if (s && !out.has(s.id)) out.set(s.id, { price, given: name, assumed: !direct }); }); return out; },
+  svc: id => (Store.config.services || []).find(s => s.id === id) || null,
+  price(s) { if (!s) return null; if (s.masterPrice === null) return null; if (s.masterPrice !== undefined && s.masterPrice !== '') return num(s.masterPrice); const d = MT.def().get(s.id); return d ? d.price : null; },
+  pending() { const d = MT.def(); return Store.config.services.filter(s => s.masterPrice === undefined && d.has(s.id)); },
+  regular: s => (s ? num(s.price) : 0),
+  /* ---------- registrar los precios en el catálogo ---------- */
+  registerModal() {
+    const d = MT.def(), pend = MT.pending(), unmatched = MT.TABLE.filter(([n, , a]) => ![...d.values()].some(v => v.given === n));
+    DP.layer(`<h3>Registrar precios Master</h3><p style="color:var(--muted);margin:0 0 12px">Se guardan en el catálogo como <b>precio Master</b> de cada servicio. Los precios regulares no cambian y no se crea ningún servicio.</p>
+      <div class="tablewrap" style="max-height:44vh;overflow:auto"><table><thead><tr><th>Servicio del catálogo</th><th class="r">Regular</th><th class="r">Master</th><th>Nota</th></tr></thead><tbody>${pend.map(s => { const v = d.get(s.id); return `<tr><td><b>${esc(s.name)}</b></td><td class="r">${money(s.price, 1)}</td><td class="r"><b>${money(v.price, 1)}</b></td><td class="mutedc">${v.assumed ? `⚠ en tu lista: «${esc(v.given)}» (confírmalo)` : ''}</td></tr>`; }).join('')}</tbody></table></div>
+      ${unmatched.length ? `<p class="err" style="color:var(--bad);font-weight:600">Sin servicio en el catálogo (no se registran): ${unmatched.map(x => esc(x[0])).join(', ')}</p>` : ''}
+      <p class="err" data-merr style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar ${pend.length} precios</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => { try { await Store.saveConfig({ services: Store.config.services.map(s => s.masterPrice === undefined && d.has(s.id) ? { ...s, masterPrice: d.get(s.id).price } : s) }); close(); UI.toast('Precios Master registrados'); UI.render(); } catch (e) { $('[data-merr]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); } };
+    }, 640);
+  },
+  /* ---------- selector Regular | Master (un solo clic) ---------- */
+  seg(holder) { const el = document.createElement('div'); el.className = 'tar'; el.innerHTML = `<div class="segmented small tar-seg" role="group" aria-label="Tarifa del servicio"><button type="button" data-t="Regular">Regular</button><button type="button" data-t="Master">Master</button></div><span class="tar-msg" role="status" hidden></span>`; return el; },
+  paint(el, h, sid) {
+    const s = MT.svc(sid), mp = MT.price(s), master = h.tarifa === 'Master' && mp != null; if (h.tarifa === 'Master' && mp == null) h.tarifa = 'Regular';
+    $$('button', el).forEach(b => { const on = (b.dataset.t === 'Master') === master; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    const bm = $('[data-t=Master]', el); bm.textContent = s && mp != null ? `Master · ${money(mp, 1)}` : 'Master'; bm.title = s ? (mp != null ? `Tarifa Master: ${money(mp, 1)} (regular ${money(MT.regular(s), 1)})` : 'Este servicio no tiene tarifa Master configurada') : 'Elige primero el servicio';
+  },
+  msg(el, text) { const m = $('.tar-msg', el); m.textContent = text || ''; m.hidden = !text; },
+  /* aplica la tarifa a un servicio: h = f (principal) o un extra; input = su campo de precio */
+  apply(el, h, sid, input, tar) {
+    const s = MT.svc(sid); if (!s) { MT.msg(el, 'Elige primero el servicio.'); return; }
+    const mp = MT.price(s);
+    if (tar === 'Master' && mp == null) { h.tarifa = 'Regular'; MT.msg(el, 'Este servicio no tiene tarifa Master configurada. Se mantiene la tarifa regular.'); MT.paint(el, h, sid); return; }
+    h.tarifa = tar; MT.msg(el, ''); const v = tar === 'Master' ? mp : MT.regular(s);
+    if (input && num(input.value) !== v) { input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); }
+    MT.paint(el, h, sid);
+  },
+  /* tras cambiar de servicio: si estaba en Master, pasa al Master del nuevo (o vuelve a Regular avisando) */
+  afterService(el, h, sid, input) {
+    const s = MT.svc(sid), mp = MT.price(s);
+    if (h.tarifa === 'Master') { if (mp != null) { MT.apply(el, h, sid, input, 'Master'); return; } h.tarifa = 'Regular'; MT.msg(el, 'Este servicio no tiene tarifa Master configurada. Se mantiene la tarifa regular.'); } else MT.msg(el, '');
+    MT.paint(el, h, sid);
+  },
+  build(root, view) {
+    const form = $('[data-form]', root), f = view.form, row = form && $('.svc-row.main', form); if (!form || !f || !row || form.dataset.mt) return; form.dataset.mt = '1';
+    const main = MT.seg(f), pinp = $('[name=price]', form), sel = $('[name=serviceId]', form); row.appendChild(main); MT.paint(main, f, f.serviceId);
+    main.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) MT.apply(main, f, f.serviceId || (sel && sel.value), pinp, b.dataset.t); });
+    form.addEventListener('change', e => { if (e.target === sel) MT.afterService(main, f, sel.value, pinp); });
+    /* servicios adicionales: se vuelven a dibujar solos, así que cada fila se arma al aparecer */
+    const box = $('[data-xlines]', form); if (!box) return;
+    const wire = () => $$('.xline[data-xl]', box).forEach(l => { if ($('.tar', l)) return; const x = (f.extras || [])[+l.dataset.xl]; if (!x) return; const el = MT.seg(x), sv = $('[data-x2=serviceId]', l), pr = $('[data-x2=price]', l); l.appendChild(el); MT.paint(el, x, sv.value || x.serviceId);
+      el.addEventListener('click', e => { const b = e.target.closest('[data-t]'); if (b) MT.apply(el, x, sv.value, pr, b.dataset.t); }); sv.addEventListener('change', () => setTimeout(() => MT.afterService(el, x, sv.value, pr), 0)); });
+    if (window.MutationObserver) new MutationObserver(wire).observe(box, { childList: true }); wire();
+  },
+};
+/* la venta guarda la tarifa y el precio de catálogo de esa tarifa en ese momento (el precio aplicado ya va en price) */
+{ const S0 = Store.saveSale; Store.saveSale = async function (form, id) {
+    try { const tp = (h, sid) => { const s = MT.svc(sid); return h.tarifa === 'Master' ? MT.price(s) : s ? MT.regular(s) : null; };
+      if (form && !id) { form.tarifaPrice = tp(form, form.serviceId); (form.extras || []).forEach(x => { x.tarifaPrice = tp(x, x.serviceId); }); } } catch (e) { /* el precio de catálogo es solo informativo */ }
+    return S0.call(this, form, id); }; }
+{ const M = Views.nueva.mount; Views.nueva.mount = function (root) { const r = M.apply(this, arguments); try { if (C3.on()) MT.build(root, this); } catch (e) { console.warn('master3', e); } return r; }; }
+{ const H = Views.servicios.html, M = Views.servicios.mount;
+  Views.servicios.html = function () { const h = H.apply(this, arguments), n = MT.pending().length; return n ? h.replace('<button class="btn primary" data-add>', `<button class="btn" data-mtreg>Registrar precios Master · ${n}</button><button class="btn primary" data-add>`) : h; };
+  Views.servicios.mount = function (root) { const r = M.apply(this, arguments); const b = $('[data-mtreg]', root); if (b) b.onclick = () => MT.registerModal(); return r; }; }
 
 
 window.FM_BOOT = function () {
