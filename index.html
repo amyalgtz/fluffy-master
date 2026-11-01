@@ -763,7 +763,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-10-30 14:00';
+window.FM_VERSION = '2026-11-01 10:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2328,7 +2328,7 @@ Object.assign(Store, {
     const prev = id ? this.appNotes.find(n => n.id === id) : null, now = new Date().toISOString(), uid = await this.who();
     const nextNo = 1 + this.appNotes.reduce((mx, n) => Math.max(mx, parseInt(String(n.invoice || '').replace(/\D/g, ''), 10) || 0), 0);
     const doc = { month: form.month, date: form.date, artistId: a.id, artistName: a.name, customerId: a.code, invoice: prev ? prev.invoice : String(nextNo).padStart(4, '0'),
-      items: c.lines.map(l => ({ code: l.code || '', desc: l.desc, qty: num(l.qty), unit: num(l.unit), amount: l.amount })),
+      items: c.lines.map(l => ({ code: l.code || '', desc: l.desc, qty: num(l.qty), unit: num(l.unit), catalog: noteCatalog(l, prev), amount: l.amount })),
       discounts: c.discounts.map(d => ({ label: d.label || '', type: d.type, value: num(d.value), amount: d.amount })),
       taxRate: num(this.config.taxRate), subtotal: c.subtotal, discountTotal: c.discountTotal, taxable: c.taxable, tax: c.tax, total: c.total,
       status: form.status, comments: (form.comments || '').trim(), statusHistory: (prev && prev.statusHistory || []).concat(prev && prev.status === form.status ? [] : [{ status: form.status, at: now, by: uid }]),
@@ -2364,7 +2364,7 @@ const pctCell = (real, meta) => { if (!meta) return '—'; const p = real / meta
 const shiftMonth = (ym, k) => { const [y, m] = ym.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + k, 1)); return d.toISOString().slice(0, 7); };
 
 const NOTE_STATUS = ['Borrador', 'Enviada', 'Pagada', 'Cancelada'];
-const statusTag = s => s === 'Pagada' ? '<span class="tag app">Pagada</span>' : s === 'Enviada' ? '<span class="tag warn">Enviada</span>' : s === 'Cancelada' ? '<span class="tag off">Cancelada</span>' : s === 'Borrador' ? '<span class="tag">Borrador</span>' : '<span class="tag">Sin registrar</span>';
+const statusTag = s => s === 'Sin cargo' ? '<span class="tag app">Sin cargo</span>' : s === 'Pagada' ? '<span class="tag app">Pagada</span>' : s === 'Enviada' ? '<span class="tag warn">Enviada</span>' : s === 'Cancelada' ? '<span class="tag off">Cancelada</span>' : s === 'Borrador' ? '<span class="tag">Borrador</span>' : '<span class="tag">Sin registrar</span>';
 S.perf = { nStatus: '', tab: 'metas', week: Dates.fluffyWeekStart(Dates.today()) - 7, month: shiftMonth(Dates.ym(Dates.today()), -1), nMonth: '', nArtist: '' };
 
 function weekArtists(ws, goals, sales) {
@@ -2623,7 +2623,7 @@ function noteEditor(n) {
     <div class="formgrid"><label class="field">Lashista<select data-nk="artistId">${artistOptions(st.artistId, 0, !!n)}</select></label>
       <label class="field">Mes que se cobra<input type="month" data-nk="month" value="${esc(st.month || '')}"></label>
       <label class="field">Fecha del invoice<input type="date" data-nk="date" value="${esc(st.date)}"></label>
-      <label class="field">Estado<select data-nk="status">${NOTE_STATUS.map(s => `<option ${st.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
+      <label class="field">Estado<select data-nk="status">${NOTE_STATUS.filter(s => s !== 'Pagada').map(s => `<option ${st.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
     <div class="notehead"><span>Artículo</span><span></span><span>Cant.</span><span>Precio</span><span>Monto</span><span></span></div>
     <div data-lines></div><button class="btn sm" data-add style="margin-top:8px">${ic('plus')}Agregar artículo</button>
     <h4 style="margin:18px 0 4px">Descuentos</h4><p class="formula" style="margin:0 0 6px">Se aplican en orden, cada uno sobre el resultado del anterior. Ej.: descuento por metas.</p>
@@ -2659,7 +2659,7 @@ function noteEditor(n) {
       if (items.some(i => !(num(i.qty) > 0) || num(i.unit) < 0 || i.unit === '')) { err.textContent = 'Revisa cantidades (mayores a 0) y precios.'; return; }
       if (st.discounts.some(d => num(d.value) < 0 || (d.type === 'pct' && num(d.value) > 100))) { err.textContent = 'Los descuentos van de 0 a 100% o en dólares positivos.'; return; }
       const b = $('[data-x=ok]', m); b.disabled = true; b.textContent = 'Guardando…';
-      try { await Store.saveNote({ ...st, items }, n && n.id); UI.close(); UI.toast(n ? 'Nota actualizada' : 'Nota guardada'); }
+      try { const msg = await IN3.save({ ...st, items }, n && n.id); UI.close(); UI.toast(msg || (n ? 'Nota actualizada' : 'Nota guardada')); }
       catch (e) { b.disabled = false; b.textContent = 'Guardar nota'; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
     };
   });
@@ -3346,7 +3346,7 @@ Views.turno = {
 
 /* ---------- helpers ---------- */
 const ago = iso => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }); };
-const depStatusTag = d => d.dupOf ? '<span class="tag warn">Duplicado</span>' : d.status === 'Verificado' ? '<span class="tag app">Verificado</span>' : d.status === 'Rechazado' ? '<span class="tag off">Rechazado</span>' : '<span class="tag warn">Por verificar</span>';
+const depStatusTag = d => d.dupOf ? '<span class="tag warn">Duplicado</span>' : d.annulled ? '<span class="tag off">Anulado</span>' : d.status === 'Verificado' ? '<span class="tag app">Verificado</span>' : d.status === 'Rechazado' ? '<span class="tag off">Rechazado</span>' : '<span class="tag warn">Por verificar</span>';
 const depUseTag = d => d.outcome === 'Aplicado' ? '<span class="tag">Aplicado a venta</span>' : d.outcome === 'No-show' ? '<span class="tag">No-show</span>' : d.outcome === 'Devuelto' ? '<span class="tag off">Devuelto</span>' : d.status === 'Rechazado' ? '' : '<span class="tag app">Disponible</span>';
 const depClient = d => title(((d.first || '') + ' ' + (d.last || '')).trim());
 const noShowService = () => Store.config.services.find(s => s.name === 'DEPOSITO - NO SHOW');
@@ -4682,7 +4682,7 @@ Views.dia.html = function () {
     `<div class="kpi"><div class="lab">Total del día</div><div class="val">${money(d.tot.totalDia)}</div><div class="sub">recibido hoy ${money(d.tot.recibido)}</div></div>`);
   const prodPanel = `<section class="panel"><h2>Productos e insumos del día</h2><p class="hint">Ventas de producto en salón y pagos de notas de las lashistas.</p>
     ${table([{ label: 'Concepto' }, { label: 'Detalle' }, { label: 'Monto', r: 1 }, { label: 'Método' }, { label: 'TXN' }],
-      d.prods.map(p => ['Venta en salón', `${p.name} × ${intf(p.qty)}${p.client ? ' · ' + p.client : ''}`, money(p.amount, 1), p.method, p.txn || '—']).concat(d.pays.map(p => ['Pago de lashista', `${p.artist} · Invoice #${p.invoice}`, money(p.amount, 1), p.method, p.txn || '—'])),
+      d.prods.map(p => ['Venta en salón', `${p.name} × ${intf(p.qty)}${p.client ? ' · ' + p.client : ''}`, money(p.amount, 1), p.method, p.txn || '—']).concat(d.pays.map(p => ['Insumos vendidos a lashistas', `${p.artist} · Nota #${p.invoice}`, money(p.amount, 1), p.method, p.txn || '—'])),
       prodTot ? ['Total', '', money(prodTot, 1), '', ''] : null, { emptyTitle: 'Sin productos hoy', empty: 'Usa “Venta de producto” o “Pago de lashista”.' })}
     <div class="chips no-print" style="margin-top:10px"><button class="btn sm" data-dpsale>${ic('plus')}Venta de producto</button><button class="btn sm" data-dppay>${ic('plus')}Pago de lashista</button><button class="btn sm" data-dres>${ic('dl')}Resumen del día (PDF / Excel)</button></div></section>`;
   return h.replace('<section class="panel"><h2>Servicios del día</h2>', prodPanel + '<section class="panel"><h2>Servicios del día</h2>');
@@ -5825,7 +5825,7 @@ const reqStatus = items => { const ent = items.filter(i => i.state === 'Entregad
   return pe ? (ent ? 'Parcial' : 'Pendiente') : ent === items.length ? 'Entregada' : ent ? 'Parcial' : 'Sin stock'; };
 const reqTag = s => ({ Pendiente: '<span class="tag warn">Pendiente</span>', Entregada: '<span class="tag app">Entregada</span>', Parcial: '<span class="tag warn">Parcial</span>', 'Sin stock': '<span class="tag" style="color:var(--bad);border-color:var(--bad)">Sin stock</span>', Cancelada: '<span class="tag off">Cancelada</span>' })[s] || esc(s);
 const noteOf = id => id ? Store.notes.find(n => n.id === id) : null;
-const noteTag = n => !n ? '<span class="tag">Sin nota</span>' : n.status === 'Pagada' ? `<span class="tag app">Pagada · #${esc(n.invoice)}</span>` : n.status === 'Enviada' ? `<span class="tag warn">Enviada · #${esc(n.invoice)}${n.pending ? ' · debe ' + money(n.pending) : ''}</span>` : n.status === 'Cancelada' ? `<span class="tag off">Cancelada · #${esc(n.invoice)}</span>` : `<span class="tag">Borrador · #${esc(n.invoice)}</span>`;
+const noteTag = n => !n ? '<span class="tag">Sin nota</span>' : n.status === 'Sin cargo' ? `<span class="tag app">Sin cargo · #${esc(n.invoice)}</span>` : n.status === 'Pagada' ? `<span class="tag app">Pagada · #${esc(n.invoice)}</span>` : n.status === 'Enviada' ? `<span class="tag warn">Enviada · #${esc(n.invoice)}${n.pending ? ' · debe ' + money(n.pending) : ''}</span>` : n.status === 'Cancelada' ? `<span class="tag off">Cancelada · #${esc(n.invoice)}</span>` : `<span class="tag">Borrador · #${esc(n.invoice)}</span>`;
 const unitPrice = code => num((Store.product(code) || {}).priceArtist);
 
 /* ---------- formulario de solicitud (nueva o editar) ---------- */
@@ -5906,14 +5906,14 @@ async function billArtist(aid, ym) {
 function artistMonthDetail(aid, ym) {
   const a = Store.config.artists.find(x => x.id === aid) || { name: aid }, reqs = Store.requests.filter(r => r.artistId === aid && (r.requestDate || (r.createdAt || '')).slice(0, 7) === ym || (r.artistId === aid && r.deliveredAt && r.deliveredAt.slice(0, 7) === ym)).sort((x, y) => (x.requestDate || x.createdAt || '').localeCompare(y.requestDate || y.createdAt || ''));
   const n = monthNote(aid, ym), lines = linesOf(reqs), pend = deliveredIn(aid, ym).filter(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado'));
-  const ent = lines.filter(x => x.i.state === 'Entregado'), sub = r2(ent.reduce((t, x) => t + unitPrice(x.i.code) * num(x.i.qty), 0));
+  const ent = lines.filter(x => x.i.state === 'Entregado'), sub = r2(ent.reduce((t, x) => t + appliedPrice(x.r, x.i.code) * num(x.i.qty), 0));
   UI.modal(`<h3>${esc(a.name)} · insumos de ${esc(ymLabel(ym))}</h3>
     <p style="color:var(--muted);margin:0 0 12px">${intf(reqs.length)} solicitudes · entregado ${money(sub, 1)} a precio lashista · nota del mes: ${noteTag(n)}</p>
     ${n ? `<div class="notebox"><div><b>Nota #${esc(n.invoice)}</b> · ${esc(n.status)}<br><span class="mutedc" style="font-size:12.5px">Subtotal ${money(n.subtotal, 1)}${n.discountTotal ? ` · descuentos −${money(n.discountTotal, 1)}` : ''} · tax ${money(n.tax, 1)} · <b>total ${money(n.total, 1)}</b>${n.paid ? ` · pagado ${money(n.paid, 1)}` : ''}${n.pending && n.status !== 'Pagada' ? ` · debe ${money(n.pending, 1)}` : ''}</span></div>
       <div class="chips">${n.status === 'Borrador' && !Mode.reception ? '<button class="btn sm primary" data-x="editnote">Abrir nota (descuentos y enviar)</button>' : '<button class="btn sm" data-x="viewnote">Ver nota</button>'}${n.status === 'Enviada' ? '<button class="btn sm" data-x="paynote">Registrar pago</button>' : ''}</div></div>` : ''}
     ${pend.length ? `<div class="banner">${intf(pend.length)} solicitudes entregadas todavía no están en ${n && n.status === 'Borrador' ? 'la nota' : 'ninguna nota'}. ${!Mode.reception ? `<button class="btn sm primary" data-x="bill">${n && n.status === 'Borrador' ? 'Agregar a la nota #' + esc(n.invoice) : 'Generar nota'}</button>` : ''}</div>` : ''}
     <div class="tablewrap" style="max-height:46vh;overflow:auto"><table><thead><tr><th>Solicitó</th><th>Entregó</th><th>Producto</th><th class="r">Cant.</th><th>Estado</th><th class="r">Precio</th><th class="r">Subtotal</th><th>Nota</th></tr></thead><tbody>
-      ${lines.map(({ r, i }) => `<tr class="click" data-req="${r.id}"><td>${esc(Dates.fmt(Dates.fromISO(r.requestDate || (r.createdAt || '').slice(0, 10)), { day: '2-digit', month: 'short' }))}${r.source === 'link' ? ' <span class="mutedc" style="font-size:11px">link</span>' : ''}</td><td>${r.deliveredAt ? esc(new Date(r.deliveredAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })) : '—'}</td><td>${esc(i.name)}</td><td class="r">${intf(i.qty)}</td><td>${itemTag(i.state)}</td><td class="r">${money(unitPrice(i.code), 1)}</td><td class="r">${i.state === 'Entregado' ? money(r2(unitPrice(i.code) * num(i.qty)), 1) : '—'}</td><td>${r.billedNoteId ? '#' + esc((noteOf(r.billedNoteId) || {}).invoice || '') : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="mutedc">Sin solicitudes este mes.</td></tr>'}
+      ${lines.map(({ r, i }) => `<tr class="click" data-req="${r.id}"><td>${esc(Dates.fmt(Dates.fromISO(r.requestDate || (r.createdAt || '').slice(0, 10)), { day: '2-digit', month: 'short' }))}${r.source === 'link' ? ' <span class="mutedc" style="font-size:11px">link</span>' : ''}</td><td>${r.deliveredAt ? esc(new Date(r.deliveredAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })) : '—'}</td><td>${esc(i.name)}</td><td class="r">${intf(i.qty)}</td><td>${itemTag(i.state)}</td><td class="r">${money(appliedPrice(r, i.code), 1)}${Math.abs(appliedPrice(r, i.code) - unitPrice(i.code)) > 0.004 ? `<br><small class="mutedc" title="Precio de catálogo">cat. ${money(unitPrice(i.code), 1)}</small>` : ''}</td><td class="r">${i.state === 'Entregado' ? money(r2(appliedPrice(r, i.code) * num(i.qty)), 1) : '—'}</td><td>${r.billedNoteId ? '#' + esc((noteOf(r.billedNoteId) || {}).invoice || '') : '—'}</td></tr>`).join('') || '<tr><td colspan="8" class="mutedc">Sin solicitudes este mes.</td></tr>'}
     </tbody></table></div><p class="formula">Toca un renglón para abrir esa solicitud y corregirla.</p>
     <div class="acts"><button class="btn" data-x="c">Cerrar</button></div>`, m => {
     m.classList.add('wide');
@@ -8836,7 +8836,7 @@ const FIN = {
     const ords = (Store.orders || []).filter(o => o.status !== 'Cancelado'), dlv = ords.filter(o => Orders.isIncome(o) && inR(Orders.incomeDay(o)));
     const onl = { prod: S0(dlv, o => num(o.subtotal)), tax: S0(dlv, o => num(o.tax)), ship: S0(dlv, o => num(o.shipping)), fees: S0(dlv, o => num((o.fees || {}).payment) + num((o.fees || {}).other)), cob: S0(dlv, o => num(o.total)), recv: S0(dlv, o => Orders.received(o)), n: dlv.length };
     const rentas = Logic.rentasInRange(Store.config.rentas, from, to);
-    const cats = [['Servicios', t.ventas, t.descuentos, 0], ['Productos del salón', d.tot.productos, 0, 0], ['Insumos (cobrados a lashistas)', d.tot.lashistas, 0, 0], ['Tienda web', onl.prod, 0, onl.fees], ['Otros ingresos (rentas)', rentas, 0, 0]].map(([n, b, ds, cm]) => ({ n, b: r2(b), d: r2(ds), cm: r2(cm), net: r2(b - ds - cm) }));
+    const cats = [['Servicios', t.ventas, t.descuentos, 0], ['Productos del salón', d.tot.productos, 0, 0], ['Productos · insumos vendidos a lashistas', d.tot.lashistas, 0, 0], ['Tienda web', onl.prod, 0, onl.fees], ['Otros ingresos (rentas)', rentas, 0, 0]].map(([n, b, ds, cm]) => ({ n, b: r2(b), d: r2(ds), cm: r2(cm), net: r2(b - ds - cm) }));
     const brutas = S0(cats, c => c.b), desc = S0(cats, c => c.d), com = S0(cats, c => c.cm), netas = r2(brutas - desc - com);
     const cobrado = r2(d.tot.recibido - onl.recv + onl.cob), sm = d.methods.find(m => /sin registrar/i.test(m.key)), sinMetodo = sm ? sm.value : 0;
     const gastos = Store.expenses.filter(e => inR(e.day)), gTot = S0(gastos, e => num(e.amount)), sinCat = gastos.filter(e => !String(e.category || '').trim() || /sin categor/i.test(e.category));
@@ -8885,7 +8885,7 @@ const FIN = {
     (Store.deposits || []).filter(x => inR(x.day) && x.status !== 'Rechazado').forEach(x => out.push({ k: 'd' + x.id, id: sid(x.id), day: x.day, time: hh(x.createdAt), cli: depClient(x) || 'Sin nombre', con: 'Depósito de cita', cat: 'Servicios', tipo: 'Anticipo', imp: 0, cob: 0, memo: num(x.amount), m: x.method || 'Sin registrar', st: x.outcome ? (x.outcome === 'No-show' ? 'No-show' : 'Aplicado') : x.status === 'Pendiente' ? 'Por verificar' : 'Por aplicar', ref: x.txn || '' }));
     (Store.packages || []).filter(p => inR(p.day)).forEach(p => out.push({ k: 'p' + p.id, id: sid(p.id), day: p.day, time: hh(p.createdAt), cli: title(((p.first || '') + ' ' + (p.last || '')).trim()) || 'Sin nombre', con: `Paquete: ${p.serviceName} × ${p.sessions}`, cat: 'Servicios', tipo: 'Anticipo', imp: 0, cob: r2(num(p.total) + num(p.tipTotal)), m: (p.payments || []).length > 1 ? 'Dividido' : (p.method || 'Sin registrar'), st: 'Cobrada', ref: p.txn || '' }));
     (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).forEach(m => { const a = r2(num(m.qty) * num(m.unitPrice)); out.push({ k: 'm' + m.id, id: sid(m.id), day: Dates.fromISO(m.date), time: hh(m.createdAt), cli: m.client || 'Mostrador', con: `${m.name || m.code} × ${num(m.qty)}`, cat: 'Productos del salón', tipo: 'Venta', imp: a, cob: m.payGroup ? (m.payLead ? r2((m.payments || []).reduce((t, p) => t + num(p.amount), 0)) : 0) : a, m: m.payGroup ? 'Mismo pago del ticket' : (m.method || 'Sin registrar'), st: !m.method && !m.payGroup ? 'Sin método' : 'Cobrada', ref: m.txn || '' }); });
-    Store.notePayments.filter(p => inR(p.day)).forEach(p => out.push({ k: 'n' + p.id, id: sid(p.id), day: p.day, time: hh(p.createdAt), cli: p.artistName || 'Lashista', con: `Pago de nota de insumos #${p.invoice || ''}`, cat: 'Insumos (cobrados a lashistas)', tipo: 'Venta', imp: num(p.amount), cob: num(p.amount), m: p.method || 'Sin registrar', st: 'Cobrada', ref: p.txn || '' }));
+    Store.notePayments.filter(p => inR(p.day)).forEach(p => out.push({ k: 'n' + p.id, id: sid(p.id), day: p.day, time: hh(p.createdAt), cli: p.artistName || 'Lashista', con: `Insumos vendidos a lashistas · Nota #${p.invoice || ''}`, origen: 'insumos-lashista', lashista: p.artistName, cat: 'Productos · insumos vendidos a lashistas', tipo: 'Venta', imp: num(p.amount), cob: num(p.amount), m: p.method || 'Sin registrar', st: 'Cobrada', ref: p.txn || '' }));
     (Store.orders || []).filter(o => o.status !== 'Cancelado').forEach(o => {
       const inc = Orders.isIncome(o), d = inc ? Orders.incomeDay(o) : o.day; if (!inR(d)) return;
       out.push({ k: 'o' + o.id, id: '#' + o.number, day: d, time: '', cli: (o.customer || {}).name || 'Cliente en línea', con: `Pedido en línea #${o.number} (${(o.items || []).length} productos)`, cat: 'Tienda web', tipo: inc ? 'Venta' : 'Anticipo', imp: inc ? Orders.received(o) : 0, bruto: inc ? num(o.subtotal) : null, fee: inc ? r2(num((o.fees || {}).payment) + num((o.fees || {}).other)) : 0, cob: inc ? num(o.total) : 0, memo: inc ? 0 : num(o.total), m: o.payMethod || 'PayPal', st: inc ? 'Cobrada' : 'Por entregar', ref: (o.tracking ? o.carrier + ' ' + o.tracking : ''), tax: num(o.tax), env: num(o.shipping) });
@@ -8937,8 +8937,8 @@ Views.cpanel = {
     return `${fhead('Panel financiero', 'Ingresos, cobros y pendientes con las mismas cifras de la Hoja del día y el Resumen de ventas.', `<button class="btn" data-fx="panel">${ic('dl')}Exportar</button>`)}${finNav()}
       <section class="kpis k5">${kp.map(([l, v, d, s, go, tipo], i) => `<button class="kpi ${i === 0 ? 'lead' : ''}" data-drill="${go}" data-tipo="${tipo}" style="text-align:left;background:none;border-top:0;border-right:0;border-bottom:0;border-radius:0;cursor:pointer;font:inherit"><div class="lab">${l}</div><div class="val">${F$(v)}${d}</div><div class="sub">${s}</div></button>`).join('')}</section>
       <p class="hint" style="margin:-20px 0 26px;color:var(--muted);font-size:12.5px">Las ventas netas no incluyen propinas ni tax, y la tienda web se cuenta como en el Resumen: productos menos la comisión de PayPal. En Cobrado, la tienda web sí incluye el tax y el envío que pagó la clienta. Los depósitos y paquetes se cuentan como cobrados cuando se aplican a un servicio, igual que en el Resumen de ventas. Toca una cifra para ver su detalle.</p>
-      ${(() => { const g = n => (c.cats.find(x => x.n === n) || { net: 0 }).net, pr = r2(g('Productos del salón') + g('Insumos (cobrados a lashistas)') + g('Tienda web')), bx = 'text-align:left;cursor:pointer;font:inherit;color:inherit;background:var(--bg)'; return `<section class="panel" style="padding:18px 20px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Productos y rentas</h2><button class="btn sm" style="margin-left:auto" data-drill="cprod">Ver detalle</button></div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:14px"><button class="cajabox" data-drill="cprod" style="border-left:5px solid var(--pink-deep);${bx}"><span>Venta de productos</span><b>${F$(pr)}</b><small>Mostrador ${F$(g('Productos del salón'))} · Insumos a lashistas ${F$(g('Insumos (cobrados a lashistas)'))} · Tienda web ${F$(g('Tienda web'))}</small></button>
+      ${(() => { const g = n => (c.cats.find(x => x.n === n) || { net: 0 }).net, pr = r2(g('Productos del salón') + g('Productos · insumos vendidos a lashistas') + g('Tienda web')), bx = 'text-align:left;cursor:pointer;font:inherit;color:inherit;background:var(--bg)'; return `<section class="panel" style="padding:18px 20px"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Productos y rentas</h2><button class="btn sm" style="margin-left:auto" data-drill="cprod">Ver detalle</button></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:14px"><button class="cajabox" data-drill="cprod" style="border-left:5px solid var(--pink-deep);${bx}"><span>Venta de productos</span><b>${F$(pr)}</b><small>Mostrador ${F$(g('Productos del salón'))} · Insumos a lashistas ${F$(g('Productos · insumos vendidos a lashistas'))} · Tienda web ${F$(g('Tienda web'))}</small></button>
           <button class="cajabox" data-drill="cprod" style="border-left:5px solid var(--gold);${bx}"><span>Rentas de cabinas</span><b>${F$(c.rentas)}</b><small>${c.rentas ? 'Rentas registradas en el período' : /dia|semana/.test(FIN.st.per) ? 'Las rentas se registran por mes' : 'Sin rentas registradas'}</small></button></div></section>`; })()}
       <div class="grid2"><section class="panel"><h2>Ventas netas y gastos por mes</h2><p class="hint">Los últimos 10 meses. Los gastos son lo registrado, no un resultado final.</p>${chartMonths(FIN.symb())}</section>
         <section class="panel"><h2>De dónde viene</h2><p class="hint">Ventas netas por categoría. Toca una para ver su detalle.</p>${comp.map(x => `<button class="rline" data-cat="${esc(x.n)}" style="display:flex;justify-content:space-between;width:100%;padding:7px 0;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:inherit;text-align:left;cursor:pointer"><span>${x.n}</span><span><b>${F$(x.net)}</b> <span class="mutedc">${c.netas ? (x.net / c.netas * 100).toFixed(1) + '%' : ''}</span></span></button>`).join('') || '<p class="mutedc">Sin ventas en este período.</p>'}
@@ -9008,7 +9008,7 @@ Views.ctrans = {
 Views.cprod = {
   html() {
     const r = FIN.fr(), c = FIN.calc(r.from, r.to), P = FIN.prod(r.from, r.to), g = n => (c.cats.find(x => x.n === n) || { net: 0 }).net;
-    const sM = g('Productos del salón'), sI = g('Insumos (cobrados a lashistas)'), sW = g('Tienda web'), prodTot = r2(sM + sI + sW), units = P.mostr.reduce((a, x) => a + x.u, 0) + P.web.reduce((a, x) => a + x.u, 0);
+    const sM = g('Productos del salón'), sI = g('Productos · insumos vendidos a lashistas'), sW = g('Tienda web'), prodTot = r2(sM + sI + sW), units = P.mostr.reduce((a, x) => a + x.u, 0) + P.web.reduce((a, x) => a + x.u, 0);
     const kp = [['Venta de productos', F$(prodTot), 'mostrador + insumos + tienda web', 1], ['Rentas de cabinas', F$(c.rentas), /dia|semana/.test(FIN.st.per) ? 'las rentas se registran por mes' : 'según lo registrado en Configuración'], ['Productos y rentas', F$(r2(prodTot + c.rentas)), c.netas ? (r2(prodTot + c.rentas) / c.netas * 100).toFixed(1) + '% de las ventas netas' : '—'], ['Unidades vendidas', intf(units), 'mostrador y tienda web']];
     const tb = (head, rows, foot, fmt) => `<div class="tablewrap"><table><thead><tr>${head.map((h, i) => `<th class="${fmt[i] ? 'r' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(rw => `<tr>${rw.map((v, i) => `<td class="${fmt[i] ? 'r' : ''}" ${fmt[i] ? '' : 'style="white-space:normal;min-width:120px"'}>${v}</td>`).join('')}</tr>`).join('')}</tbody>${foot ? `<tfoot><tr>${foot.map((v, i) => `<td class="${fmt[i] ? 'r' : ''}">${v}</td>`).join('')}</tr></tfoot>` : ''}</table></div>`;
     const sec = (id, title, hint, total, cat, body) => `<section class="panel" id="sec-${id}"><div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><h2 style="margin:0">${title}</h2><b style="font-size:20px">${F$(total)}</b>${cat ? `<button class="btn sm" style="margin-left:auto" data-cat="${esc(cat)}">Ver en Transacciones</button>` : ''}</div><p class="hint" style="margin:6px 0 12px">${hint}</p>${body}</section>`;
@@ -9020,7 +9020,7 @@ Views.cprod = {
       <section class="kpis k4">${kp.map(([a, v, s, lead]) => `<div class="kpi ${lead ? 'lead' : ''}"><div class="lab">${a}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`).join('')}</section>
       <div class="chips" style="margin:-14px 0 20px">${[['mostr', 'Mostrador'], ['ins', 'Insumos a lashistas'], ['web', 'Tienda web'], ['rent', 'Rentas']].map(([k, l]) => `<button class="chip" data-jump="${k}">${l}</button>`).join('')}</div>
       ${sec('mostr', 'Venta en mostrador del salón', 'Productos vendidos en el salón, producto por producto.', sM, 'Productos del salón', M1)}
-      ${sec('ins', 'Insumos cobrados a lashistas', 'Se cuentan como venta cuando la lashista paga su nota de insumos (no cuando se entregan).', sI, 'Insumos (cobrados a lashistas)', I1)}
+      ${sec('ins', 'Insumos cobrados a lashistas', 'Se cuentan como venta cuando la lashista paga su nota de insumos (no cuando se entregan).', sI, 'Productos · insumos vendidos a lashistas', I1)}
       ${sec('web', 'Tienda web', 'Cada pedido entregado: productos menos la comisión de PayPal, igual que en el Resumen. El tax y el envío no son ingreso.', sW, 'Tienda web', W1)}
       ${sec('rent', 'Rentas de cabinas', 'La app guarda un solo monto de renta por mes (sin separar por cabina). Se muestran los últimos 12 meses.', c.rentas, 'Otros ingresos (rentas)', R1)}`;
   },
@@ -9423,7 +9423,7 @@ const CL = {
   resolve(id) { const m = CL.idx().byId; let c = m.get(id), n = 0; while (c && c.status === 'merged' && c.mergedInto && n++ < 10) c = m.get(c.mergedInto); return c || null; },
   /* ---------- índice (se reconstruye solo cuando cambian las fichas) ---------- */
   idx() {
-    if (CL._c) return CL._c; const all = Store.clients, byId = new Map(all.map(c => [c.id, c])), act = all.filter(c => c.status !== 'merged'), ph = new Map(), em = new Map(), ky = new Map();
+    if (CL._c) return CL._c; const all = Store.clients, byId = new Map(all.map(c => [c.id, c])), act = all.filter(c => c.status !== 'merged' && c.status !== 'archived'), ph = new Map(), em = new Map(), ky = new Map();
     const add = (m, k, c) => { if (!k) return; (m.get(k) || m.set(k, []).get(k)).push(c); };
     act.forEach(c => { (c.phones || []).forEach(p => add(ph, p.n, c)); (c.emails || []).forEach(e => add(em, e.e, c)); CL.keys(c).forEach(k => add(ky, k, c)); });
     return (CL._c = { all, byId, act, ph, em, ky });
@@ -9884,7 +9884,7 @@ Views.espera = {
 { const H = Views.recepcion.html, M = Views.recepcion.mount;
   Views.recepcion.html = function () { const h = H.call(this), A = WL.active(), al = WL.alertHtml(2); if (!A.length && !al) return h;
     const card = `<section class="panel"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h2 style="margin:0">Lista de espera</h2><span class="nbdg own" style="position:static">${A.length}</span><button class="btn sm" style="margin-left:auto" data-wl-go>Ver lista</button></div>${al ? `<div style="margin-top:10px">${al}</div>` : ''}${A.slice(0, 3).map(e => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)"><b>${esc(WL.name(e))}</b>${e.artistId ? `<span class="tag app">Prefiere ${esc(e.artistName)}</span>` : '<span class="tag">Cualquiera</span>'}<span class="mutedc">${esc(e.when || '')} · ${esc(WL.ago(e.createdAt))}</span></div>`).join('')}${A.length > 3 ? `<p class="mutedc" style="margin:6px 0 0">y ${A.length - 3} más</p>` : ''}</section>`;
-    const i = h.indexOf('<section class="panel"'); return i < 0 ? h + card : h.slice(0, i) + card + h.slice(i); };
+    const i0 = h.indexOf('<section class="panel"'), i = i0 < 0 ? -1 : (h.indexOf('</section>', i0) + 10); return i < 10 ? h + card : h.slice(0, i) + card + h.slice(i); };
   Views.recepcion.mount = function (root) { M.call(this, root); WL.bind(root); }; }
 { const H = Views.agenda.html, M = Views.agenda.mount;
   Views.agenda.html = function () { let h = H.call(this); const n = WL.active().length, al = WL.alertHtml(3);
@@ -10455,6 +10455,297 @@ const MT = {
 { const H = Views.servicios.html, M = Views.servicios.mount;
   Views.servicios.html = function () { const h = H.apply(this, arguments), n = MT.pending().length; return n ? h.replace('<button class="btn primary" data-add>', `<button class="btn" data-mtreg>Registrar precios Master · ${n}</button><button class="btn primary" data-add>`) : h; };
   Views.servicios.mount = function (root) { const r = M.apply(this, arguments); const b = $('[data-mtreg]', root); if (b) b.onclick = () => MT.registerModal(); return r; }; }
+
+
+/* =========================================================
+   INSUMOS · notas, envío al portal, pago completo y bandeja Cobrar → Pago de lashista
+   Solo Administración gestiona solicitudes, entregas, notas, precios, descuentos, envío, aclaraciones y pagos.
+   Estados: Sin nota (entregas sin facturar) · Borrador · Enviada (pendiente de pago) · Pagada · Sin cargo (total $0).
+   · "Pagada" ya no se elige a mano: solo cambia al confirmar el pago COMPLETO (sin pagos parciales), que crea el movimiento.
+   · Enviar verifica que la nota quedó guardada en el servidor y que la lashista tiene clave de portal; si no, no queda "Enviada".
+   · La nota guarda precio de catálogo y precio aplicado por artículo; cambiar un precio en la nota no toca el catálogo.
+   · El pago se registra como ingreso de PRODUCTOS, concepto "Insumos vendidos a lashistas", con lashista y nota.
+   ========================================================= */
+const IN3 = {
+  sentAt(n) { const h = (n.statusHistory || []).filter(x => x.status === 'Enviada' || x.status === 'Sin cargo').pop(); return h ? h.at : (n.updatedAt || ''); },
+  fday(ts) { return ts ? Dates.fmt(Dates.fromISO(String(ts).slice(0, 10)), { day: '2-digit', month: 'short', year: 'numeric' }) : '—'; },
+  open() { return Store.notes.filter(n => n.source === 'app' && n.status === 'Enviada' && n.pending > 0.005).sort((a, b) => String(IN3.sentAt(b)).localeCompare(String(IN3.sentAt(a)))); },
+  /* ¿la lashista puede entrar al portal? true / false / null (no se pudo saber) */
+  async hasPin(artistId) { try { if (!window.FM || !FM.sb) return null; const { data, error } = await FM.sb.rpc('fm_pins_status'); if (error || !Array.isArray(data)) return null; return data.some(r => r.artist_id === artistId); } catch (e) { return null; } },
+  /* lo que el servidor guardó de la nota (no la copia local) */
+  async serverNote(id) { try { if (!window.FM || !FM.sb) { const d = (await Store.db.doc('productNotes/' + id).get()); return d.exists ? d.data() : null; } const { data, error } = await FM.sb.from('docs').select('data').match({ collection: 'productNotes', id }).maybeSingle(); if (error) return null; return data ? data.data : null; } catch (e) { return null; } },
+  async save(form, id) {
+    if (Mode.reception) throw new Error('Las notas de insumos las gestiona administración.');
+    const c = Perf.calculateNote(form.items, Store.config.taxRate, form.discounts);
+    if (form.status === 'Pagada') form = { ...form, status: 'Enviada' };            /* Pagada solo se logra confirmando el pago */
+    if (form.status === 'Enviada' && c.total <= 0.005) form = { ...form, status: 'Sin cargo' };
+    const sending = form.status === 'Enviada' || form.status === 'Sin cargo';
+    if (sending) { const pin = await IN3.hasPin(form.artistId); if (pin === false) throw new Error(`${artistName(form.artistId)} todavía no tiene clave del link de insumos, así que no vería la nota en su portal. Créala en Insumos → Link y vuelve a enviarla.`); }
+    const nid = await Store.saveNote(form, id);
+    if (!sending) return null;
+    const d = await IN3.serverNote(nid);
+    if (d && (d.status !== form.status || d.artistId !== form.artistId || Math.abs(num(d.total) - c.total) > 0.005)) { try { await Store.saveNote({ ...form, status: 'Borrador' }, nid); } catch (e) { /* queda como esté */ } throw new Error('La nota no quedó guardada como enviada en el servidor. Se dejó en Borrador; intenta enviarla de nuevo.'); }
+    return form.status === 'Sin cargo' ? `Nota sin cargo enviada · ya la ve ${artistName(form.artistId)} en su portal` : `Nota enviada · ya aparece en el portal de ${artistName(form.artistId)} y en Cobrar → Pago de lashista`;
+  },
+  /* ---------- pago completo ---------- */
+  payModal(preId) {
+    if (Mode.reception) { UI.toast('Los pagos de insumos los confirma administración.', true); return; }
+    const open = IN3.open(); if (!open.length) { UI.toast('No hay notas de insumos pendientes de pago.'); return; }
+    const methods = [...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito'), today = Dates.toISO(Dates.today());
+    let cur = open.find(x => x.id === preId) || (open.length === 1 ? open[0] : null);
+    const body = n => !n ? '<p class="mutedc">Elige la nota.</p>' : `<div class="tablewrap" style="max-height:30vh;overflow:auto"><table><thead><tr><th>Artículo</th><th class="r">Cant.</th><th class="r">Precio</th><th class="r">Monto</th></tr></thead><tbody>${n.items.map(i => `<tr><td>${esc(i.desc)}</td><td class="r">${intf(num(i.qty))}</td><td class="r">${money(i.unit, 1)}${i.catalog != null && Math.abs(num(i.catalog) - num(i.unit)) > 0.004 ? `<br><small class="mutedc">catálogo ${money(i.catalog, 1)}</small>` : ''}</td><td class="r">${money(i.amount, 1)}</td></tr>`).join('')}</tbody></table></div>
+      <div class="rline"><span>Subtotal</span><span>${money(n.subtotal, 1)}</span></div>${n.discountTotal ? `<div class="rline"><span>Descuentos</span><span>− ${money(n.discountTotal, 1)}</span></div>` : ''}<div class="rline"><span>Tax</span><span>${money(n.tax, 1)}</span></div><div class="rline"><span>Total de la nota</span><span>${money(n.total, 1)}</span></div>${n.paid ? `<div class="rline"><span>Ya pagado antes</span><span>− ${money(n.paid, 1)}</span></div>` : ''}<div class="rline total big"><span>Por cobrar</span><span>${money(n.pending, 1)}</span></div>`;
+    DP.layer(`<h3>Confirmar pago de nota</h3><p style="color:var(--muted);margin:0 0 10px">El pago es siempre por el importe completo. Al confirmar, la nota queda <b>Pagada</b> y el ingreso se registra en <b>Productos</b>.</p>
+      ${open.length > 1 || !cur ? `<label class="field">Nota<select data-pn><option value="">Elige la nota</option>${open.map(x => `<option value="${x.id}" ${cur && cur.id === x.id ? 'selected' : ''}>${esc(x.artistName)} · Nota #${esc(x.invoice)} · ${money(x.pending, 1)}</option>`).join('')}</select></label>` : `<p><b>${esc(cur.artistName)}</b> · Nota #${esc(cur.invoice)} · enviada ${esc(IN3.fday(IN3.sentAt(cur)))}</p>`}
+      <div data-pbody>${body(cur)}</div>
+      <div class="formgrid" style="margin-top:10px"><label class="field">Método de pago<select data-pm><option value="">Elige método</option>${methods.map(m => `<option>${esc(m)}</option>`).join('')}</select></label><label class="field">Fecha del pago<input type="date" data-pd value="${today}" max="${today}"></label><label class="field full">TXN (opcional)<input data-pt autocomplete="off" placeholder="Número de transacción"></label></div>
+      <p class="err" data-perr style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Confirmar pago completo</button></div>`, (m, close) => {
+      const sync = () => { $('[data-pbody]', m).innerHTML = body(cur); $('[data-x=ok]', m).textContent = cur ? `Confirmar pago completo · ${money(cur.pending, 1)}` : 'Confirmar pago completo'; };
+      const sel = $('[data-pn]', m); if (sel) sel.onchange = () => { cur = open.find(x => x.id === sel.value) || null; sync(); }; sync();
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => {
+        const err = $('[data-perr]', m), b = $('[data-x=ok]', m), method = $('[data-pm]', m).value, date = $('[data-pd]', m).value;
+        if (!cur) { err.textContent = 'Elige la nota.'; return; } if (!method) { err.textContent = 'Elige el método de pago.'; return; } if (!Dates.fromISO(date)) { err.textContent = 'Escribe la fecha del pago.'; return; }
+        const fresh = Store.notes.find(x => x.id === cur.id); if (!fresh || !(fresh.pending > 0.005)) { err.textContent = 'Esta nota ya está pagada.'; return; }
+        b.disabled = true; b.textContent = 'Guardando…';
+        try { await Store.saveNotePayment({ noteId: fresh.id, invoice: fresh.invoice, artistId: fresh.artistId, artistName: fresh.artistName, amount: fresh.pending, date, method, txn: $('[data-pt]', m).value.trim() }); close(); UI.toast(`Nota #${fresh.invoice} pagada · ${money(fresh.pending, 1)} en Productos`); UI.render(); }
+        catch (e) { b.disabled = false; sync(); err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+      };
+    }, 640);
+  },
+  /* ---------- bandeja Cobrar → Pago de lashista ---------- */
+  inbox() {
+    const open = IN3.open(), tot = r2(open.reduce((t, n) => t + n.pending, 0)), done = Store.notes.filter(n => n.source === 'app' && n.status === 'Pagada').sort((a, b) => String(b.paidAt || b.updatedAt || '').localeCompare(String(a.paidAt || a.updatedAt || ''))).slice(0, 8);
+    return `<div class="head"><div><h1>Cobrar</h1><p>Notas de insumos enviadas por administración, pendientes de pago.</p></div></div>${cobroTabs()}
+      <section class="panel"><h2>Pendientes de pago · ${intf(open.length)}${open.length ? ` <span class="mutedc" style="font-weight:500">· ${money(tot, 1)}</span>` : ''}</h2>
+      ${open.length ? `<div class="tablewrap"><table><thead><tr><th>Lashista</th><th>Nota</th><th>Fecha de envío</th><th class="r">Importe total</th><th>Estado</th><th></th></tr></thead><tbody>${open.map(n => `<tr class="click" data-lpn="${n.id}"><td><b>${esc(n.artistName)}</b></td><td>#${esc(n.invoice)}</td><td>${esc(IN3.fday(IN3.sentAt(n)))}</td><td class="r"><b>${money(n.total, 1)}</b>${n.paid ? `<br><small class="mutedc">debe ${money(n.pending, 1)}</small>` : ''}</td><td><span class="tag warn">Pendiente de pago</span></td><td class="r"><button class="btn sm primary" data-lpn="${n.id}">Cobrar</button></td></tr>`).join('')}</tbody></table></div>` : '<div class="tablewrap"><div class="empty"><b>No hay notas pendientes de pago</b>Las notas aparecen aquí cuando administración las envía.</div></div>'}</section>
+      ${done.length ? `<section class="panel"><h2>Pagadas recientemente</h2><div class="tablewrap"><table><thead><tr><th>Lashista</th><th>Nota</th><th>Pagada</th><th>Método</th><th class="r">Importe</th></tr></thead><tbody>${done.map(n => { const p = Store.notePayments.filter(x => x.noteId === n.id).slice(-1)[0] || {}; return `<tr class="click" data-lpd="${n.id}"><td>${esc(n.artistName)}</td><td>#${esc(n.invoice)}</td><td>${esc(IN3.fday(p.date || n.paidAt || n.updatedAt))}</td><td>${esc(p.method || n.paidMethod || '—')}</td><td class="r">${money(n.total, 1)}</td></tr>`; }).join('')}</tbody></table></div></section>` : ''}`;
+  },
+};
+/* precio de catálogo guardado junto al precio aplicado, por artículo */
+const noteCatalog = (l, prev) => { const old = prev && l.code ? (prev.items || []).find(i => i.code === l.code) : null; if (old && old.catalog != null) return num(old.catalog); const p = l.code ? Store.product(l.code) : null; return p ? num(p.priceArtist) : num(l.unit); };
+/* en el detalle mensual se ve el precio que realmente se cobra (el de la nota), no el de catálogo */
+const appliedPrice = (r, code) => { const nn = r && r.billedNoteId ? Store.notes.find(x => x.id === r.billedNoteId) : null, it = nn && (nn.items || []).find(x => x.code === code); return it ? num(it.unit) : unitPrice(code); };
+NOTE_DEDUCTS.add('Sin cargo');
+
+/* ---------- permisos: solo Administración ---------- */
+{ const S0 = Store.saveNote; Store.saveNote = function (f, id) { if (Mode.reception) return Promise.reject(new Error('Las notas de insumos las gestiona administración.')); return S0.call(this, f, id); }; }
+{ const i = RECEP_ROUTES.indexOf('insumos'); if (i >= 0) RECEP_ROUTES.splice(i, 1); const m = RECEP_MENU.findIndex(x => x[0] === 'insumos'); if (m >= 0) RECEP_MENU.splice(m, 1); }
+{ const E = noteEditor; noteEditor = function (n) { if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; } if (n && (n.status === 'Pagada' || n.status === 'Sin cargo' || n.paid > 0.005)) { UI.toast('Una nota pagada ya no se edita.', true); return noteDetail(n); } return E.apply(this, arguments); }; }
+
+/* ---------- estados derivados ---------- */
+{ const D = Object.getOwnPropertyDescriptor(Store, 'notes');
+  Object.defineProperty(Store, 'notes', { configurable: true, get() { return D.get.call(this).map(n => { if (n.source !== 'app') return n; let s = n.status; if (s === 'Enviada' && n.total <= 0.005) s = 'Sin cargo'; const noPay = s === 'Pagada' && n.total > 0.005 && (n.paid || 0) < n.total - 0.005; return s !== n.status || noPay ? { ...n, status: s, noPay, pending: s === 'Sin cargo' ? 0 : n.pending } : n; }); } }); }
+
+/* ---------- el pago: siempre completo, ingreso de Productos, la nota queda Pagada ---------- */
+{ const P0 = Store.saveNotePayment;
+  Store.saveNotePayment = async function (data) {
+    if (Mode.reception) throw new Error('Los pagos de insumos los confirma administración.');
+    const n = Store.notes.find(x => x.id === data.noteId); if (!n || n.source !== 'app') throw new Error('No encontré la nota.');
+    if (n.status !== 'Enviada' && !(n.status === 'Pagada' && n.noPay)) throw new Error('Solo se cobran notas Enviadas y pendientes de pago.');
+    if (n.status === 'Enviada' && n.pending <= 0.005) throw new Error('Esta nota ya está pagada.');
+    const amount = n.status === 'Pagada' ? r2(n.total) : r2(n.pending);                /* sin pagos parciales: siempre el saldo completo */
+    await P0.call(this, { ...data, amount, noteNo: n.invoice, category: 'Productos', concept: 'Insumos vendidos a lashistas', origin: 'insumos-lashista' });
+    const raw = Store.appNotes.find(x => x.id === n.id);
+    if (raw) { const { id, source, ...doc } = raw; try { await Store.db.doc('productNotes/' + id).set({ ...doc, status: 'Pagada', paidAt: data.date, paidMethod: data.method, statusHistory: (doc.statusHistory || []).concat([{ status: 'Pagada', at: new Date().toISOString(), by: Mode.who() }]), updatedAt: new Date().toISOString() }); } catch (e) { /* el pago ya quedó; el estado se deriva de los pagos */ } }
+  }; }
+notePaymentForm = function (preId) { IN3.payModal(preId); };
+/* Recepción no gestiona insumos: se retira su acceso del menú lateral y de la barra inferior */
+{ const R = UI.renderNav; UI.renderNav = function () { R.apply(this, arguments); if (Mode.reception) $$('#side a[data-go=insumos], #bottom a[data-go=insumos]').forEach(a => a.remove()); }; }
+
+/* ---------- Cobrar → Pago de lashista: bandeja ---------- */
+LashPay.open = () => IN3.open();
+LashPay.html = function () { return IN3.inbox(); };
+LashPay.mount = function (root) { $$('[data-ctipo]', root).forEach(b => b.onclick = () => { S.cobro.tipo = b.dataset.ctipo; UI.render(); }); $$('[data-lpn]', root).forEach(el => el.onclick = e => { e.stopPropagation(); IN3.payModal(el.dataset.lpn); }); $$('[data-lpd]', root).forEach(tr => tr.onclick = () => { const n = Store.notes.find(x => x.id === tr.dataset.lpd); if (n) noteDetail(n); }); };
+{ const H = Views.nueva.html; Views.nueva.html = function () { if (Mode.reception && S.cobro.tipo === 'lashista') S.cobro.tipo = 'servicio'; let h = H.apply(this, arguments); if (Mode.reception) h = h.replace(/<button role="tab" class="[^"]*" data-ctipo="lashista">[^<]*<\/button>/, ''); return h; }; }
+{ const H = Views.dia.html; Views.dia.html = function () { let h = H.apply(this, arguments); if (Mode.reception) h = h.replace(/<button class="btn sm" data-dppay>[\s\S]*?<\/button>/, ''); return h; }; }
+
+/* ---------- Panel de hoy: Ingresos de productos (mostrador + insumos vendidos a lashistas) ---------- */
+{ const H = Views.recepcion.html; Views.recepcion.html = function () { let h = H.apply(this, arguments); try { const T = Dates.today(), s = Summary.build(T, T), p = r2(num(s.tot.productos) + num(s.tot.lashistas));
+      const kp = `<div class="kpi"><div class="lab">Ingresos de productos</div><div class="val">${money(p)}</div><div class="sub">${money(s.tot.productos)} mostrador · ${money(s.tot.lashistas)} insumos a lashistas</div></div>`;
+      h = h.replace(/<div class="kpi"><div class="lab">Insumos por entregar<\/div><div class="val">[^<]*<\/div><div class="sub">[^<]*<\/div><\/div>/, kp);
+      if (!/Ingresos de productos/.test(h)) h = h.replace(/(<section class="kpis" style="grid-template-columns:repeat\()4(,1fr\)">)([\s\S]*?)(<\/section>)/, (m0, a1, a2, body, end) => a1 + '5' + a2 + body + kp + end); } catch (e) { /* queda el panel de siempre */ } return h; }; }
+
+/* ---------- detalle de la nota: precio de catálogo vs aplicado, pago, aclaraciones y regularización ---------- */
+{ const D = noteDetail; noteDetail = function (n) {
+    if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; }
+    D.apply(this, arguments); const m = $('.modal'); if (!m || !n || n.source !== 'app') return; const acts = $('.acts', m), extra = [];
+    const diff = (n.items || []).filter(i => i.catalog != null && Math.abs(num(i.catalog) - num(i.unit)) > 0.004);
+    if (diff.length) extra.push(`<p class="formula">Precio modificado en esta nota (el catálogo no cambia): ${diff.map(i => `${esc(i.desc)} · catálogo ${money(i.catalog, 1)} → aplicado ${money(i.unit, 1)}`).join(' · ')}</p>`);
+    const pay = Store.notePayments.filter(p => p.noteId === n.id).slice(-1)[0]; if (n.status === 'Pagada' && (pay || n.paidAt)) extra.push(`<p class="formula">Pagada el ${esc(IN3.fday((pay || {}).date || n.paidAt))} · ${esc((pay || {}).method || n.paidMethod || '—')}${(pay || {}).txn ? ' · TXN ' + esc(pay.txn) : ''}</p>`);
+    if (n.status === 'Sin cargo') extra.push('<p class="formula">Sin cargo: total $0 por una bonificación autorizada. No genera cobro.</p>');
+    if (n.noPay) extra.push('<div class="banner" style="margin:8px 0;border-color:var(--warn)">Esta nota quedó marcada como <b>Pagada</b>, pero no tiene un pago registrado, así que no hay ingreso. Registra el pago o reábrela como Enviada.</div>');
+    const msgs = (Store.artistMsgs || []).filter(x => x.artistId === n.artistId && String(x.ref || '').includes('#' + n.invoice) || (x.artistId === n.artistId && x.topic === 'insumos' && String(x.ref || '').includes(n.invoice)));
+    if (msgs.length) extra.push(`<h4 style="margin:12px 0 4px">Aclaraciones de la lashista</h4>${msgs.map(x => `<div style="border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px"><small class="mutedc">${esc(IN3.fday(x.createdAt))} · ${esc(x.status || '')}</small><br>${esc(x.text)}${x.reply ? `<br><small class="mutedc">Respuesta: ${esc(x.reply)}</small>` : ''}</div>`).join('')}`);
+    if (extra.length && acts) acts.insertAdjacentHTML('beforebegin', extra.join(''));
+    if (n.noPay && acts && Store.writable()) { acts.insertAdjacentHTML('afterbegin', '<button class="btn" data-x="reopen">Reabrir como Enviada</button><button class="btn primary" data-x="regpay">Registrar el pago</button>');
+      $('[data-x=regpay]', m).onclick = () => { UI.close(); IN3.payModal(n.id); };
+      $('[data-x=reopen]', m).onclick = async () => { try { const raw = Store.appNotes.find(x => x.id === n.id), { id, source, ...doc } = raw; await Store.db.doc('productNotes/' + id).set({ ...doc, status: 'Enviada', statusHistory: (doc.statusHistory || []).concat([{ status: 'Enviada', at: new Date().toISOString(), by: Mode.who() }]), updatedAt: new Date().toISOString() }); UI.close(); UI.toast('Nota reabierta como Enviada'); } catch (e) { UI.toast('No se pudo guardar', true); } }; }
+  }; }
+
+
+/* =========================================================
+   CLIENTAS Y DEPÓSITOS · corrección de errores (solo Administración)
+   Clientas: Archivar / Restaurar (no borra nada; deja de salir en el directorio y las sugerencias) y Eliminar la ficha
+     (con advertencia si tiene citas, ventas o historial; NUNCA borra citas, ventas ni depósitos: solo la ficha).
+   Depósitos: Anular (por error/duplicado; deja quién, cuándo y por qué; sale del corte y de la cita) y Eliminar (solo si ya
+     está anulado o es duplicado y no tiene nada ligado). Una devolución de dinero NO es una anulación: se registra como devolución.
+   Todo queda en la bitácora (auditLogs) con el antes y el después.
+   ========================================================= */
+const PI = {
+  adm: () => !Mode.reception && Store.writable() && (typeof CL === 'undefined' || CL.admin()),
+  when: ts => new Date(ts).toLocaleString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }),
+  async log(entry) { try { if (typeof Audit !== 'undefined') await Audit.log({ byName: Mode.who(), ...entry }); } catch (e) { /* la bitácora no debe impedir la corrección */ } },
+  /* ---------------- CLIENTAS ---------------- */
+  usage(c) {
+    const H = CL.history(c), linked = Store.appointments.filter(a => a.clientId === c.id).length, merges = (Store.clientMerges || []).filter(m => m.survivorId === c.id || (((m.before || {}).merged || []).some(x => (x && x.id) === c.id))).length;
+    return { citas: H.appts.length, ventas: H.sales.length, compras: (H.moves || []).length, ligadas: linked, fusiones: merges, any: H.appts.length + H.sales.length + (H.moves || []).length + linked > 0 };
+  },
+  async archive(c, on) {
+    const now = new Date().toISOString();
+    await Store.db.doc('clients/' + c.id).set({ ...c, status: on ? 'archived' : 'active', ...(on ? { archivedAt: now, archivedBy: Mode.who() } : { restoredAt: now, restoredBy: Mode.who() }), updatedAt: now, updatedBy: Mode.who() });
+    CL._c = null; await PI.log({ entity: 'CLIENTA', entityId: c.id, entityLabel: CL.name(c), action: on ? 'ARCHIVAR' : 'RESTAURAR', before: { status: c.status || 'active' }, after: { status: on ? 'archived' : 'active' } });
+  },
+  askArchive(c) {
+    const u = PI.usage(c);
+    DP.layer(`<h3>Archivar a ${esc(CL.name(c))}</h3><p style="color:var(--muted);margin:0 0 10px">La clienta deja de aparecer en el directorio y en las sugerencias al agendar o cobrar. <b>No se borra nada</b>: sus ${intf(u.citas)} cita(s), ${intf(u.ventas)} venta(s) y depósitos se conservan, y puedes restaurarla cuando quieras.</p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Archivar</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close; $('[data-x=ok]', m).onclick = async () => { try { await PI.archive(c, true); close(); UI.close(); UI.toast('Clienta archivada'); UI.render(); } catch (e) { UI.toast('No se pudo guardar', true); } }; }, 520);
+  },
+  askDelete(c) {
+    const u = PI.usage(c), block = u.fusiones > 0;
+    DP.layer(`<h3>Eliminar la ficha de ${esc(CL.name(c))}</h3>
+      ${block ? `<div class="banner" style="border-color:var(--bad);margin-bottom:10px">Esta ficha forma parte de una fusión de clientas. Para no perder el rastro, <b>archívala</b> (o deshaz la fusión primero).</div>` : u.any ? `<div class="banner" style="border-color:var(--warn);margin-bottom:10px"><b>Esta clienta tiene historial:</b> ${intf(u.citas)} cita(s), ${intf(u.ventas)} venta(s)${u.compras ? `, ${intf(u.compras)} compra(s)` : ''}${u.ligadas ? ` y ${intf(u.ligadas)} cita(s) ligada(s) a su ficha` : ''}.<br>Eliminar solo borra <b>la ficha</b>: las citas, ventas y depósitos <b>no se borran</b> y seguirán a su nombre, pero ya no estarán unidos a una ficha. Lo recomendable es <b>archivarla</b>.</div>` : '<p style="color:var(--muted);margin:0 0 10px">Esta ficha no tiene citas, ventas ni historial. Es seguro eliminarla (por ejemplo, si se creó por error o está duplicada).</p>'}
+      ${!block && u.any ? '<label class="field">Para confirmar, escribe ELIMINAR<input data-ct autocomplete="off"></label>' : ''}
+      <p class="err" data-cerr style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button>${u.any || block ? '<button class="btn" data-x="arch">Mejor archivar</button>' : ''}${block ? '' : '<button class="btn primary" data-x="ok" style="background:var(--bad)">Eliminar ficha</button>'}</div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close; const a = $('[data-x=arch]', m); if (a) a.onclick = () => { close(); PI.askArchive(c); };
+      const ok = $('[data-x=ok]', m); if (ok) ok.onclick = async () => {
+        if (u.any && $('[data-ct]', m).value.trim().toUpperCase() !== 'ELIMINAR') { $('[data-cerr]', m).textContent = 'Escribe ELIMINAR para confirmar.'; return; }
+        ok.disabled = true;
+        try { const before = JSON.parse(JSON.stringify(c)); await PI.log({ entity: 'CLIENTA', entityId: c.id, entityLabel: CL.name(c), action: 'DELETE', before, note: u.any ? `Se eliminó solo la ficha; conservó ${u.citas} cita(s) y ${u.ventas} venta(s)` : 'Ficha sin historial' }); await Store.db.doc('clients/' + c.id).delete(); CL._c = null; close(); UI.close(); UI.toast('Ficha eliminada'); UI.render(); }
+        catch (e) { ok.disabled = false; $('[data-cerr]', m).textContent = 'No se pudo eliminar: ' + (e.message || e.code); }
+      };
+    }, 560);
+  },
+  fichaButtons(id) {
+    const m = $('.modal'), acts = m && $('.acts', m), c = CL.idx().byId.get(id); if (!acts || !c || c.status === 'merged' || !PI.adm()) return;
+    const arch = c.status === 'archived';
+    acts.insertAdjacentHTML('afterbegin', `${arch ? '<button class="btn" data-pi="rest">Restaurar</button>' : '<button class="btn" data-pi="arch">Archivar</button>'}<button class="btn" data-pi="del" style="color:var(--bad)">Eliminar…</button>`);
+    if (arch) m.querySelector('h3') && m.querySelector('h3').insertAdjacentHTML('beforeend', ' <span class="tag off">Archivada</span>');
+    $('[data-pi=arch]', m) && ($('[data-pi=arch]', m).onclick = () => PI.askArchive(c));
+    $('[data-pi=rest]', m) && ($('[data-pi=rest]', m).onclick = async () => { try { await PI.archive(c, false); UI.close(); UI.toast('Clienta restaurada'); UI.render(); } catch (e) { UI.toast('No se pudo guardar', true); } });
+    $('[data-pi=del]', m).onclick = () => PI.askDelete(c);
+  },
+  archivedPanel() {
+    const L = () => CL.idx().all.filter(c => c.status === 'archived').sort((a, b) => CL.name(a).localeCompare(CL.name(b), 'es'));
+    DP.layer(`<h3>Clientas archivadas</h3><p style="color:var(--muted);margin:0 0 10px">No aparecen en el directorio ni en las sugerencias. Su historial se conserva.</p><div data-al style="max-height:56vh;overflow:auto"></div><div class="acts"><button class="btn primary" data-x="c">Cerrar</button></div>`, (m, close) => {
+      $('[data-x=c]', m).onclick = () => { close(); UI.render(); };
+      const draw = () => { const l = L(); $('[data-al]', m).innerHTML = l.length ? l.map(c => `<div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center"><div style="flex:1"><b>${esc(CL.name(c))}</b><br><span class="mutedc" style="font-size:12.5px">Archivada ${esc(c.archivedAt ? PI.when(c.archivedAt) : '')}${c.archivedBy ? ' · ' + esc(c.archivedBy) : ''}</span></div><button class="btn sm" data-av="${c.id}">Ver</button><button class="btn sm primary" data-ar="${c.id}">Restaurar</button></div>`).join('') : '<p class="mutedc">No hay clientas archivadas.</p>';
+        $$('[data-av]', m).forEach(b => b.onclick = () => { close(); CL.ficha(b.dataset.av); }); $$('[data-ar]', m).forEach(b => b.onclick = async () => { const c = CL.idx().byId.get(b.dataset.ar); try { await PI.archive(c, false); UI.toast('Clienta restaurada'); draw(); } catch (e) { UI.toast('No se pudo guardar', true); } }); };
+      draw();
+    }, 600);
+  },
+  /* ---------------- DEPÓSITOS ---------------- */
+  state(d) { return d.annulled ? 'Anulado' : DP.state(d); },
+  links(d) { return { citas: Store.appointments.filter(a => a.depositId === d.id), ventas: Store.sales.filter(s => s.depositId === d.id) }; },
+  async unlink(a) { const snap = await Store.db.doc('appointments/' + a.id).get(); const raw = snap && snap.data && snap.data(); if (!raw) return; await Store.db.doc('appointments/' + a.id).set({ ...raw, depositId: '', depositAmount: 0, depositMethod: '', updatedAt: new Date().toISOString() }); },
+  async annul(d, reason) {
+    const now = new Date().toISOString(), L = PI.links(d);
+    await Store.saveDeposit({ status: 'Rechazado', annulled: true, annulReason: reason, annulledAt: now, annulledByName: Mode.who(), annulPrev: { status: d.status }, _event: `Anulado: ${reason}` }, d.id);
+    for (const a of L.citas) await PI.unlink(a);
+    await PI.log({ entity: 'DEPÓSITO', entityId: d.id, entityLabel: depClient(d), action: 'ANULAR', before: { amount: d.amount, method: d.method, status: d.status, date: d.date }, after: { status: 'Rechazado (anulado)', reason }, note: L.citas.length ? `Se desligó de ${L.citas.length} cita(s)` : '' });
+  },
+  askAnnul(d) {
+    const L = PI.links(d), cash = isCash(d.method), day = locISO(depAt(d)), dayN = Dates.fromISO(day), closed = cash && dayN != null && Cortes.list(dayN, dayN).length > 0;
+    if (d.outcome || L.ventas.length) { UI.toast(d.outcome ? 'Este depósito ya se usó o se devolvió: corrígelo desde la venta o la devolución.' : 'Este depósito está ligado a una venta: corrígelo desde esa venta.', true); return; }
+    DP.layer(`<h3>Anular depósito</h3><p style="margin:0 0 10px">${DP.sum(d)}</p>
+      <label class="field" style="margin-bottom:6px"><span>¿Por qué se anula?</span></label>
+      <label class="check" style="display:flex;gap:8px;margin:4px 0"><input type="radio" name="pi-why" value="error" checked> <span><b>Se registró por error o está duplicado</b> (no entró ese dinero, o se contó dos veces)</span></label>
+      <label class="check" style="display:flex;gap:8px;margin:4px 0 10px"><input type="radio" name="pi-why" value="dev"> <span><b>Se le devolvió el dinero a la clienta</b> → se registra como devolución, no como anulación</span></label>
+      <div data-pw><label class="field">Motivo (obligatorio)<input data-pr placeholder="Ej. se capturó dos veces / era de otra clienta" autocomplete="off"></label>
+      <p class="mutedc" style="font-size:12.5px;margin:6px 0 0">Al anular: sale del corte${cash ? ' (es efectivo)' : ''}, de “Disponibles” y de la cita${L.citas.length ? ` (${L.citas.length} ligada${L.citas.length > 1 ? 's' : ''}: se actualiza su saldo)` : ''}. El registro queda con tu nombre, la fecha y el motivo.${closed ? `<br><b style="color:var(--warn)">El corte del ${esc(Dates.fmt(dayN, { day: 'numeric', month: 'short' }))} ya está guardado y cambiará.</b>` : ''}</p></div>
+      <p class="err" data-pe style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Anular depósito</button></div>`, (m, close) => {
+      const why = () => (m.querySelector('[name=pi-why]:checked') || {}).value, sync = () => { const dev = why() === 'dev'; $('[data-pw]', m).hidden = dev; $('[data-x=ok]', m).textContent = dev ? 'Registrar devolución…' : 'Anular depósito'; }; $$('[name=pi-why]', m).forEach(r => r.onchange = sync); sync();
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => {
+        if (why() === 'dev') { close(); const b = $('.modal [data-x=dev]'); if (b) b.click(); else UI.toast('Usa “Marcar devuelto” en el depósito.', true); return; }
+        const r = $('[data-pr]', m).value.trim(); if (r.length < 3) { $('[data-pe]', m).textContent = 'Escribe el motivo de la anulación.'; return; }
+        const b = $('[data-x=ok]', m); b.disabled = true; try { await PI.annul(d, r); close(); UI.close(); UI.toast('Depósito anulado: ya no cuenta en el corte ni en la cita'); UI.render(); } catch (e) { b.disabled = false; $('[data-pe]', m).textContent = 'No se pudo anular: ' + (e.message || e.code); }
+      };
+    }, 600);
+  },
+  safeToDelete(d) { const L = PI.links(d); return d.status === 'Rechazado' && !d.outcome && !L.citas.length && !L.ventas.length; },
+  askDelDeposit(d) {
+    if (!PI.safeToDelete(d)) { UI.toast('Solo se eliminan depósitos ya anulados o duplicados y sin citas ni ventas ligadas. Anúlalo primero.', true); return; }
+    DP.layer(`<h3>Eliminar depósito</h3><p style="margin:0 0 10px">${DP.sum(d)}</p><p style="color:var(--muted);margin:0 0 10px">Se quita de la lista de forma definitiva. Como ya estaba ${d.dupOf ? 'marcado como duplicado' : 'anulado'}, no afecta cortes, citas ni ventas. Queda copia completa en la bitácora con tu nombre y la fecha.</p><p class="err" data-pe style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok" style="background:var(--bad)">Eliminar definitivamente</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => { const b = $('[data-x=ok]', m); b.disabled = true; try { await PI.log({ entity: 'DEPÓSITO', entityId: d.id, entityLabel: depClient(d), action: 'DELETE', before: JSON.parse(JSON.stringify(d._raw || d)), note: d.annulled ? 'Eliminado tras anularse: ' + (d.annulReason || '') : 'Eliminado (duplicado)' }); await Store.db.doc('deposits/' + d.id).delete(); close(); UI.close(); UI.toast('Depósito eliminado'); UI.render(); } catch (e) { b.disabled = false; $('[data-pe]', m).textContent = 'No se pudo eliminar: ' + (e.message || e.code); } };
+    }, 560);
+  },
+  depDetail(d) {
+    const m = $('.modal'), acts = m && $('.acts', m); if (!m || !acts) return; const p = m.querySelector('p');
+    if (d.annulled && p) p.insertAdjacentHTML('afterend', `<div class="banner" style="margin:0 0 12px;border-color:var(--bad)"><b>Depósito anulado</b> por ${esc(d.annulledByName || '—')} el ${esc(d.annulledAt ? PI.when(d.annulledAt) : '—')}.<br>Motivo: ${esc(d.annulReason || '—')}. No cuenta en el corte ni en la cita.</div>`);
+    if (!PI.adm()) return;
+    if (d.annulled) { acts.insertAdjacentHTML('afterbegin', '<button class="btn" data-pi="dres">Restaurar depósito</button>'); $('[data-pi=dres]', m).onclick = async () => { try { await Store.saveDeposit({ status: (d.annulPrev && d.annulPrev.status) || 'Verificado', annulled: false, annulReason: '', _event: 'Se restauró un depósito anulado' }, d.id); await PI.log({ entity: 'DEPÓSITO', entityId: d.id, entityLabel: depClient(d), action: 'RESTAURAR', before: { status: 'Rechazado (anulado)' }, after: { status: (d.annulPrev && d.annulPrev.status) || 'Verificado' } }); UI.close(); UI.toast('Depósito restaurado'); } catch (e) { UI.toast('No se pudo guardar', true); } }; }
+    if (!d.outcome && d.status !== 'Rechazado') { const c = $('[data-x=c]', m); const b = document.createElement('button'); b.className = 'btn'; b.dataset.pi = 'anular'; b.textContent = 'Anular…'; b.style.color = 'var(--bad)'; acts.insertBefore(b, c || null); b.onclick = () => PI.askAnnul(d); }
+    if (PI.safeToDelete(d)) { const c = $('[data-x=c]', m); const b = document.createElement('button'); b.className = 'btn'; b.dataset.pi = 'eliminar'; b.textContent = 'Eliminar…'; b.style.color = 'var(--bad)'; acts.insertBefore(b, c || null); b.onclick = () => PI.askDelDeposit(d); }
+  },
+};
+{ const F = CL.ficha; CL.ficha = function (id) { F.apply(this, arguments); try { PI.fichaButtons(id); } catch (e) { console.warn('parteI', e); } }; }
+{ const D = depositDetail; depositDetail = function (d) { D.apply(this, arguments); try { PI.depDetail(d); } catch (e) { console.warn('parteI', e); } }; }
+{ const H = Views.clientas.html, M = Views.clientas.mount;
+  Views.clientas.html = function () { let h = H.apply(this, arguments); if (!PI.adm()) return h; const n = CL.idx().all.filter(c => c.status === 'archived').length; return n ? h.replace('<button class="btn primary" data-cl-new', `<button class="btn" data-cl-arch>Archivadas · ${n}</button><button class="btn primary" data-cl-new`) : h; };
+  Views.clientas.mount = function (root) { const r = M.apply(this, arguments); const b = $('[data-cl-arch]', root); if (b) b.onclick = () => PI.archivedPanel(); return r; }; }
+
+
+/* =========================================================
+   LISTA DE ESPERA · permisos de Recepción (eliminar), historial de acciones y citas sin duplicar
+   Recepción y Administración: ver, agregar, editar (preferencias de horario y lashista), contactar, asignar cita y eliminar.
+   · Asignar: crea la cita en la Agenda (ligada a la clienta y a la lashista), evita duplicarla y saca a la clienta de pendientes
+     conservando su historial (queda en "Atendidas").
+   · Eliminar: pide confirmación y deja el registro completo en la bitácora (auditLogs).
+   · Cada acción queda en el historial de la solicitud (quién, cuándo, qué).
+   · La base de datos solo permite a administración y recepción borrar la lista (actualizacion-lista-espera-permisos.sql).
+   ========================================================= */
+const WL3 = {
+  LAB: { first: 'nombre', last: 'apellido', phone: 'teléfono', email: 'correo', serviceName: 'servicio', artistName: 'lashista', when: 'días y horarios', notes: 'nota' },
+  what(prev, doc) {
+    if (!prev) return 'Agregada a la lista de espera';
+    if (prev.status !== doc.status) { const m = { contactada: 'Marcada como contactada', agendada: 'Cita asignada' + (doc.apptDate ? ' · ' + doc.apptDate + (doc.apptTime ? ' ' + doc.apptTime : '') : ''), descartada: 'Quitada de la lista' + (doc.closeReason ? ': ' + doc.closeReason : ''), espera: 'Volvió a la lista de espera' }; return m[doc.status] || 'Estado: ' + doc.status; }
+    const f = Object.keys(WL3.LAB).filter(k => String(prev[k] || '') !== String(doc[k] || '')); return f.length ? 'Editada: ' + f.map(k => WL3.LAB[k]).join(', ') : '';
+  },
+  histHtml(e) { const h = e.history || []; return h.length ? h.slice().reverse().map(x => `<div style="border-top:1px solid var(--line);padding:7px 0"><b>${esc(x.what)}</b><br><span class="mutedc" style="font-size:12.5px">${esc(new Date(x.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: 'numeric', minute: '2-digit' }))} · ${esc(x.by || '—')}</span></div>`).join('') : '<p class="mutedc">Todavía no hay acciones registradas.</p>'; },
+  hist(e) { DP.layer(`<h3>Historial de ${esc(WL.name(e))}</h3><div style="max-height:56vh;overflow:auto">${WL3.histHtml(e)}</div><div class="acts"><button class="btn primary" data-x="c">Cerrar</button></div>`, (m, close) => { $('[data-x=c]', m).onclick = close; }, 500); },
+  del(e) {
+    if (!Store.writable()) { UI.toast('No tienes permiso para eliminar.', true); return; }
+    DP.layer(`<h3>Eliminar la solicitud de ${esc(WL.name(e))}</h3><p style="color:var(--muted);margin:0 0 10px">Se elimina de la lista de espera de forma definitiva. Queda un registro completo en la bitácora con tu nombre y la fecha. Si solo quieres sacarla de pendientes <b>conservando su historial</b>, usa “Quitar de la lista…”.</p><p class="err" data-we style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok" style="background:var(--bad)">Eliminar solicitud</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close;
+      $('[data-x=ok]', m).onclick = async () => {
+        const b = $('[data-x=ok]', m); b.disabled = true;
+        try {
+          await Store.db.collection('auditLogs').doc().set({ entity: 'LISTA DE ESPERA', entityId: e.id, entityLabel: WL.name(e), action: 'DELETE', before: JSON.parse(JSON.stringify(e)), byName: Mode.who(), byUserId: await Store.who(), at: new Date().toISOString() });
+          await Store.db.doc('waitlist/' + e.id).delete(); close(); UI.toast('Solicitud eliminada'); UI.render();
+        } catch (x) { b.disabled = false; $('[data-we]', m).textContent = 'No se pudo eliminar: ' + (x.message || x.code); }
+      };
+    }, 520);
+  },
+};
+/* historial de cada acción (sin frenar el guardado) */
+{ const P0 = WL.put; WL.put = function (doc) { try { if (doc && doc.kind !== 'slot') { const prev = Store.waitlist.find(x => x.id === doc.id), what = WL3.what(prev, doc); if (what) doc = { ...doc, history: ((prev && prev.history) || doc.history || []).concat([{ at: new Date().toISOString(), by: Mode.who(), what }]).slice(-40) }; } } catch (e) { /* se guarda igual */ } return P0.call(this, doc); }; }
+/* asignar una cita: no se crea dos veces la misma (misma clienta, día, hora y lashista) */
+{ const S0 = Store.saveAppointment; Store.saveAppointment = async function (data, id) {
+    if (!id && data && data.kind !== 'bloqueo' && WL.pending && Date.now() - WL.pending.ts < 30 * 60e3) {
+      const probe = { phoneN: WL.pn(data.phone), email: data.email, key: ckey(data.first, data.last) }, dup = Store.appointments.find(a => a.kind !== 'bloqueo' && a.status !== 'Cancelada' && a.date === data.date && a.time === data.time && a.artistId === data.artistId && WL.same(probe, a));
+      if (dup) throw new Error(`${(data.first + ' ' + (data.last || '')).trim()} ya tiene una cita el ${Dates.fmt(Dates.fromISO(data.date), { day: 'numeric', month: 'short' })} a las ${data.time} con ${data.artistName || 'esa lashista'}. No se creó otra.`);
+    }
+    return S0.apply(this, arguments); }; }
+/* botones nuevos en cada tarjeta y en "Atendidas": Historial y Eliminar */
+{ const M = Views.espera.mount; Views.espera.mount = function (root) { const r = M.apply(this, arguments);
+    try { const by = id => Store.waitlist.find(x => x.id === id), can = Store.writable();
+      $$('.wl-acts', root).forEach(box => { const id = ($('[data-wl-edit]', box) || {}).dataset && $('[data-wl-edit]', box).dataset.wlEdit; if (!id) return; box.insertAdjacentHTML('beforeend', `<button class="btn sm" data-wl3-hist="${esc(id)}">Historial</button><button class="btn sm" data-wl3-del="${esc(id)}" style="color:var(--bad)" ${can ? '' : 'disabled'}>Eliminar…</button>`); });
+      $$('[data-wl-reopen]', root).forEach(b => { const id = b.dataset.wlReopen; b.insertAdjacentHTML('afterend', `<button class="btn sm" data-wl3-hist="${esc(id)}">Historial</button><button class="btn sm" data-wl3-del="${esc(id)}" style="color:var(--bad)" ${can ? '' : 'disabled'}>Eliminar…</button>`); });
+      $$('[data-wl3-hist]', root).forEach(b => b.onclick = () => { const e = by(b.dataset.wl3Hist); if (e) WL3.hist(e); }); $$('[data-wl3-del]', root).forEach(b => b.onclick = () => { const e = by(b.dataset.wl3Del); if (e) WL3.del(e); });
+    } catch (e) { console.warn('espera3', e); } return r; }; }
 
 
 window.FM_BOOT = function () {
