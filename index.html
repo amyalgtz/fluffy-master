@@ -745,6 +745,11 @@ tr.rd-sel td{background:var(--blush)}
 }
 @media (max-width:900px){.rd-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rd-layout.rd-open .rd-side{width:100vw;border-radius:0}.rd-top{align-items:flex-start}}
 @media (max-width:520px){.rd-kpi b{font-size:24px}.rd-stats b{font-size:17px}}
+
+.rd-card{border:1px solid var(--line);border-radius:16px;background:var(--bg);padding:16px;margin:0 0 16px}.rd-card .rd-ch h2{font-size:20px}
+.rd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:900px){.rd-grid2{grid-template-columns:1fr}}
+.rd-rw{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;margin:1px 0}.rd-rw.ganado{background:rgba(184,145,58,.18);color:#7A5C16}.rd-rw.pendiente{background:rgba(224,177,92,.25);color:#8A6A1B}.rd-rw.aplicado{background:rgba(76,122,90,.16);color:var(--ok)}
+.rd-line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.rd-line:first-child{border-top:0}.rd-line .r{text-align:right;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -807,7 +812,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-02 15:00';
+window.FM_VERSION = '2026-11-02 18:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -10941,6 +10946,165 @@ const Rd = {
   };
   const M = V.mount; V.mount = function (root) { const r = M.apply(this, arguments); try { Rd.bind(root); } catch (e) { console.warn('rend3', e); } return r; };
 }
+
+
+/* =========================================================
+   INCENTIVOS FLUFFY CO · Quality, Excellence, Tómbola mensual y Content Reward
+   Reutiliza lo existente: metas y checks semanales (Store.goalsFor / Store.saveGoals), ventas por semana (Perf.weekSales),
+   semanas de cada mes (Perf.weeksOfMonth), descuentos de las notas de insumos (Store.saveNote) y la configuración (Store.saveConfig).
+   NO toca ventas, comisiones, tips ni liquidaciones. Los checks de calidad siguen siendo SOLO manuales de Administración.
+   · Cada recompensa es un movimiento individual en la colección "rewards" (id único = no se duplica):
+     tipo · lashista · período · importe o % · estado (ganado / pendiente / aplicado) · referencia de la nota cuando se aplica.
+   · "Cerrar el mes" congela los resultados: un período cerrado no se recalcula. Mientras está abierto solo se ve la proyección (pendiente).
+   · La comisión 100% en Before/After Hours se REGISTRA como beneficio desbloqueado para el mes siguiente; no cambia ninguna comisión
+     (en el catálogo no hay servicios marcados como Before/After Hours).
+   · El portal lee una "foto" por lashista (colección incentives) que esta app publica; así el portal no recalcula nada.
+   ========================================================= */
+Store.rewards = []; Store.tombolas = []; Store.incCloses = []; Store.incPortal = [];
+Store.connectHooks.push(db => { db.collection('rewards').onSnapshot(s => { Store.rewards = s.docs.map(d => ({ id: d.id, ...d.data() })); Store.invalidate(); }, () => {}); db.collection('tombolas').onSnapshot(s => { Store.tombolas = s.docs.map(d => ({ id: d.id, ...d.data() })); Store.invalidate(); }, () => {}); db.collection('incentiveCloses').onSnapshot(s => { Store.incCloses = s.docs.map(d => ({ id: d.id, ...d.data() })); Store.invalidate(); }, () => {}); });
+const Inc = {
+  TY: { quality: 'Fluffy Quality', excellence: 'Fluffy Excellence', tombola: 'Tómbola mensual', content: 'Content Reward', commission100: 'Comisión 100% Before/After Hours' },
+  DEF: { quality: { pct: 0 }, excellence: { pct: 0 }, tombola: { pct: 0 }, content: { pct: 0 }, requiredWeeks: 'all', excellenceReplacesQuality: true, contentMax: 1 },
+  cfg() { const c = (Store.config && Store.config.incentives) || {}, D = Inc.DEF; return { quality: { ...D.quality, ...c.quality }, excellence: { ...D.excellence, ...c.excellence }, tombola: { ...D.tombola, ...c.tombola }, content: { ...D.content, ...c.content }, requiredWeeks: c.requiredWeeks != null ? c.requiredWeeks : D.requiredWeeks, excellenceReplacesQuality: c.excellenceReplacesQuality != null ? !!c.excellenceReplacesQuality : D.excellenceReplacesQuality, contentMax: c.contentMax != null ? num(c.contentMax) : D.contentMax }; },
+  configured() { const c = Inc.cfg(); return [c.quality, c.excellence, c.tombola, c.content].some(x => num(x.pct) > 0); },
+  adm: () => !Mode.reception && Store.writable(),
+  today: () => Dates.today(), ym0: () => Dates.ym(Dates.today()), next: ym => shiftMonth(ym, 1),
+  key(s) { const n = String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); let h = 5381; for (const ch of n) h = ((h << 5) + h + ch.charCodeAt(0)) | 0; return n.replace(/ /g, '-').slice(0, 40) + '-' + (h >>> 0).toString(36); },
+  val(r) { return r.valueType === 'pct' ? `${num(r.value)}%` : r.valueType === 'amt' ? money(r.value, 1) : '—'; },
+  STL: { ganado: 'Ganado', pendiente: 'Pendiente', aplicado: 'Aplicado' },
+  /* ---------- evaluación (solo lectura de lo que ya existe) ---------- */
+  weekEval(id, ws) {
+    const g = Store.goalsFor(ws)[id] || {}, meta = g.meta == null ? null : num(g.meta), real = Perf.weekSales(Store.sales, ws).get(id) || 0, n = CHECKS.filter(([k]) => g[k] === 'O').length;
+    const quality = n === 3, goal = !!meta && real >= meta; return { ws, checks: { limpieza: g.limpieza || '', reviews: g.reviews || '', fotos: g.fotos || '' }, n, meta, real, quality, goal, excellence: quality && goal };
+  },
+  monthEval(id, ym) {
+    const W = Perf.weeksOfMonth(ym).map(ws => Inc.weekEval(id, ws)), cfg = Inc.cfg(), total = W.length, req = cfg.requiredWeeks === 'all' ? total : Math.max(1, Math.min(total, num(cfg.requiredWeeks) || total));
+    const q = W.filter(w => w.quality).length, gl = W.filter(w => w.goal).length, e = W.filter(w => w.excellence).length;
+    return { ym, weeks: W, total, required: req, q, gl, e, qualityOk: total > 0 && q >= req, excellenceOk: total > 0 && e >= req };
+  },
+  lastWeek(ym) { const W = Perf.weeksOfMonth(ym); return W.length ? W[W.length - 1] : null; },
+  ended(ym) { const l = Inc.lastWeek(ym); return l != null && l + 6 < Inc.today(); },
+  daysLeft(ym) { const l = Inc.lastWeek(ym); return l == null ? 0 : Math.max(0, l + 6 - Inc.today() + 1); },
+  closeOf: ym => Store.incCloses.find(c => c.id === ym) || null,
+  activeArtists: () => Store.config.artists.filter(a => a.active),
+  rw: (f) => Store.rewards.filter(f).sort((a, b) => String(a.period).localeCompare(b.period) || String(a.createdAt).localeCompare(String(b.createdAt))),
+  /* ---------- movimientos (recompensas) ---------- */
+  async put(r) {
+    const id = r.id, prev = Store.rewards.find(x => x.id === id); if (prev) return prev;                     /* nunca se duplica ni se recalcula */
+    const doc = { status: 'ganado', ...r, createdAt: new Date().toISOString(), createdByName: Mode.who() }; delete doc.id; await Store.db.doc('rewards/' + id).set(doc); return { id, ...doc };
+  },
+  async close(ym) {
+    if (!Inc.adm()) throw new Error('Solo administración puede cerrar el mes.'); if (Inc.closeOf(ym)) throw new Error('Ese mes ya está cerrado.');
+    if (!Inc.ended(ym)) throw new Error(`El mes todavía no termina (faltan ${Inc.daysLeft(ym)} día(s) de su última semana).`);
+    const cfg = Inc.cfg(), res = {}, nx = Inc.next(ym);
+    for (const a of Inc.activeArtists()) {
+      const ev = Inc.monthEval(a.id, ym), base = { artistId: a.id, artistName: a.name, period: ym }; res[a.id] = { q: ev.q, e: ev.e, total: ev.total, required: ev.required, qualityOk: ev.qualityOk, excellenceOk: ev.excellenceOk };
+      const detail = { weeksQuality: ev.q, weeksExcellence: ev.e, weeks: ev.total, required: ev.required };
+      if (ev.qualityOk && !(ev.excellenceOk && cfg.excellenceReplacesQuality)) await Inc.put({ ...base, id: `rw_quality_${a.id}_${ym}`, type: 'quality', valueType: 'pct', value: num(cfg.quality.pct), detail });
+      if (ev.excellenceOk) { await Inc.put({ ...base, id: `rw_excellence_${a.id}_${ym}`, type: 'excellence', valueType: 'pct', value: num(cfg.excellence.pct), detail }); await Inc.put({ ...base, id: `rw_commission100_${a.id}_${nx}`, type: 'commission100', period: nx, valueType: 'benefit', value: 100, detail: { from: ym, firmsAt: nx, note: 'Beneficio para el mes siguiente; no retroactivo.' } }); }
+    }
+    await Store.db.doc('incentiveCloses/' + ym).set({ ym, closedAt: new Date().toISOString(), byName: Mode.who(), config: cfg, results: res }); await Inc.publish();
+  },
+  eligible(ym) { const c = Inc.closeOf(ym); return c ? Inc.activeArtists().filter(a => c.results[a.id] && c.results[a.id].excellenceOk) : []; },
+  async tombola(ym, winnerId, date, vt, value) {
+    if (!Inc.adm()) throw new Error('Solo administración registra la tómbola.'); if (!Inc.closeOf(ym)) throw new Error('Cierra el mes primero: la tómbola se hace con las lashistas elegibles de un mes cerrado.');
+    if (Store.tombolas.some(t => t.id === ym)) throw new Error('La tómbola de ese mes ya está registrada.'); const w = Inc.eligible(ym).find(a => a.id === winnerId); if (!w) throw new Error('La ganadora debe ser una lashista elegible.');
+    if (!Dates.fromISO(date)) throw new Error('Escribe la fecha de la tómbola.'); if (!(num(value) >= 0)) throw new Error('Escribe un descuento válido.');
+    await Store.db.doc('tombolas/' + ym).set({ month: ym, date, winnerId, winnerName: w.name, valueType: vt, value: num(value), eligibleIds: Inc.eligible(ym).map(a => a.id), createdAt: new Date().toISOString(), byName: Mode.who() });
+    await Inc.put({ id: `rw_tombola_${winnerId}_${ym}`, type: 'tombola', artistId: winnerId, artistName: w.name, period: ym, valueType: vt, value: num(value), detail: { date } }); await Inc.publish();
+  },
+  async content(artistId, ym, ref, date, vt, value, force) {
+    if (!Inc.adm()) throw new Error('Solo administración registra el Content Reward.'); const a = Store.config.artists.find(x => x.id === artistId); if (!a) throw new Error('Elige la lashista.');
+    if (!String(ref || '').trim()) throw new Error('Describe o pega el enlace del contenido seleccionado.'); if (!(num(value) >= 0)) throw new Error('Escribe un descuento válido.');
+    const k = Inc.key(ref), dup = Store.rewards.find(r => r.type === 'content' && r.artistId === artistId && r.detail && r.detail.key === k); if (dup) throw new Error(`Ese contenido ya recibió su premio (${ymLabel(dup.period)}). No se duplica.`);
+    const n = Inc.rw(r => r.type === 'content' && r.artistId === artistId && r.period === ym).length; if (n >= Inc.cfg().contentMax && !force) { const e = new Error(`${a.name} ya tiene ${n} Content Reward en ${ymLabel(ym)} (máximo configurado: ${Inc.cfg().contentMax}).`); e.code = 'max'; throw e; }
+    await Inc.put({ id: `rw_content_${artistId}_${ym}_${k}`, type: 'content', artistId, artistName: a.name, period: ym, valueType: vt, value: num(value), detail: { ref: String(ref).trim(), key: k, date } }); await Inc.publish();
+  },
+  /* aplica los premios ganados a la nota de insumos (borrador) de ese mes: se agregan como descuentos y quedan "aplicado" con la nota */
+  async apply(artistId, ym) {
+    if (!Inc.adm()) throw new Error('Solo administración aplica descuentos.');
+    const list = Inc.rw(r => r.artistId === artistId && r.period === ym && r.status === 'ganado' && (r.valueType === 'pct' || r.valueType === 'amt') && num(r.value) > 0); if (!list.length) throw new Error('No hay descuentos ganados pendientes de aplicar.');
+    const n = Store.notes.find(x => x.source === 'app' && x.artistId === artistId && x.month === ym && x.status !== 'Cancelada'); if (!n) throw new Error(`Primero prepara la nota de insumos de ${ymLabel(ym)} en Insumos.`);
+    if (n.status !== 'Borrador') throw new Error(`La nota #${n.invoice} ya está ${n.status === 'Pagada' ? 'pagada' : 'enviada'}: no se le pueden agregar descuentos. Los premios siguen como ganados.`);
+    const lines = list.map(r => ({ label: `${Inc.TY[r.type]} (${ymLabel(r.period)})`, type: r.valueType, value: num(r.value) }));
+    await Store.saveNote({ artistId: n.artistId, month: n.month, date: n.date, status: 'Borrador', comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: [...(n.discounts || []), ...lines] }, n.id);
+    for (const r of list) await Store.db.doc('rewards/' + r.id).set({ ...(({ id, ...d }) => d)(r), status: 'aplicado', noteId: n.id, noteInvoice: n.invoice, appliedAt: new Date().toISOString(), appliedByName: Mode.who() });
+    await Inc.publish(); return { n, count: list.length };
+  },
+  /* ---------- "foto" para el portal ---------- */
+  snap(a) {
+    const cfg = Inc.cfg(), cur = Inc.ym0(), prev = shiftMonth(cur, -1), mk = ym => { const ev = Inc.monthEval(a.id, ym), c = Inc.closeOf(ym), r = c && c.results[a.id]; return { ym, label: ymLabel(ym), closed: !!c, ended: Inc.ended(ym), required: ev.required, total: ev.total, q: r ? r.q : ev.q, e: r ? r.e : ev.e, qualityOk: r ? r.qualityOk : ev.qualityOk, excellenceOk: r ? r.excellenceOk : ev.excellenceOk, weeks: ev.weeks.map(w => ({ ws: Dates.toISO(w.ws), label: weekLabel(w.ws), n: w.n, quality: w.quality, goal: w.goal, excellence: w.excellence, meta: w.meta })) }; };
+    const rewards = Inc.rw(r => r.artistId === a.id && String(r.period) >= shiftMonth(cur, -12)).map(r => ({ id: r.id, type: r.type, label: Inc.TY[r.type], period: r.period, periodLabel: ymLabel(r.period), valueType: r.valueType, value: r.value, status: r.status, noteInvoice: r.noteInvoice || '', detail: r.type === 'content' ? { ref: (r.detail || {}).ref } : undefined }));
+    const tmb = ym => { const t = Store.tombolas.find(x => x.id === ym), c = Inc.closeOf(ym), el = c ? !!(c.results[a.id] && c.results[a.id].excellenceOk) : Inc.monthEval(a.id, ym).excellenceOk; return { ym, label: ymLabel(ym), closed: !!c, eligible: el, drawn: !!t, date: t ? t.date : '', winner: !!t && t.winnerId === a.id, status: t ? (t.winnerId === a.id ? 'ganadora' : (el ? 'participo' : 'no_califica')) : c ? (el ? 'participa' : 'no_califica') : 'pendiente' }; };
+    return { v: 1, artistId: a.id, artistName: a.name, updatedAt: new Date().toISOString(), cfg: { quality: cfg.quality.pct, excellence: cfg.excellence.pct, tombola: cfg.tombola.pct, content: cfg.content.pct, requiredWeeks: cfg.requiredWeeks, replaces: cfg.excellenceReplacesQuality }, cur: mk(cur), prev: mk(prev), rewards, tombola: { cur: tmb(cur), prev: tmb(prev) } };
+  },
+  _t: null, publishSoon() { clearTimeout(Inc._t); Inc._t = setTimeout(() => Inc.publish().catch(() => {}), 1500); },
+  async publish() { if (!Inc.adm() || !Store.config) return; for (const a of Inc.activeArtists()) await Store.db.doc('incentives/' + a.id).set(Inc.snap(a)); },
+};
+/* cada vez que Administración cambia metas o checks, se actualiza lo que ve el portal */
+{ const G = Store.saveGoals; Store.saveGoals = async function () { const r = await G.apply(this, arguments); try { Inc.publishSoon(); } catch (e) { /* el portal se actualiza después */ } return r; }; }
+{ const C = Store.saveConfig; Store.saveConfig = async function (p) { const r = await C.apply(this, arguments); try { if (p && p.incentives) Inc.publishSoon(); } catch (e) { /* idem */ } return r; }; }
+
+/* ---------- pantalla de Administración: Rendimiento › Incentivos ---------- */
+Inc.sel = null;
+Inc.month = () => Inc.sel || (Inc.sel = Inc.ym0());
+Inc.chip = r => `<span class="rd-rw ${r.status}" title="${esc(Inc.TY[r.type])}">${esc(Inc.TY[r.type].replace('Fluffy ', ''))} ${esc(Inc.val(r))} · ${Inc.STL[r.status]}</span>`;
+Inc.html = function () {
+  const ym = Inc.month(), c = Inc.closeOf(ym), cfg = Inc.cfg(), A = Inc.activeArtists(), ro = !Inc.adm(), ended = Inc.ended(ym);
+  const rows = A.map(a => { const ev = Inc.monthEval(a.id, ym), r = c && c.results[a.id], q = r ? r.qualityOk : ev.qualityOk, e = r ? r.excellenceOk : ev.excellenceOk, rw = Inc.rw(x => x.artistId === a.id && x.period === ym && x.type !== 'commission100'), pend = rw.some(x => x.status === 'ganado' && x.valueType !== 'benefit' && num(x.value) > 0);
+    return `<tr><td><b>${esc(a.name)}</b></td><td class="r">${r ? r.q : ev.q}/${ev.total}</td><td class="r">${ev.gl}/${ev.total}</td><td>${q ? '<span class="rd-pill ok">Quality</span>' : '<span class="mutedc">—</span>'}</td><td>${e ? '<span class="rd-pill ok">Excellence</span>' : '<span class="mutedc">—</span>'}</td><td>${rw.length ? rw.map(Inc.chip).join(' ') : (c ? '<span class="mutedc">Sin premios</span>' : '<span class="mutedc">Proyección</span>')}</td><td class="r">${pend && !ro ? `<button class="btn sm" data-inc-apply="${a.id}">Aplicar a la nota</button>` : ''}</td></tr>`; }).join('');
+  const mv = Inc.rw(r => r.period === ym), tm = Store.tombolas.find(t => t.id === ym), el = c ? Inc.eligible(ym) : A.filter(a => Inc.monthEval(a.id, ym).excellenceOk);
+  return `<div class="filters no-print rd-top"><div class="weeknav"><button class="btn sm" data-inc-m="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w">${esc(ymLabel(ym))}</span><button class="btn sm" data-inc-m="1" aria-label="Mes siguiente">${ic('right')}</button><button class="btn sm pink" data-inc-m="0">Este mes</button></div>
+      <div class="chips">${c ? `<span class="tag ok">Mes cerrado · ${esc(Dates.fmt(Dates.fromISO(c.closedAt.slice(0, 10)), { day: 'numeric', month: 'short' }))}</span>` : `<span class="tag">${ended ? 'Mes terminado, sin cerrar' : `Abierto · proyección (${Inc.daysLeft(ym)} día(s) para terminar)`}</span>`}${ro ? '' : `<button class="btn sm" data-inc-cfg>Configurar valores</button>${c ? '' : `<button class="btn sm primary" data-inc-close ${ended ? '' : 'disabled title="El mes todavía no termina"'}>Cerrar el mes</button>`}`}</div></div>
+    ${Inc.configured() ? '' : '<div class="banner" style="margin:0 0 12px;border-color:var(--warn)">Todavía no hay valores configurados (descuento de Quality, Excellence, tómbola y Content Reward). Configúralos para que los premios tengan importe.</div>'}
+    <section class="rd-card"><div class="rd-ch"><h2>Resumen por lashista</h2></div><div class="tablewrap"><table><thead><tr><th>Lashista</th><th class="r" title="Semanas con los 3 indicadores">Indicadores</th><th class="r" title="Semanas con la meta monetaria">Meta</th><th>Quality</th><th>Excellence</th><th>Movimientos</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="formula">Quality: los 3 indicadores en ${cfg.requiredWeeks === 'all' ? 'todas las semanas' : 'al menos ' + cfg.requiredWeeks + ' semanas'} del mes. Excellence: los 3 indicadores y la meta monetaria en ${cfg.requiredWeeks === 'all' ? 'todas las semanas' : 'al menos ' + cfg.requiredWeeks + ' semanas'}${cfg.excellenceReplacesQuality ? ' (reemplaza al descuento de Quality)' : ''}. Los premios se ganan al cerrar el mes; un mes cerrado no se recalcula.</p></section>
+    <div class="rd-grid2"><section class="rd-card"><div class="rd-ch"><h2>Tómbola mensual</h2></div>${Inc.tombolaHtml(ym, c, tm, el, ro)}</section>
+    <section class="rd-card"><div class="rd-ch"><h2>Content Reward</h2>${ro ? '' : '<button class="btn sm" data-inc-content>Registrar contenido</button>'}</div>${Inc.contentHtml(ym)}</section></div>
+    <section class="rd-card"><div class="rd-ch"><h2>Movimientos de ${esc(ymLabel(ym))}</h2></div>${mv.length ? `<div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Lashista</th><th>Período</th><th class="r">Importe / %</th><th>Estado</th><th>Nota de insumos</th></tr></thead><tbody>${mv.map(r => `<tr><td>${esc(Inc.TY[r.type])}${r.detail && r.detail.ref ? `<br><small class="mutedc">${esc(r.detail.ref.slice(0, 60))}</small>` : ''}</td><td>${esc(r.artistName)}</td><td>${esc(ymLabel(r.period))}</td><td class="r">${esc(Inc.val(r))}</td><td><span class="rd-rw ${r.status}">${Inc.STL[r.status]}</span></td><td>${r.noteInvoice ? '#' + esc(r.noteInvoice) : '—'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin movimientos</b>Aparecen al cerrar el mes, registrar la tómbola o un contenido.</div>'}</section>`;
+};
+Inc.tombolaHtml = (ym, c, tm, el, ro) => {
+  if (tm) return `<p><b>${esc(tm.winnerName)}</b> ganó la tómbola de ${esc(ymLabel(ym))}.</p><p class="mutedc">Fecha: ${esc(Dates.fmt(Dates.fromISO(tm.date), { day: 'numeric', month: 'long', year: 'numeric' }))} · Descuento: ${esc(tm.valueType === 'pct' ? tm.value + '%' : money(tm.value, 1))}</p><p class="mutedc">Participaron ${tm.eligibleIds.length} lashista(s).</p>`;
+  return `<p class="mutedc" style="margin:0 0 8px">Lashistas elegibles (3 indicadores + meta): <b>${el.length}</b>${c ? '' : ' · proyección, el mes sigue abierto'}</p>${el.length ? `<div class="chips" style="margin:0 0 10px">${el.map(a => `<span class="tag">${esc(a.name)}</span>`).join('')}</div>` : '<p class="mutedc">Nadie califica por ahora.</p>'}${!c ? '<p class="mutedc">La tómbola se registra con el mes cerrado.</p>' : ro || !el.length ? '' : '<button class="btn sm primary" data-inc-tombola>Registrar la ganadora</button>'}`;
+};
+Inc.contentHtml = ym => { const l = Inc.rw(r => r.type === 'content' && r.period === ym); return l.length ? l.map(r => `<div class="rd-line"><div><b>${esc(r.artistName)}</b><br><small class="mutedc">${esc((r.detail || {}).ref || '')}</small></div><div class="r">${esc(Inc.val(r))}<br><span class="rd-rw ${r.status}">${Inc.STL[r.status]}</span></div></div>`).join('') : '<p class="mutedc">No hay contenido seleccionado este mes.</p>'; };
+Inc.cfgForm = function () {
+  const c = Inc.cfg();
+  DP.layer(`<h3>Configurar incentivos</h3><p style="color:var(--muted);margin:0 0 10px">Estos valores se usan al cerrar cada mes y como sugerencia en la tómbola y el Content Reward. Un mes ya cerrado conserva los valores con que se cerró.</p>
+    <div class="formgrid"><label class="field">Fluffy Quality · descuento % (estándar)<input type="number" min="0" step="0.5" data-ic="q" value="${c.quality.pct}"></label><label class="field">Fluffy Excellence · descuento % (premium)<input type="number" min="0" step="0.5" data-ic="e" value="${c.excellence.pct}"></label>
+    <label class="field">Tómbola · descuento % sugerido<input type="number" min="0" step="0.5" data-ic="t" value="${c.tombola.pct}"></label><label class="field">Content Reward · descuento % sugerido<input type="number" min="0" step="0.5" data-ic="c" value="${c.content.pct}"></label>
+    <label class="field">Semanas del mes que deben cumplirse<select data-ic="w"><option value="all" ${c.requiredWeeks === 'all' ? 'selected' : ''}>Todas las semanas del mes</option>${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${String(c.requiredWeeks) === String(n) ? 'selected' : ''}>Al menos ${n}</option>`).join('')}</select></label>
+    <label class="field">Content Reward máximo por lashista al mes<input type="number" min="1" step="1" data-ic="m" value="${c.contentMax}"></label>
+    <label class="check full" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-ic="r" ${c.excellenceReplacesQuality ? 'checked' : ''}> <span>Excellence reemplaza el descuento de Quality (no se suman)</span></label></div>
+    <p class="mutedc" style="font-size:12.5px">Comisión 100% Before/After Hours: se registra como beneficio desbloqueado para el mes siguiente (Fluffy Co 0% en esos servicios). No cambia las comisiones habituales.</p>
+    <p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, (m, close) => {
+    $('[data-x=no]', m).onclick = close;
+    $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-ic=${k}]`, m), p = k => num(g(k).value); if ([p('q'), p('e'), p('t'), p('c')].some(v => v < 0 || v > 100)) { $('[data-ie]', m).textContent = 'Los descuentos van de 0 a 100%.'; return; }
+      try { await Store.saveConfig({ incentives: { quality: { pct: p('q') }, excellence: { pct: p('e') }, tombola: { pct: p('t') }, content: { pct: p('c') }, requiredWeeks: g('w').value === 'all' ? 'all' : num(g('w').value), contentMax: Math.max(1, p('m') || 1), excellenceReplacesQuality: g('r').checked } }); close(); UI.toast('Valores guardados'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); } };
+  }, 560);
+};
+Inc.bind = function (root) {
+  const ym = Inc.month(), fail = e => UI.toast(e.message || 'No se pudo guardar', true);
+  $$('[data-inc-m]', root).forEach(b => b.onclick = () => { const k = +b.dataset.incM; Inc.sel = k ? shiftMonth(ym, k) : Inc.ym0(); UI.render(); });
+  const cfgb = $('[data-inc-cfg]', root); if (cfgb) cfgb.onclick = Inc.cfgForm;
+  const cl = $('[data-inc-close]', root); if (cl) cl.onclick = async () => { if (!await UI.confirm('Cerrar ' + ymLabel(ym), `Se registran los premios de ${esc(ymLabel(ym))} (Quality y Excellence) con los valores actuales y el mes queda <b>cerrado</b>: ya no se recalcula. Esta acción no se puede deshacer.`, 'Cerrar el mes')) return; try { await Inc.close(ym); UI.toast('Mes cerrado'); UI.render(); } catch (e) { fail(e); } };
+  $$('[data-inc-apply]', root).forEach(b => b.onclick = async () => { try { const r = await Inc.apply(b.dataset.incApply, ym); UI.toast(`${r.count} descuento(s) aplicado(s) a la nota #${r.n.invoice}`); UI.render(); } catch (e) { fail(e); } });
+  const tb = $('[data-inc-tombola]', root); if (tb) tb.onclick = () => { const el = Inc.eligible(ym), cfg = Inc.cfg(), today = Dates.toISO(Dates.today());
+    DP.layer(`<h3>Tómbola de ${esc(ymLabel(ym))}</h3><label class="field">Ganadora<select data-it="w"><option value="">Elige</option>${el.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label><div class="formgrid"><label class="field">Fecha de la tómbola<input type="date" data-it="d" value="${today}" max="${today}"></label><label class="field">Descuento adicional %<input type="number" min="0" step="0.5" data-it="v" value="${cfg.tombola.pct}"></label></div><p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close; $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-it=${k}]`, m).value; try { await Inc.tombola(ym, g('w'), g('d'), 'pct', g('v')); close(); UI.toast('Tómbola registrada'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = e.message; } }; }, 520); };
+  const cb = $('[data-inc-content]', root); if (cb) cb.onclick = () => { const cfg = Inc.cfg(), today = Dates.toISO(Dates.today());
+    DP.layer(`<h3>Content Reward</h3><label class="field">Lashista<select data-ic2="a"><option value="">Elige</option>${Inc.activeArtists().map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label><label class="field">Contenido seleccionado (describe o pega el enlace)<input data-ic2="r" autocomplete="off" placeholder="Ej. Reel de pestañas híbridas, 12 oct / https://…"></label><div class="formgrid"><label class="field">Fecha<input type="date" data-ic2="d" value="${today}" max="${today}"></label><label class="field">Descuento adicional %<input type="number" min="0" step="0.5" data-ic2="v" value="${cfg.content.pct}"></label></div><p class="mutedc" style="font-size:12.5px">Se aplica a la nota de ${esc(ymLabel(ym))}. Un mismo contenido no puede premiarse dos veces.</p><p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close; const go = async force => { const g = k => $(`[data-ic2=${k}]`, m).value; try { await Inc.content(g('a'), ym, g('r'), g('d'), 'pct', g('v'), force); close(); UI.toast('Content Reward registrado'); UI.render(); } catch (e) { if (e.code === 'max') { if (await UI.confirm('Ya alcanzó el máximo', esc(e.message) + ' ¿Registrar otro de todos modos?', 'Sí, registrar')) go(true); } else $('[data-ie]', m).textContent = e.message; } }; $('[data-x=ok]', m).onclick = () => go(false); }, 560); };
+};
+/* ---------- se enchufa a la pantalla de Rendimiento ---------- */
+Rd.incentivos = () => Inc.html();
+{ const M = Views.rendimiento.mount; Views.rendimiento.mount = function (root) { const r = M.apply(this, arguments); try { if (S.perf.tab === 'incentivos') Inc.bind(root); if (!Inc._pub || Date.now() - Inc._pub > 300000) { Inc._pub = Date.now(); Inc.publishSoon(); } } catch (e) { console.warn('inc3', e); } return r; }; }
+/* en el panel de la lashista: sus incentivos del mes que se está viendo */
+Rd.empty = function (t) {
+  const sel = Rd.sel, ym = Inc.month(); if (!sel) return `<div class="rd-empty"><h2>${t}</h2><p>Elige una lashista.</p></div>`;
+  const a = Store.config.artists.find(x => x.id === sel), ev = Inc.monthEval(sel, ym), c = Inc.closeOf(ym), rw = Inc.rw(r => r.artistId === sel && r.period === ym);
+  return `<p class="mutedc" style="margin:0 0 8px">${esc(ymLabel(ym))} · ${c ? 'mes cerrado' : 'proyección'}</p><div class="rd-stats"><div><span>Indicadores</span><b>${(c && c.results[sel] ? c.results[sel].q : ev.q)}/${ev.total}</b></div><div><span>Con meta</span><b>${ev.gl}/${ev.total}</b></div><div><span>Excellence</span><b>${(c && c.results[sel] ? c.results[sel].excellenceOk : ev.excellenceOk) ? 'Sí' : 'No'}</b></div></div>${rw.length ? rw.map(r => `<div class="rd-line"><div><b>${esc(Inc.TY[r.type])}</b></div><div class="r">${esc(Inc.val(r))} <span class="rd-rw ${r.status}">${Inc.STL[r.status]}</span></div></div>`).join('') : '<p class="mutedc">Sin movimientos todavía.</p>'}<p class="mutedc" style="font-size:12.5px">Administra los incentivos en la pestaña Incentivos de Rendimiento.</p>`;
+};
 
 
 window.FM_BOOT = function () {
