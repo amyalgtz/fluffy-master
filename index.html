@@ -750,6 +750,27 @@ tr.rd-sel td{background:var(--blush)}
 .rd-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media (max-width:900px){.rd-grid2{grid-template-columns:1fr}}
 .rd-rw{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;margin:1px 0}.rd-rw.ganado{background:rgba(184,145,58,.18);color:#7A5C16}.rd-rw.pendiente{background:rgba(224,177,92,.25);color:#8A6A1B}.rd-rw.aplicado{background:rgba(76,122,90,.16);color:var(--ok)}
 .rd-line{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)}.rd-line:first-child{border-top:0}.rd-line .r{text-align:right;white-space:nowrap}
+/* ===== RENDIMIENTO · ajuste al mockup ===== */
+.rd-t button{font-size:15px}.rd-t button.on{font-weight:700;border-bottom-color:transparent;box-shadow:inset 0 -2px 0 var(--accent-strong,var(--pink-deep))}
+.rd-kpi b{font-size:30px}
+.rd-main table td,.rd-main table th{padding-top:9px;padding-bottom:9px}
+.rd-money{display:inline-flex;align-items:center;justify-content:flex-end;gap:1px}.rd-money i{font-style:normal;color:var(--muted)}
+.rd-main .inp.num{width:74px;height:30px;border-color:transparent;background:transparent;box-shadow:none;text-align:right;padding:0 4px;font-weight:500;font-size:inherit}.rd-main .inp.num:hover{border-color:var(--line)}.rd-main .inp.num:focus{border-color:var(--accent-strong,var(--pink-deep));background:#fff}
+.rd-inc{display:inline-block;padding:2px 12px;border-radius:999px;font-size:12.5px;font-weight:700}.rd-inc.exc{background:rgba(212,175,55,.22);color:var(--gold-ink)}.rd-inc.qua{background:rgba(76,122,90,.12);color:var(--ok)}
+.rd-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--blush)}.rd-tools[hidden]{display:none}.rd-tools .tt-bar{margin:0}
+.rd-tabs{border-bottom:0;gap:6px;margin-bottom:14px}.rd-tabs button{border-radius:999px;padding:6px 12px;margin-bottom:0;border-bottom:0}.rd-tabs button.on{background:var(--pink);color:var(--ink);border-bottom:0}
+.rd-layout{grid-template-columns:minmax(0,1fr) 400px}
+.rd-two{grid-template-columns:1fr 1fr!important}.rd-tag.ok::before{content:'✓ '}
+.rd-exc{border:1px solid rgba(212,175,55,.45);background:linear-gradient(180deg,rgba(212,175,55,.13),rgba(212,175,55,.05));border-radius:14px;padding:12px 14px;margin:12px 0 0}.rd-exc.on{border-color:var(--gold)}.rd-exc:not(.on) .rd-exc-b{opacity:.55}
+.rd-exc-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.rd-exc-h h4{margin:0;font-family:var(--display);font-size:19px}
+.rd-gold{padding:3px 11px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(212,175,55,.28);color:var(--gold-ink)}.rd-gold.soft{background:rgba(76,122,90,.14);color:var(--ok)}.rd-gold.off{background:var(--blush);color:var(--muted)}
+.rd-exc-b{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}.rd-exc-b div{display:flex;flex-direction:column;gap:2px}.rd-exc-b b{font-family:var(--display);font-size:20px}.rd-exc-b span{font-size:12.5px;color:var(--muted);line-height:1.3}
+.rd-two2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.rd-mini{border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}.rd-mini h4{margin:0;font-size:14px}.rd-st{align-self:flex-start;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:700;background:var(--blush);color:var(--muted)}.rd-st.ok{background:rgba(76,122,90,.16);color:var(--ok)}
+.rd-side .meter.big{background:var(--blush)}.rd-side .meter.big i,.rd-side .meter.big i.hit{background:linear-gradient(90deg,var(--pink),var(--pink-deep))}
+.rd-main .inp.num{min-width:3.2ch}
+@media (max-width:1379px){.rd-layout{grid-template-columns:1fr}}
+.rd-main .inp.num{text-align:left}
+.rd-main .inp.num{padding:0 2px;-moz-appearance:textfield;appearance:textfield}.rd-main .inp.num::-webkit-inner-spin-button,.rd-main .inp.num::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -812,7 +833,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-02 18:00';
+window.FM_VERSION = '2026-11-02 20:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -10852,11 +10873,23 @@ const Rd = {
   state(r) { if (!r || !r.meta) return 'none'; const p = r.real / r.meta; return p >= 1 ? 'ok' : p >= Rd.RISK ? 'risk' : 'low'; },
   LAB: { ok: 'Cumple la meta', risk: 'En riesgo', low: 'Por debajo del 75%', none: 'Sin meta' },
   count(r) { return CHECKS.filter(([k]) => r[k] === 'O').length; },
+  /* etiqueta semanal del incentivo (solo presentación: 3 indicadores = Quality; + meta de la semana = Excellence) */
+  weekInc(r) { if (typeof Inc === 'undefined') return { k: '', label: '' }; const e = Inc.weekEval(r._key, S.perf.week); return e.excellence ? { k: 'exc', label: 'Excellence', t: 'Esta semana cumple los 3 indicadores y la meta' } : e.quality ? { k: 'qua', label: 'Quality', t: 'Esta semana cumple los 3 indicadores' } : { k: '', label: '' }; },
   pill(r) { const s = Rd.state(r); return s === 'none' ? '<span class="mutedc">—</span>' : `<span class="rd-pill ${s}">${pct(r.real / r.meta)}</span>`; },
   row(id) { return Views.rendimiento.metasData(S.perf.week).find(r => r._key === id) || null; },
   /* ---------- pestaña Incentivos ---------- */
   empty(t) { return `<div class="rd-empty"><h2>${t}</h2><p>Aún no hay reglas de incentivos configuradas en Fluffy Master, por eso aquí no se muestran resultados ni se calcula nada.</p><p class="mutedc">Cuando se definan (qué se desbloquea, con qué condiciones y qué recibe cada lashista), aparecerán en esta pestaña y en la ficha de cada lashista.</p></div>`; },
   incentivos() { return Rd.empty('Incentivos'); },
+  /* Excellence + Tómbola + Content Reward del panel (solo muestra lo que ya calcula Incentivos) */
+  incBlock(r, ws) {
+    if (typeof Inc === 'undefined') return '';
+    const id = r._key, ym = Perf.weekMonth(ws), nx = Inc.next(ym), cfg = Inc.cfg(), we = Inc.weekEval(id, ws), c = Inc.closeOf(ym), res = c && c.results[id];
+    const un = !!Inc.rw(x => x.artistId === id && x.type === 'excellence' && x.period === ym).length || !!(res && res.excellenceOk), tb = Inc.tmb(id, ym);
+    const chip = un ? '<span class="rd-gold">¡Desbloqueado!</span>' : we.excellence ? '<span class="rd-gold soft">Cumple esta semana</span>' : '<span class="rd-gold off">En curso</span>';
+    const TS = { ganadora: ['Ganadora', 'ok'], participa: ['Participa', 'ok'], participo: ['Participó', ''], pendiente: ['Pendiente', ''], no_califica: ['No califica', ''] }[tb.status] || ['Pendiente', ''], ct = Inc.rw(x => x.artistId === id && x.type === 'content' && x.period === ym).length, p = num(cfg.excellence.pct);
+    return `<div class="rd-exc ${un ? 'on' : ''}"><div class="rd-exc-h"><h4>Fluffy Excellence</h4>${chip}</div><div class="rd-exc-b"><div><b>${p > 0 ? p + '%' : '—'}</b><span>Mayor descuento en insumos</span></div><div><b>100%</b><span>Comisión en Before &amp; After Hours (${esc(ymLabel(nx))})</span></div></div></div>
+      <div class="rd-two2"><div class="rd-mini"><h4>Tómbola mensual</h4><span class="rd-st ${TS[1]}">${TS[0]}</span></div><div class="rd-mini"><h4>Content Reward</h4><span class="rd-st ${ct ? 'ok' : ''}">${ct ? 'Seleccionado' : 'Pendiente'}</span></div></div>`;
+  },
   /* ---------- panel lateral ---------- */
   weekRows(id, ws, n) { const out = []; for (let k = n - 1; k >= 0; k--) { const w = ws - 7 * k, g = Store.goalsFor(w)[id] || {}, real = Perf.weekSales(Store.sales, w).get(id) || 0, meta = g.meta == null ? null : num(g.meta); out.push({ w, meta, real, g }); } return out; },
   side(r, ws) {
@@ -10868,7 +10901,7 @@ const Rd = {
       body = `<div class="rd-stats"><div><span>Meta semanal</span><b>${r.meta != null ? money(r.meta) : '—'}</b></div><div><span>Ventas</span><b>${money(r.real)}</b></div><div><span>Cumplimiento</span><b class="${st === 'ok' ? 'okc' : ''}">${r.meta ? pct(r.real / r.meta) : '—'}</b></div></div>
         ${r.meta ? `<div class="meter big"><i style="width:${Math.min(100, r.real / r.meta * 100)}%" class="${st === 'ok' ? 'hit' : ''}"></i></div>` : ''}
         <div class="rd-two"><div class="rd-box"><h4>Ventas últimas 4 semanas</h4><div class="rd-bars">${h4.map((x, i) => `<div class="rd-bar${i === 3 ? ' cur' : ''}"><small>${money(x.real)}</small><i style="height:${Math.max(4, Math.round(x.real / mx * 72))}px"></i><span>${esc(Dates.fmt(x.w, { day: 'numeric', month: 'short' }))}</span></div>`).join('')}</div></div>
-        <div class="rd-box"><h4>Indicadores de calidad <span class="rd-count">${Rd.count(r)}/3</span></h4><ul class="rd-ckl">${CHECKS.map(([k, l]) => `<li>${checkMark(r[k])}<span>${l}</span></li>`).join('')}</ul></div></div>`;
+<div class="rd-box"><h4>Indicadores de calidad <span class="rd-count">${Rd.count(r)}/3</span></h4><ul class="rd-ckl">${CHECKS.map(([k, l]) => `<li>${checkMark(r[k])}<span>${l}</span></li>`).join('')}</ul></div></div>${Rd.incBlock(r, ws)}`;
     } else if (t === 'servicios') {
       const by = new Map(); Store.sales.filter(s => s.artistKey === r._key && s.day >= ws && s.day <= ws + 6).forEach(s => { const o = by.get(s.service) || { n: 0, v: 0 }; o.n++; o.v = r2(o.v + s.price); by.set(s.service, o); });
       const L = [...by.entries()].sort((a, b) => b[1].v - a[1].v), n = L.reduce((t2, [, o]) => t2 + o.n, 0), v = r2(L.reduce((t2, [, o]) => t2 + o.v, 0));
@@ -10903,6 +10936,7 @@ const Rd = {
       }
     }); }
     if (!Rd._esc) { Rd._esc = true; document.addEventListener('keydown', e => { if (e.key === 'Escape' && Rd.open) { Rd.open = false; const r = $('#view'); if (r) Rd.paint(r); } }); }
+    const ob = $('[data-rd-opt]', root); if (ob) ob.onclick = () => { const tl = $('.rd-tools', root); tl.hidden = !tl.hidden; ob.setAttribute('aria-expanded', String(!tl.hidden)); };
     Rd.open = false; if (S.perf.tab === 'metas') Rd.paint(root);
   },
 };
@@ -10911,17 +10945,18 @@ const Rd = {
   V.html = function () {
     const t = S.perf.tab, tabs = [['metas', 'Metas semanales'], ['productividad', 'Productividad mensual'], ['incentivos', 'Incentivos'], ['notas', 'Notas de insumos']];
     return `<div class="head"><div><h1>Rendimiento</h1><p>Metas, productividad e incentivos del equipo.</p></div></div>
-      <div class="tabs no-print" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="${t === k ? 'on' : ''}" data-ptab="${k}">${l}</button>`).join('')}</div>
+      <div class="tabs rd-t no-print" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="${t === k ? 'on' : ''}" data-ptab="${k}">${l}</button>`).join('')}</div>
       ${t === 'metas' ? this.metas() : t === 'productividad' ? this.productividad() : t === 'incentivos' ? Rd.incentivos() : this.notas()}`;
   };
   V.metasCols = function () {
     const ro = !Store.writable(), lab = v => ({ O: 'Cumplió', X: 'No cumplió', '?': 'Pendiente' }[v] || '');
     return [
       { key: 'name', label: 'Lashista', always: 1, get: r => r._name, html: r => `<button type="button" class="rd-name" data-rd="${esc(r._key)}">${esc(r._name)}</button>` },
-      { key: 'meta', label: 'Meta semanal', r: 1, type: 'money0', get: r => r.meta, html: r => `<input class="inp num" type="number" min="0" step="50" data-meta="${r._key}" value="${r.meta != null ? r.meta : ''}" placeholder="—" ${ro ? 'disabled' : ''} aria-label="Meta de ${esc(r._name)}">` },
+      { key: 'meta', label: 'Meta semanal', r: 1, type: 'money0', get: r => r.meta, html: r => `<span class="rd-money"><i>$</i><input class="inp num" style="width:${String(r.meta != null ? r.meta : '—').length + 2}ch" type="number" min="0" step="50" data-meta="${r._key}" value="${r.meta != null ? r.meta : ''}" placeholder="—" ${ro ? 'disabled' : ''} aria-label="Meta de ${esc(r._name)}"></span>` },
       { key: 'real', label: 'Ventas', r: 1, type: 'money0', get: r => r.real },
       { key: 'ratio', label: 'Cumplimiento', type: 'pct', get: r => r.ratio, html: r => Rd.pill(r) },
       { key: 'ind', label: 'Indicadores', get: r => Rd.count(r) + '/3', html: r => `<span class="rd-ind">${Rd.count(r)}/3</span>` },
+      { key: 'inc', label: 'Incentivo', get: r => Rd.weekInc(r).label, html: r => { const w = Rd.weekInc(r); return w.k ? `<span class="rd-inc ${w.k}" title="${esc(w.t)}">${w.label}</span>` : '<span class="mutedc">—</span>'; } },
       { key: 'diff', label: 'Diferencia', r: 1, type: 'money0', get: r => r.diff, html: r => r.diff == null ? '—' : `<span class="${r.diff >= 0 ? 'okc' : 'neg'}">${r.diff >= 0 ? '+' : '−'}${money(Math.abs(r.diff))}</span>` },
       ...CHECKS.map(([k, l]) => ({ key: k, label: l, get: r => lab(r[k]), html: r => `<button class="ckbtn" data-ck="${r._key}|${k}" ${ro ? 'disabled' : ''} aria-label="${esc(l)} de ${esc(r._name)}">${checkMark(r[k])}</button>` })),
     ];
@@ -10932,14 +10967,14 @@ const Rd = {
     if (!data.some(r => r._key === Rd.sel)) Rd.sel = data.length ? data[0]._key : null;
     const wm = data.filter(r => r.meta), tot = r2(data.reduce((t, r) => t + r.real, 0)), prev = r2([...Perf.weekSales(Store.sales, ws - 7).values()].reduce((t, v) => t + v, 0)), c = { ok: 0, risk: 0, low: 0 }; wm.forEach(r => { c[Rd.state(r)]++; });
     const delta = prev > 0 ? (tot - prev) / prev : null;
-    return `<div class="filters no-print rd-top"><div class="weeknav"><button class="btn sm" data-pw="-7" aria-label="Semana anterior">${ic('left')}</button><span class="w">${weekLabel(ws)}</span><button class="btn sm" data-pw="7" aria-label="Semana siguiente">${ic('right')}</button><button class="btn sm pink" data-pw="0">Esta semana</button></div>
-        <div class="chips"><span class="tag">Cuenta para ${esc(ymLabel(Perf.weekMonth(ws)))}</span>${ro ? '' : '<button class="btn sm" data-copy>Copiar metas de la semana anterior</button>'}</div></div>
+    return `<div class="filters no-print rd-top"><div class="weeknav"><button class="btn sm" data-pw="-7" aria-label="Semana anterior">${ic('left')}</button><span class="w">${weekLabel(ws)}</span><button class="btn sm" data-pw="7" aria-label="Semana siguiente">${ic('right')}</button></div><button class="btn sm pink" data-pw="0">Esta semana</button></div>
       <div class="rd-kpis">
         <div class="rd-kpi"><span>Ventas totales</span><b>${money(tot)}</b><small>${delta == null ? 'Sin ventas la semana anterior' : `<em class="${delta >= 0 ? 'up' : 'dn'}">${delta >= 0 ? '↑ +' : '↓ −'}${Math.abs(delta * 100).toFixed(1)}%</em> vs. semana anterior`}</small></div>
         <div class="rd-kpi"><span>Cumplieron la meta</span><b>${c.ok} de ${wm.length}</b><small>${wm.length ? 'de las lashistas con meta' : 'Aún no hay metas esta semana'}</small></div>
         <div class="rd-kpi risk"><span>En riesgo</span><b>${c.risk}</b><small>entre 75% y 99% de su meta</small></div>
-        <div class="rd-kpi low"><span>Por debajo del 75%</span><b>${c.low}</b><small>de su meta semanal</small></div></div>
-      <div class="rd-layout"><section class="rd-main"><div class="rd-ch"><h2>Desempeño por lashista</h2>${TT.toolbar('metas', cols, data)}</div>
+        <div class="rd-kpi low"><span>No cumplen</span><b>${c.low}</b><small>por debajo del 75% de su meta</small></div></div>
+      <div class="rd-layout"><section class="rd-main"><div class="rd-ch"><h2>Desempeño por lashista</h2><button type="button" class="btn sm" data-rd-opt aria-expanded="false">Opciones</button></div>
+        <div class="rd-tools no-print" hidden><span class="tag">Cuenta para ${esc(ymLabel(Perf.weekMonth(ws)))}</span>${ro ? '' : '<button class="btn sm" data-copy>Copiar metas de la semana anterior</button>'}${TT.toolbar('metas', cols, data)}</div>
         ${TT.table('metas', cols, data, this.metasFoot(TT.rows('metas', data)), { emptyTitle: 'Sin lashistas en la tabla', empty: 'No hay ventas ni metas en estas fechas, o desmarcaste a todas en el selector.' })}
         <p class="formula">Ventas = suma de precios de viernes a jueves. Toca el nombre de una lashista para ver su detalle. El cumplimiento total solo cuenta a las lashistas con meta.</p></section>
         <aside class="rd-side" data-rdside aria-label="Detalle de la lashista"></aside><div class="rd-scrim" data-rdback></div></div>`;
@@ -11041,6 +11076,8 @@ const Inc = {
   _t: null, publishSoon() { clearTimeout(Inc._t); Inc._t = setTimeout(() => Inc.publish().catch(() => {}), 1500); },
   async publish() { if (!Inc.adm() || !Store.config) return; for (const a of Inc.activeArtists()) await Store.db.doc('incentives/' + a.id).set(Inc.snap(a)); },
 };
+/* estado de la tómbola de una lashista en un mes (lo usan el portal y el panel) */
+Inc.tmb = (id, ym) => { const t = Store.tombolas.find(x => x.id === ym), c = Inc.closeOf(ym), el = c ? !!(c.results[id] && c.results[id].excellenceOk) : Inc.monthEval(id, ym).excellenceOk; return { ym, closed: !!c, eligible: el, drawn: !!t, winner: !!t && t.winnerId === id, status: t ? (t.winnerId === id ? 'ganadora' : (el ? 'participo' : 'no_califica')) : c ? (el ? 'participa' : 'no_califica') : 'pendiente' }; };
 /* cada vez que Administración cambia metas o checks, se actualiza lo que ve el portal */
 { const G = Store.saveGoals; Store.saveGoals = async function () { const r = await G.apply(this, arguments); try { Inc.publishSoon(); } catch (e) { /* el portal se actualiza después */ } return r; }; }
 { const C = Store.saveConfig; Store.saveConfig = async function (p) { const r = await C.apply(this, arguments); try { if (p && p.incentives) Inc.publishSoon(); } catch (e) { /* idem */ } return r; }; }
