@@ -791,6 +791,10 @@ tr.rd-sel td{background:var(--blush)}
 .ie-sel{height:32px!important;min-width:92px;padding:0 24px 0 8px!important;font-size:13px!important}.ie-auto{font-size:12px;font-weight:600;white-space:nowrap}.ie-auto.ok{color:var(--ok)}.ie-auto.no{color:var(--muted)}
 .ie-m{display:grid;grid-template-columns:minmax(120px,1.3fr) auto 100px minmax(120px,1.2fr);gap:6px 10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}.ie-m:first-of-type{border-top:0}.ie-m>b{font-size:13px;font-weight:600}.ie-earn{font-size:12.5px;font-weight:600;color:var(--muted)}.ie-earn.ok{color:var(--ok)}
 @media (max-width:640px){.ie-w{grid-template-columns:1fr 1fr}.ie-w>b{grid-column:1/-1}.ie-m{grid-template-columns:1fr 100px}.ie-m>b{grid-column:1/-1}.ie-m .ie-auto{display:none}.ie-earn{grid-column:1/-1}}
+/* ===== Redo/Fix ===== */
+.rd-redo{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 0 0;background:var(--bg)}.rd-redo.on{border-color:rgba(212,175,55,.5);background:linear-gradient(180deg,rgba(212,175,55,.1),rgba(212,175,55,.03))}
+.rd-redo-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}.rd-redo-h h4{margin:0;font-size:14px}.rd-redo-b{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}.rd-redo-b div{display:flex;flex-direction:column}.rd-redo-b b{font-family:var(--display);font-size:22px}.rd-redo-b span{font-size:12.5px;color:var(--muted)}
+[data-redo] select{margin-top:4px}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -853,7 +857,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-03 12:00';
+window.FM_VERSION = '2026-11-03 15:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1304,7 +1308,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', tarifa: x.tarifa || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '' };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '', redoOf: x.redoOf || null };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -1336,7 +1340,7 @@ const Store = {
       cashierName: prev ? (prev.cashierName || '') : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
       txn: String(form.txn || '').trim(), origin: prev ? (prev.origin || '') : (form.origin || ''),
-      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '', visitOf: form.visitOf || (prev && prev.visitOf) || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [],
+      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '', visitOf: form.visitOf || (prev && prev.visitOf) || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [], redoOf: typeof Redo !== 'undefined' && Redo.is(svc.name) ? (form.redoOfId !== undefined ? Redo.snap(form.redoOfId, prev && prev.redoOf) : ((prev && prev.redoOf) || null)) : null,
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
     doc.createdBy = prev ? prev.createdBy || '' : uid;
@@ -11378,6 +11382,60 @@ NT.bindTable = function (root, list) {
   upd();
 };
 { const V = Views.rendimiento, M0 = V.mount; V.mount = function (root) { const r = M0.apply(this, arguments); try { if (S.perf.tab === 'notas') NT.bindTable(root, this._notesList); } catch (e) { console.warn('adm5', e); } return r; }; }
+
+
+/* =========================================================
+   REDO/FIX · reconocimiento a la lashista que arregla o rehace el servicio de otra (buena compañera)
+   · Servicio «Service Redo/Fix» (cuesta $0). NO cambia ventas, comisiones, tips, metas ni liquidaciones.
+   · Al cobrarlo se elige de qué servicio PREVIO de esa clienta fue (opcional); se guarda como dato extra de la venta.
+   · Rendimiento: columna Redo/Fix (Productividad), tarjeta «Compañerismo» en la ficha, y «Compañera del mes» en Incentivos.
+   · Portal: tarjeta «Buena compañera» (solo reconocimiento, sin dinero). Al portal NO se le muestra el nombre de la compañera.
+   ========================================================= */
+const Redo = {
+  is: n => /redo\s*\/?\s*fix/i.test(String(n || '')),
+  snap(id, prevSnap) { if (!id) return null; const o = Store.sales.find(x => x.id === id); if (!o) return prevSnap && prevSnap.id === id ? prevSnap : null; return { id: o.id, date: Dates.toISO(o.day), service: o.service, artistId: o.artistKey, artistName: o.artistName }; },
+  list(id, from, to) { return Store.sales.filter(s => s.artistKey === id && Redo.is(s.service) && s.day >= from && s.day <= to).sort((a, b) => b.day - a.day); },
+  weekN: (id, ws) => Redo.list(id, ws, ws + 6).length,
+  monthRange(ym) { const [y, m] = ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; },
+  monthN(id, ym) { const [a, b] = Redo.monthRange(ym); return Redo.list(id, a, b).length; },
+  top(ym) { const c = Store.config.artists.map(a => [a.id, Redo.monthN(a.id, ym)]), mx = Math.max(0, ...c.map(x => x[1])); return mx > 0 ? c.filter(x => x[1] === mx).map(x => x[0]) : []; },
+  ofTxt(s) { const o = s.redoOf; return o ? `${o.service}${o.artistName ? ' · ' + o.artistName : ''} · ${Dates.fmt(Dates.fromISO(o.date), { day: 'numeric', month: 'short' })}` : 'servicio sin indicar'; },
+  /* servicios previos de la misma clienta, para elegir de cuál fue */
+  prev(f, editingId) {
+    const n = x => DP.norm ? DP.norm(x) : String(x || '').toLowerCase(), key = n(f.first) + '|' + n(f.last), d0 = Dates.fromISO(f.date); if (!n(f.first)) return null;
+    return Store.sales.filter(s => s.id !== editingId && !Redo.is(s.service) && (n(s.first) + '|' + n(s.last)) === key && (d0 == null || s.day <= d0) && (d0 == null || s.day >= d0 - 120)).sort((a, b) => b.day - a.day).slice(0, 25);
+  },
+  /* tarjeta de la ficha */
+  block(id, ws) {
+    const ym = Perf.weekMonth(ws), wk = Redo.weekN(id, ws), mo = Redo.monthN(id, ym), top = Redo.top(ym).includes(id);
+    return `<div class="rd-redo ${mo ? 'on' : ''}"><div class="rd-redo-h"><h4>Compañerismo · Redo/Fix</h4><span>${mo ? '<span class="rd-gold">Buena compañera</span>' : ''}${top ? ' <span class="rd-gold">★ Compañera del mes</span>' : ''}</span></div><div class="rd-redo-b"><div><b>${wk}</b><span>esta semana</span></div><div><b>${mo}</b><span>en ${esc(ymLabel(ym))}</span></div></div><p class="mutedc" style="font-size:12.5px;margin:6px 0 0">Arreglar o rehacer el servicio de otra lashista es reconocimiento; no cambia comisiones ni metas.</p></div>`;
+  },
+  listHtml(id, ws) {
+    const [a, b] = Redo.monthRange(Perf.weekMonth(ws)), L = Redo.list(id, a, b); if (!L.length) return '';
+    return `<h4 style="margin:14px 0 6px">Redo/Fix del mes</h4>${L.map(s => `<div class="rd-line"><div><b>${esc(Dates.fmt(s.day, { day: 'numeric', month: 'short' }))}</b> · ${esc(s.first || '')} ${esc((s.last || '').slice(0, 1))}<br><small class="mutedc">de: ${esc(Redo.ofTxt(s))}</small></div><div class="r mutedc">${s.tip ? 'tip ' + money(s.tip, 1) : ''}</div></div>`).join('')}`;
+  },
+  sectionHtml(ym) {
+    const rows = Store.config.artists.map(a => [a, Redo.list(a.id, ...Redo.monthRange(ym))]).filter(x => x[1].length).sort((p, q) => q[1].length - p[1].length), top = Redo.top(ym);
+    return `<section class="rd-card"><div class="rd-ch"><h2>Compañerismo · Redo/Fix</h2>${top.length ? `<span class="rd-gold">★ Compañera del mes: ${esc(top.map(artistName).join(', '))}</span>` : ''}</div>${rows.length ? `<div class="tablewrap"><table><thead><tr><th>Lashista</th><th class="r">Redo/Fix</th><th>Servicios que arregló o rehízo</th></tr></thead><tbody>${rows.map(([a, L]) => `<tr><td><b>${esc(a.name)}</b>${top.includes(a.id) ? ' <span class="rd-gold">★</span>' : ''}</td><td class="r">${L.length}</td><td class="rd-chips">${L.map(s => `<span class="rd-rw ganado" title="${esc(Dates.fmt(s.day, { day: 'numeric', month: 'short' }))}">${esc(Redo.ofTxt(s))}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="mutedc" style="margin:0">Sin Redo/Fix este mes.</p>'}<p class="formula">Solo reconocimiento (sin dinero): se cuenta cada venta de «Service Redo/Fix» por la lashista que la hizo. El dato de «de qué servicio fue» sale del cobro.</p></section>`;
+  },
+};
+/* ---------- Cobrar: «¿De qué servicio fue?» (solo cuando el servicio es Redo/Fix) ---------- */
+{ const V = Views.nueva, M = V.mount; V.mount = function (root) { const r = M.apply(this, arguments);
+    try { const f = this.form, form = $('[data-form]', root), svc = $('[name=serviceId]', form); if (!svc || !f) return r; const host = svc.closest('.field'), editing = UI.params.edit || null;
+      if (f.redoOfId === undefined && editing) { const s = Store.sales.find(x => x.id === editing); f.redoOfId = s && s.redoOf ? s.redoOf.id : ''; }
+      const wrap = document.createElement('label'); wrap.className = 'field full'; wrap.setAttribute('data-redo', ''); wrap.hidden = true; host.insertAdjacentElement('afterend', wrap);
+      const draw = () => { const s = Store.config.services.find(x => x.id === f.serviceId), on = !!s && Redo.is(s.name); wrap.hidden = !on; if (!on) { if (f.redoOfId) f.redoOfId = ''; return; }
+        const L = Redo.prev(f, editing) || [], cur = f.redoOfId || '', own = cur && !L.some(x => x.id === cur) ? Store.sales.find(x => x.id === cur) : null, snap = !own && cur && !L.some(x => x.id === cur) ? (Store.sales.find(x => x.id === editing) || {}).redoOf : null;
+        const opt = s2 => `<option value="${esc(s2.id)}" ${s2.id === cur ? 'selected' : ''}>${esc(Dates.fmt(s2.day, { day: 'numeric', month: 'short' }))} · ${esc(s2.service)} · ${esc(s2.artistName)}</option>`;
+        wrap.innerHTML = `¿De qué servicio fue? <span class="mutedc">(uno previo de la clienta)</span><select name="redoOfId" ${L.length || own || snap ? '' : 'disabled'}><option value="">${L.length || own || snap ? 'Elige el servicio previo…' : f.first ? 'No hay servicios previos de esta clienta' : 'Escribe primero el nombre de la clienta'}</option>${own ? opt(own) : ''}${snap ? `<option value="${esc(snap.id)}" selected>${esc(Dates.fmt(Dates.fromISO(snap.date), { day: 'numeric', month: 'short' }))} · ${esc(snap.service)} · ${esc(snap.artistName)}</option>` : ''}${L.map(opt).join('')}</select><span class="mutedc" style="font-size:12.5px">Opcional. Reconoce a la compañera que ayudó; el servicio sigue costando $0 y no cambia comisiones.</span>`; };
+      draw(); form.addEventListener('input', e => { if (e.target.name === 'serviceId' || e.target.name === 'first' || e.target.name === 'last' || e.target.name === 'date') draw(); });
+    } catch (e) { console.warn('redo', e); } return r; }; }
+/* ---------- Rendimiento ---------- */
+{ const B = Rd.incBlock; Rd.incBlock = function (r, ws) { return B.call(this, r, ws) + Redo.block(r._key, ws); };
+  const S0 = Rd.side; Rd.side = function (r, ws) { let h = S0.call(this, r, ws); if (r && Rd.ptab === 'servicios') { const x = Redo.listHtml(r._key, ws); if (x) h = h.replace(/<\/div>\s*$/, x + '</div>'); } return h; };
+  const P0 = Views.rendimiento.prodCols; Views.rendimiento.prodCols = function () { return P0.call(this).flatMap(c => c.key === 'count' ? [c, { key: 'redo', label: 'Redo/Fix', r: 1, type: 'int', get: r => Redo.monthN(r._key, S.perf.month) }] : [c]); };
+  const H0 = Inc.html; Inc.html = function () { const h = H0.apply(this, arguments); const i = h.indexOf('<section class="rd-card"><div class="rd-ch"><h2>Movimientos de'); return i < 0 ? h + Redo.sectionHtml(Inc.month()) : h.slice(0, i) + Redo.sectionHtml(Inc.month()) + h.slice(i); };
+  const N0 = Inc.snap; Inc.snap = function (a) { const o = N0.call(this, a), cur = Inc.ym0(), prev = shiftMonth(cur, -1); o.redoTop = { cur: Redo.top(cur).includes(a.id), prev: Redo.top(prev).includes(a.id) }; return o; }; }
 
 
 window.FM_BOOT = function () {
