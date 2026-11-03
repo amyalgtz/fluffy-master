@@ -1343,7 +1343,7 @@ const Store = {
 
   fromSaleDoc(id, x) {
     return { id, source: 'app', day: Dates.fromISO(x.date), artistKey: x.artistId, artistName: x.artistName, service: x.serviceName,
-      serviceId: x.serviceId, servicePriceSnapshot: x.servicePriceSnapshot, price: num(x.price), discount: num(x.discount), tip: num(x.tip),
+      serviceId: x.serviceId, fixOf: x.fixOfArtistId || '', servicePriceSnapshot: x.servicePriceSnapshot, price: num(x.price), discount: num(x.discount), tip: num(x.tip),
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', tarifa: x.tarifa || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
@@ -1369,7 +1369,9 @@ const Store = {
     const rate = prev && prev.artistKey === artist.id ? prev.rate : artist.rate;
     const calc = Logic.calculateSale({ price: form.price, discount: form.discount, tip: form.tip, rate, manualCommission: form.manualOn ? form.manualCommission : null });
     const now = new Date().toISOString(), uid = await this.who();
+    const fixId = isFixSvc(svc.id) ? (form.fixOfArtistId || '') : '', fixArt = this.config.artists.find(a => a.id === fixId);
     const doc = {
+      fixOfArtistId: fixId, fixOfArtistName: fixArt ? fixArt.name : '',
       date: form.date, artistId: artist.id, artistName: artist.name, serviceId: svc.id, serviceName: svc.name,
       servicePriceSnapshot: prev && prev.serviceId === svc.id ? prev.servicePriceSnapshot : (form.tarifa === 'Master' && form.tarifaPrice != null ? num(form.tarifaPrice) : svc.price), tarifa: form.tarifa ? (form.tarifa === 'Master' ? 'Master' : 'Regular') : ((prev && prev.tarifa) || 'Regular'),
       commissionRateSnapshot: rate, price: calc.subtotal, discount: calc.discount, tip: calc.tip, totalPaid: calc.totalPaid,
@@ -1588,6 +1590,9 @@ function table(cols, rows, foot, opts = {}) {
 function exportButtons(id) {
   return `<div class="chips no-print"><button class="btn sm" data-export="${id}" data-kind="xlsx">${ic('dl')}Excel</button><button class="btn sm" data-export="${id}" data-kind="csv">${ic('dl')}CSV</button><button class="btn sm" data-export="${id}" data-kind="pdf">Imprimir / PDF</button></div>`;
 }
+/* Service Redo/Fix: una lashista corrige el trabajo de otra compañera. */
+const FIX_SERVICE = 'Service Redo/Fix';
+const isFixSvc = id => { const sv = Store.config.services.find(x => x.id === id); return !!sv && sv.name === FIX_SERVICE; };
 function artistOptions(sel, all, includeInactive) {
   const list = Store.config.artists.filter(a => includeInactive || a.active);
   return `${all ? '<option value="">Todas</option>' : '<option value="">Elige lashista</option>'}${list.map(a => `<option value="${a.id}" ${sel === a.id ? 'selected' : ''}>${esc(a.name)}${a.active ? '' : ' (inactiva)'}</option>`).join('')}`;
@@ -1776,7 +1781,7 @@ Views.nueva = {
   html() {
     const edit = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null;
     if (!this.form || this.form._for !== (UI.params.edit || 'new')) {
-      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
+      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
       this.form._for = UI.params.edit || 'new';
     }
     const f = this.form, ro = !Store.writable();
@@ -1793,6 +1798,8 @@ Views.nueva = {
         <label class="field">Cliente nombre<input name="first" value="${esc(f.first)}" autocomplete="off"></label>
         <label class="field">Cliente apellido<input name="last" value="${esc(f.last)}" autocomplete="off"></label>
         <label class="field full">Comentarios<textarea name="comments">${esc(f.comments)}</textarea></label>
+        <div class="full" data-fixof style="${isFixSvc(f.serviceId) ? '' : 'display:none'}"><label class="field" style="max-width:320px">Trabajo de (compañera)<select name="fixOfArtistId">${artistOptions(f.fixOfArtistId || '', 0, 1)}</select></label>
+          <p class="formula" style="margin-top:4px">Service Redo/Fix: elige la compañera cuyo trabajo se corrigió. Si a quien lo arregló se le paga comisión por este arreglo, marca "Ajuste manual de comisión" y escribe el monto; si no se paga, déjalo sin marcar.</p></div>
         <div class="full"><label class="check"><input type="checkbox" name="manualOn" ${f.manualOn ? 'checked' : ''}> Ajuste manual de comisión</label>
           <p class="formula" style="margin-top:4px">Úsalo solo para casos especiales (bonos, descuentos a la lashista, servicios de staff). Requiere confirmación con la administración.</p>
           <label class="field" data-manual style="max-width:220px;${f.manualOn ? '' : 'display:none'}">Comisión manual<input type="number" step="0.01" name="manualCommission" value="${esc(f.manualCommission)}"><span class="err"></span></label></div>
@@ -1825,6 +1832,7 @@ Views.nueva = {
       f[el.name] = el.type === 'checkbox' ? el.checked : el.value;
       if (el.name === 'serviceId') { const s = Store.config.services.find(x => x.id === el.value); if (s) { f.price = s.price; form.price.value = s.price; } }
       if (el.name === 'manualOn') $('[data-manual]', root).style.display = el.checked ? '' : 'none';
+      if (el.name === 'serviceId') { const fx = $('[data-fixof]', root); if (fx) fx.style.display = isFixSvc(el.value) ? '' : 'none'; }
       const fld = el.closest('.field'); if (fld && fld.classList.contains('invalid')) { fld.classList.remove('invalid'); $('.err', fld).textContent = ''; }
       paint();
     });
@@ -2387,7 +2395,7 @@ const Statement = {
    RENDIMIENTO — metas semanales, productividad mensual y notas de insumos.
    Logic first (pure), then store, then UI.
    ========================================================= */
-const SERVICE_GROUPS = ['Full set', 'Refill', 'Brow & wax', 'Lash lift', 'Extras', 'Complimentary fills'];
+const SERVICE_GROUPS = ['Full set', 'Refill', 'Brow & wax', 'Lash lift', 'Extras', 'Redo/Fix', 'Complimentary fills'];
 const LASH_LIFT = new Set(['Lash Lift + Tint', 'Lash Lift', 'Eyelash Tinting', 'lash lift reversible']);
 const NOT_A_SERVICE = new Set(['Descuento', 'Bono']); // adjustment lines, not work done
 const CHECKS = [['limpieza', 'Limpieza'], ['reviews', 'Reviews'], ['fotos', 'Fotos y videos']];
@@ -2398,6 +2406,7 @@ const Perf = {
     if (NOT_A_SERVICE.has(name)) return null;
     if (LASH_LIFT.has(name)) return 'Lash lift';
     if (name === 'Complimentary Fill') return 'Complimentary fills';
+    if (name === FIX_SERVICE) return 'Redo/Fix';
     const s = Store.config.services.find(x => x.name === name);
     const c = s ? s.category : '';
     return c === 'Full Set' ? 'Full set' : c === 'Refill' ? 'Refill' : c === 'Brows & Wax' ? 'Brow & wax' : 'Extras';
@@ -2555,7 +2564,7 @@ Views.rendimiento = {
       let meta = 0, real = 0, ok = 0, marked = 0;
       weeks.forEach(ws => { const g = Store.goalsFor(ws)[id] || {}; if (g.meta) { meta += num(g.meta); real += Perf.weekSales(Store.sales, ws).get(id) || 0; } CHECKS.forEach(([k]) => { if (g[k] === 'O' || g[k] === 'X') { marked++; if (g[k] === 'O') ok++; } }); });
       const ev = evals[id] || {};
-      return { _key: id, _name: artistName(id), score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
+      return { _key: id, _name: artistName(id), fixRecv: Store.sales.filter(x => x.fixOf === id && Perf.serviceGroup(x.service) === 'Redo/Fix' && x.day >= Dates.monthStart(y, m - 1) && x.day <= Dates.monthEnd(y, m - 1)).length, score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
         checklist: marked ? `${ok}/${marked}` : '', count: p.count, groups: p.groups, ticket: p.ticket, tips: p.tips, ins: r2(notes.filter(n => n.artistId === id).reduce((t, n) => t + n.total, 0)) };
     }).sort((a, b) => b.ventas - a.ventas);
   },
@@ -2570,6 +2579,7 @@ Views.rendimiento = {
       { key: 'checklist', label: 'Checklist', r: 1, get: r => r.checklist },
       { key: 'count', label: 'Servicios', r: 1, type: 'int', get: r => r.count },
       ...SERVICE_GROUPS.map(g => ({ key: 'g_' + g, label: g === 'Complimentary fills' ? 'Compl. fills' : g, r: 1, type: 'int', get: r => r.groups[g] })),
+      { key: 'fixRecv', label: 'Arreglos recibidos', r: 1, type: 'int', get: r => r.fixRecv },
       { key: 'ticket', label: 'Ticket prom.', r: 1, type: 'money0', get: r => r.ticket },
       { key: 'tips', label: 'Tips', r: 1, type: 'money0', get: r => r.tips },
       { key: 'ins', label: 'Insumos', r: 1, type: 'money', get: r => r.ins || null },
@@ -3873,6 +3883,7 @@ function apptForm(a, preset) {
       <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono<input type="tel" data-a="phone" value="${esc(st.phone || '')}" required inputmode="tel" placeholder="(305) 555-0123" autocomplete="off"></label>
       <label class="field full">Correo electrónico (opcional)<input type="email" data-a="email" value="${esc(st.email || '')}" placeholder="clienta@correo.com" autocomplete="off"></label>
       <label class="field full">Servicio<select data-a="serviceId">${serviceOptions(st.serviceId, 0, !!a)}</select></label>
+      <label class="field full" data-fixof-a style="${isFixSvc(st.serviceId) ? '' : 'display:none'}">Trabajo de (compañera)<select data-a="fixOfArtistId">${artistOptions(st.fixOfArtistId || '', 0, 1)}</select></label>
       <div class="full xbox"><div class="xhead"><b>Complementos</b><span class="mutedc">Bottom lashes, wax, brow lamination, lash removal… lo que la clienta agregue.</span></div><div data-addons></div><button type="button" class="btn sm" data-addaddon>${ic('plus')}Agregar complemento</button></div>
       <label class="field full">Depósito<select data-a="depositId"><option value="">Sin depósito</option><option value="__new">Registrar depósito ahora…</option>${avail.map(d => `<option value="${d.id}" ${st.depositId === d.id ? 'selected' : ''}>${esc(depClient(d))} · ${money(d.amount)} · ${esc(d.method)}${d.status === 'Pendiente' ? ' · por verificar' : ''}</option>`).join('')}</select></label>
       <div class="full newdep" data-newdep style="display:none"><div class="formgrid">
@@ -3884,6 +3895,7 @@ function apptForm(a, preset) {
     <p class="err" data-aerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${a ? 'Guardar cambios' : 'Agendar'}</button></div>`, m => {
     const addons = (st.addons || []).map(x => ({ ...x })); AddOns.mountForm(m, addons, () => $('[data-a=artistId]', m).value);
+    { const fxs = $('[data-a=serviceId]', m), fxb = $('[data-fixof-a]', m); if (fxs && fxb) fxs.addEventListener('change', () => { fxb.style.display = isFixSvc(fxs.value) ? '' : 'none'; }); }
     const dsel = $('[data-a=depositId]', m); dsel.onchange = () => { $('[data-newdep]', m).style.display = dsel.value === '__new' ? '' : 'none'; };
     $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-a=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
     if (preset && preset._focusDate) setTimeout(() => $('[data-a=date]', m).focus(), 0);
@@ -3899,7 +3911,7 @@ function apptForm(a, preset) {
       if (v('email') && !/^\S+@\S+\.\S+$/.test(v('email'))) { err.textContent = 'Revisa el correo electrónico.'; return; }
       const art = Store.config.artists.find(x => x.id === v('artistId')), svc = Store.config.services.find(x => x.id === v('serviceId'));
       const adErr = AddOns.validate(addons); if (adErr) { err.textContent = adErr; return; }
-      const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
+      const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes'), fixOfArtistId: isFixSvc(svc.id) ? v('fixOfArtistId') : '', fixOfArtistName: isFixSvc(svc.id) ? ((Store.config.artists.find(x => x.id === v('fixOfArtistId')) || {}).name || '') : '' };
       const b = $('[data-x=ok]', m); b.disabled = true;
       try {
         let depId = dsel.value === '__new' ? '' : dsel.value;
@@ -3922,7 +3934,7 @@ function apptForm(a, preset) {
 function apptDetail(a) {
   const d = apptDeposit(a), s = apptSale(a), can = Store.writable(), ac = typeof CL !== 'undefined' ? CL.apptContact(a, d) : { phone: a.phone || (d && d.phone) || '', email: a.email || '', c: null, from: {} };
   UI.modal(`<h3>${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + esc(a.time) : ''} · ${APPT_STATUS[a.status] || ''}</p>
-    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(ac.phone || '—')}${ac.from.phone ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd><dt>Correo</dt><dd>${ac.email ? `<a href="mailto:${esc(ac.email)}">${esc(ac.email)}</a>` : '—'}${ac.from.email ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd>${Contact.html(ac.phone)}
+    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd>${a.fixOfArtistName ? `<dt>Trabajo de</dt><dd>${esc(a.fixOfArtistName)}</dd>` : ''}<dt>Teléfono</dt><dd>${esc(ac.phone || '—')}${ac.from.phone ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd><dt>Correo</dt><dd>${ac.email ? `<a href="mailto:${esc(ac.email)}">${esc(ac.email)}</a>` : '—'}${ac.from.email ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd>${Contact.html(ac.phone)}
     <dt>Depósito</dt><dd>${d ? `${money(d.amount, 1)} · ${esc(d.method || '')} · ${d.status === 'Verificado' ? 'verificado' : String(d.status || '').toLowerCase()}` : 'Sin depósito'}</dd>
     <dt>Pago</dt><dd style="white-space:normal">${s ? `Pagó ${money(r2(s.price - s.discount + s.tip - s.depositAmount), 1)} con ${esc(s.method || 'sin método')}${s.depositAmount ? ` + depósito ${money(s.depositAmount, 1)}` : ''} · cobró ${esc(s.cashierName || a.paidByName || '—')}` : a.status === 'Pagada' ? 'Pagada' : 'Pendiente'}</dd>
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
@@ -3952,7 +3964,7 @@ Store.saveDeposit = async function (data, id) {
 /* ---------- cobrar a partir de la cita ---------- */
 function chargeAppt(a) {
   const nv = Views.nueva, d = apptDeposit(a) || (suggestDeposit(a) || null);
-  nv.form = { ...nv.blank(), date: Dates.toISO(Dates.today()), artistId: a.artistId, serviceId: a.serviceId, price: a.price, first: a.first || '', last: a.last || '', depositId: d && !d.outcome ? d.id : '', comments: a.notes || '', _for: 'new', _appt: a.id };
+  nv.form = { ...nv.blank(), date: Dates.toISO(Dates.today()), artistId: a.artistId, serviceId: a.serviceId, price: a.price, first: a.first || '', last: a.last || '', depositId: d && !d.outcome ? d.id : '', comments: a.notes || '', fixOfArtistId: a.fixOfArtistId || '', _for: 'new', _appt: a.id };
   UI.formDirty = false; UI.route = 'nueva'; UI.params = {}; UI.render();
 }
 const _saveSale3 = Store.saveSale;
