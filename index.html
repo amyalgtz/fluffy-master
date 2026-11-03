@@ -825,15 +825,18 @@ tr.rd-sel td{background:var(--blush)}
 .rp-foot{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:4px 12px;margin-top:0}.rp-foot>span{height:1.5px;background:linear-gradient(90deg,transparent,#B8913A)}.rp-foot>span:nth-of-type(2){background:linear-gradient(270deg,transparent,#B8913A)}.rp-foot .rp-ic{width:22px;height:22px}.rp-foot p{grid-column:1/-1;margin:0;font-size:7.5px;color:#8a6a73;text-align:center;line-height:1.3}
 /* servicios del mes */
 .rp-svcs{flex:none}.rp-svcs>h3{display:flex;justify-content:space-between;align-items:baseline}.rp-svcs>h3 span{font-family:'DM Sans',Arial,sans-serif;font-style:normal;font-weight:500;font-size:11px;opacity:.92}
-.rp-svl{padding:5px 14px 6px;display:grid;grid-auto-flow:column;grid-template-rows:repeat(var(--rows,6),auto);grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));column-gap:18px;row-gap:1px;align-content:start}.rp-svl>div{position:relative;display:grid;grid-template-columns:1fr auto;gap:6px;align-items:center;padding:1px 8px;font-size:10.5px;line-height:1.25;min-width:0}.rp-svl i{position:absolute;left:0;top:0;bottom:0;width:var(--w);max-width:100%;background:linear-gradient(90deg,rgba(217,189,115,.42),rgba(217,189,115,.1));border-radius:6px}.rp-svl span,.rp-svl b{position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rp-svl b{color:#4A1B38;font-size:11.5px}
+.rp-svl{padding:6px 14px 7px;display:grid;grid-template-columns:repeat(var(--cols,3),minmax(0,1fr));column-gap:18px;align-items:start}.rp-svc-c{display:flex;flex-direction:column;gap:1px;min-width:0}
+.rp-svc-c .gh{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;padding:1px 4px 1px 2px;border-bottom:1.5px solid #D9BD73;font-weight:700;letter-spacing:.09em;font-size:9.5px;color:#5A1D43}.rp-svc-c .gh:first-child{margin-top:0}.rp-svc-c .gh b{font-family:'Fraunces',Georgia,serif;font-size:13px;letter-spacing:0}.rp-svc-c .gh.z{opacity:.5}
+.rp-svc-c .t{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;padding:1px 8px;font-size:10.5px;line-height:1.25;min-width:0}.rp-svc-c .t i{position:absolute;left:0;top:0;bottom:0;width:var(--w);max-width:100%;background:linear-gradient(90deg,rgba(217,189,115,.42),rgba(217,189,115,.1));border-radius:6px}.rp-svc-c .t span,.rp-svc-c .t b{position:relative;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rp-svc-c .t b{color:#4A1B38;font-size:11.5px}
 /* modo compacto automático: recupera altura de otros bloques para que SIEMPRE quepan todos los servicios con su nombre */
 .rp.dense .rp-title h1{font-size:34px}.rp.dense .rp-brand{font-size:15px}.rp.dense .rp-kpi b{font-size:28px}.rp.dense .rp-kpi .rp-ic{width:28px;height:28px}.rp.dense .rp-av{width:42px;height:42px}.rp.dense .rp-who h2{font-size:25px}.rp.dense .rp-sub span{padding:2px 30px;font-size:11px}
 .rp.dense .rp-wk td{height:25px;padding:1px 3px}.rp.dense .rp-wk td.wl b{font-size:12px}.rp.dense .rp-wk td.wl small{font-size:8.5px}.rp.dense .rp-wk th{padding:3px}
 .rp.dense .rp-res>div{padding:2px 0}.rp.dense .rp-tot{padding:4px 14px;margin:2px 8px 5px}.rp.dense .rp-card>h3{padding:5px 14px 6px;font-size:18px}
 .rp.dense .rp-inc{padding:1px 0}.rp.dense .rp-st{padding:2px 8px}.rp.dense .rp-pair>*{padding:4px 12px}.rp.dense .rp-pair .n b{font-size:24px}
-.rp.dense .rp-svl{padding:4px 14px 5px;row-gap:0}.rp.dense .rp-svl>div{padding:0 8px;font-size:10px}.rp.dense .rp-ben p{font-size:10px}.rp.dense .rp-com p{font-size:17px}.rp.dense .rp-main{gap:7px}
+.rp.dense .rp-svl{padding:4px 14px 5px}.rp.dense .rp-svc-c .t{padding:0 8px;font-size:10px}.rp.dense .rp-svc-c .gh{margin-top:4px}.rp.dense .rp-ben p{font-size:10px}.rp.dense .rp-com p{font-size:17px}.rp.dense .rp-main{gap:7px}
+.rp.tight .rp-main{gap:5px}.rp.tight .rp-svc-c .gh{margin-top:3px}.rp.tight .rp-svc-c .t{padding:0 8px}.rp.tight .rp-card>h3{padding-top:4px;padding-bottom:5px}.rp.tight .rp-inc{padding:1px 0}.rp.tight .rp-st{padding:2px 8px}.rp.tight .rp-wk td{height:23px}.rp.tight .rp-res>div{padding:2px 0}.rp.tight .rp-svl{padding-top:3px;padding-bottom:3px}.rp.tight .rp-pair .hd .rp-ic{width:22px;height:22px}
 .rp.dense2 .rp-inc-t small{display:none}.rp.dense2 .rp-pair small{display:none}.rp.dense2 .rp-ben p{display:none}.rp.dense2 .rp-wk td{height:22px}.rp.dense2 .rp-res>div{padding:1px 0}.rp.dense2 .rp-kpi b{font-size:26px}.rp.dense2 .rp-title h1{font-size:30px}.rp.dense2 .rp-inc-t b{font-size:14px}
-.rp.dense3 .rp-wk td{height:20px}.rp.dense3 .rp-wk td.wl{white-space:nowrap}.rp.dense3 .rp-wk td.wl b,.rp.dense3 .rp-wk td.wl small{display:inline}.rp.dense3 .rp-wk td.wl small{margin-left:5px;font-size:8.5px}.rp.dense3 .rp-com p{-webkit-line-clamp:3;font-size:16px}.rp.dense3 .rp-id{margin-top:0}.rp.dense3 .rp-sub{display:none}.rp.dense3 .rp-svl>div{font-size:9.5px}
+.rp.dense3 .rp-wk td{height:20px}.rp.dense3 .rp-wk td.wl{white-space:nowrap}.rp.dense3 .rp-wk td.wl b,.rp.dense3 .rp-wk td.wl small{display:inline}.rp.dense3 .rp-wk td.wl small{margin-left:5px;font-size:8.5px}.rp.dense3 .rp-com p{-webkit-line-clamp:3;font-size:16px}.rp.dense3 .rp-id{margin-top:0}.rp.dense3 .rp-sub{display:none}.rp.dense3 .rp-svc-c .t{font-size:9.5px}
 /* ventana con vista previa */
 .rpt-grid{display:grid;grid-template-columns:270px minmax(0,1fr);gap:16px;align-items:start}.rpt-side{display:flex;flex-direction:column;gap:8px}.rpt-side textarea{min-height:110px;resize:vertical;font:inherit}.rpt-prev{border:1px solid var(--line);border-radius:12px;background:#f3ecea;overflow:hidden;max-height:74vh;overflow-y:auto}.rpt-scale{width:816px;height:1056px;transform-origin:0 0}
 @media (max-width:900px){.rpt-grid{grid-template-columns:1fr}}
@@ -900,7 +903,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-05 09:00';
+window.FM_VERSION = '2026-11-05 14:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2392,8 +2395,9 @@ const Statement = {
    Logic first (pure), then store, then UI.
    ========================================================= */
 const SERVICE_GROUPS = ['Full set', 'Refill', 'Brow & wax', 'Lash lift', 'Extras', 'Complimentary fills'];
-const LASH_LIFT = new Set(['Lash Lift + Tint', 'Lash Lift', 'Eyelash Tinting', 'lash lift reversible']);
-const NOT_A_SERVICE = new Set(['Descuento', 'Bono']); // adjustment lines, not work done
+const LASH_LIFT = new Set(['Lash Lift + Tint', 'Lash Lift', 'Eyelash Tinting', 'Korean Lash Lift', 'lash lift reversible']);
+const NOT_A_SERVICE = new Set(['Descuento', 'Bono', 'DEPOSITO - NO SHOW']); // adjustment lines / forfeited deposit, not work done
+const COMPLIMENTARY = new Set(['Complimentary Fill', 'GARANTIA']); // la misma lashista repone el trabajo sin cobrar (señal de calidad)
 const CHECKS = [['limpieza', 'Limpieza'], ['reviews', 'Reviews'], ['fotos', 'Fotos y videos']];
 const CHECK_CYCLE = ['', 'O', 'X', '?'];
 
@@ -2401,7 +2405,7 @@ const Perf = {
   serviceGroup(name) {
     if (NOT_A_SERVICE.has(name)) return null;
     if (LASH_LIFT.has(name)) return 'Lash lift';
-    if (name === 'Complimentary Fill') return 'Complimentary fills';
+    if (COMPLIMENTARY.has(name)) return 'Complimentary fills';
     const s = Store.config.services.find(x => x.name === name);
     const c = s ? s.category : '';
     return c === 'Full Set' ? 'Full set' : c === 'Refill' ? 'Refill' : c === 'Brows & Wax' ? 'Brow & wax' : 'Extras';
@@ -11491,7 +11495,7 @@ const Redo = {
    ========================================================= */
 const Rpt = {
   P: { target: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".8"/><path d="M12 12 19 5M16 4v4h4"/>', medal: '<circle cx="12" cy="9" r="5.2"/><path d="M8.6 13.6 7 21l5-3 5 3-1.6-7.4"/><path d="m12 6.6.8 1.6 1.8.3-1.3 1.2.3 1.8-1.6-.9-1.6.9.3-1.8-1.3-1.2 1.8-.3z"/>', star: '<path d="m12 3.2 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17.2l-5.4 2.9 1-6.1L3.2 9.7l6.1-.9L12 3.2z"/>', cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h.01M12 14h.01M16 14h.01M8 17.5h.01M12 17.5h.01"/>', chart: '<path d="M5 20V12M10 20V6M15 20V10M20 20V4"/>', bag: '<path d="M6 8h12l1 12H5z"/><path d="M9 8a3 3 0 0 1 6 0"/>', pct: '<circle cx="12" cy="12" r="9"/><path d="m8.5 15.5 7-7"/><circle cx="9" cy="9" r="1"/><circle cx="15" cy="15" r="1"/>', scissors: '<circle cx="6" cy="7" r="2.4"/><circle cx="6" cy="17" r="2.4"/><path d="m8 8.4 12 7.4M8 15.6 20 8.2"/>', coins: '<ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/>', heart: '<path d="M12 20.5S4 15.6 4 9.6A4.4 4.4 0 0 1 12 7a4.4 4.4 0 0 1 8 2.6c0 6-8 10.9-8 10.9z"/>', tools: '<path d="M14.5 5.5a4 4 0 0 0 4.9 4.9L10 19.8a2.1 2.1 0 0 1-3-3z"/><path d="m4 20 3-3M13 4l7 7"/>', crown: '<path d="M3 8.5l4.6 4.2L12 5l4.4 7.7L21 8.5 19 19.5H5L3 8.5z"/>', gem: '<path d="M6.5 4h11L21 9l-9 11L3 9z"/><path d="M3 9h18M9.5 4 8 9l4 11 4-11-1.5-5"/>', gift: '<rect x="3.5" y="9" width="17" height="11.5" rx="1.2"/><path d="M12 9v11.5M3.5 13.5h17"/><path d="M12 9C9.5 9.2 7.2 8 7.8 6.3 8.6 4.4 11.6 6 12 9c.4-3 3.4-4.6 4.2-2.7.6 1.7-1.7 2.9-4.2 2.7z"/>', cam: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13.2" r="3.4"/>', chat: '<path d="M4 5h16v11H9.5L5 20v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/>', eye: '<path d="M3.5 11.5c4.5 4.2 12.5 4.2 17 0"/><path d="M6 14.6 4.6 17M9.6 16.2l-.7 2.6M14.4 16.2l.7 2.6M18 14.6l1.4 2.4"/>', check: '<path d="M5.5 12.5 10 17l8.5-9.5"/>', refresh: '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4.5h-4.5"/><path d="m9 12 2.2 2.2L15.5 10"/>' },
-  COMPL: n => /complimentary/i.test(String(n || '')),
+  COMPL: n => /complimentary|garant[ií]a/i.test(String(n || '')),
   ic: (n, c) => `<svg class="rp-ic ${c || ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${Rpt.P[n]}</svg>`,
   ck: v => v === 'O' ? '<span class="rp-ck ok"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 12.5 10 17l8.5-9.5"/></svg></span>' : v === 'X' ? '<span class="rp-ck no">×</span>' : v === '?' ? '<span class="rp-ck wait">…</span>' : '<span class="rp-ck none"></span>',
   months(n) { const out = [], cur = Dates.ym(Dates.today()); for (let k = 0; k < (n || 14); k++) out.push(shiftMonth(cur, -k)); return out; },
@@ -11504,7 +11508,7 @@ const Rpt = {
     const from = W.length ? W[0] : null, to = W.length ? W[W.length - 1] + 6 : null, S = from == null ? [] : Store.sales.filter(s => s.artistKey === id && s.day >= from && s.day <= to);
     const metaMes = withMeta.reduce((t, w) => t + w.meta, 0), realMeta = withMeta.reduce((t, w) => t + w.real, 0), ventas = r2(weeks.reduce((t, w) => t + w.real, 0));
     const reg = S.filter(s => Perf.serviceGroup(s.service) !== null && !Redo.is(s.service) && !Rpt.COMPL(s.service)), by = new Map(); reg.forEach(s => by.set(s.service, (by.get(s.service) || 0) + 1));
-    const services = [...by.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'es')), redoN = S.filter(s => Redo.is(s.service)).length, complN = S.filter(s => Rpt.COMPL(s.service)).length, svc = reg.length, comision = r2(S.reduce((t, s) => t + num(s.commission), 0)), tips = r2(S.reduce((t, s) => t + num(s.tip), 0));
+    const services = [...by.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'es')), redoN = S.filter(s => Redo.is(s.service)).length, complN = S.filter(s => Rpt.COMPL(s.service)).length, svc = reg.length, GL = [['Full set', 'FULL SET'], ['Refill', 'REFILL'], ['Brow & wax', 'BROW & WAX'], ['Lash lift', 'LASH LIFT'], ['Extras', 'EXTRAS']], groups = GL.map(([g, label]) => { const types = services.filter(x => Perf.serviceGroup(x.name) === g); return { g, label, n: types.reduce((t, x) => t + x.n, 0), types }; }), comision = r2(S.reduce((t, s) => t + num(s.commission), 0)), tips = r2(S.reduce((t, s) => t + num(s.tip), 0));
     /* incentivos del mes */
     const rw = t => Inc.rw(r => r.artistId === id && r.period === ym && r.type === t), base = Inc.noteBase(id, ym), ev = Inc.monthEval(id, ym), tm = Store.tombolas.find(t => t.id === ym), nx = Inc.next(ym);
     const pctTxt = p => num(p) > 0 ? `${num(p)}% de descuento en insumos${base != null ? ` (≈ ${money(r2(base * num(p) / 100), 1)})` : ''}` : 'descuento por definir', amtTxt = v => num(v) > 0 ? `${money(v, 1)} de descuento` : 'descuento por definir';
@@ -11517,7 +11521,7 @@ const Rpt = {
     rw('extra').forEach(r => rows.push({ ic: 'gift', name: 'Extra', desc: (r.detail || {}).concept || '', st: r.status === 'aplicado' ? 'aplicado' : 'ganado', txt: amtTxt(r.value) }));
     const bR = Inc.rw(r => r.artistId === id && r.type === 'commission100' && r.period === nx)[0], benefit = bR ? { st: 'ganado' } : !c && ev.excellenceOk ? { st: 'pendiente' } : { st: 'no' };
     const adj = weeks.filter(w => w.mG || w.mQ);
-    return { id, name: a.name, ym, label: ymLabel(ym), month: ymLabel(ym).split(' ')[0], year: ymLabel(ym).split(' ').slice(-1)[0], nxLabel: ymLabel(nx), weeks, metasOk, metasTotal: withMeta.length, calOk, calTotal: weeks.length, anyMarks, rendimiento, rendAuto: !!pd && pd.score == null, metaMes, ventas, cumpl: metaMes ? realMeta / metaMes : null, svc, services, comision, tips, total: r2(comision + tips), redo: redoN, compl: complN, rows, benefit, adj, closed: !!c, comment: (Store.evalsFor(ym)[id] || {}).comment || '' };
+    return { id, name: a.name, ym, label: ymLabel(ym), month: ymLabel(ym).split(' ')[0], year: ymLabel(ym).split(' ').slice(-1)[0], nxLabel: ymLabel(nx), weeks, metasOk, metasTotal: withMeta.length, calOk, calTotal: weeks.length, anyMarks, rendimiento, rendAuto: !!pd && pd.score == null, metaMes, ventas, cumpl: metaMes ? realMeta / metaMes : null, svc, services, groups, comision, tips, total: r2(comision + tips), redo: redoN, compl: complN, rows, benefit, adj, closed: !!c, comment: (Store.evalsFor(ym)[id] || {}).comment || '' };
   },
   /* ---------- HTML del reporte (el mismo para la vista previa y para el PDF) ---------- */
   html(d) {
@@ -11540,15 +11544,20 @@ const Rpt = {
         <section class="rp-ben ${ben[2]}"><div class="rp-ben-i">${Rpt.ic('medal', 'gold lg')}</div><h4>Beneficio Especial</h4><div class="rp-ben-b"><b>${esc(ben[0])}</b></div><p>${ben[1]}</p></section></div></main>
       <footer class="rp-foot"><span></span>${Rpt.ic('heart', 'gold')}<span></span><p>${[d.adj.length ? '* Ajuste manual de administración' + (d.adj.length === 1 ? ': ' + esc(d.adj[0].reason) : ' en ' + d.adj.length + ' semanas') : '', d.rendAuto ? 'Rendimiento mensual = ventas ÷ meta del mes (automático)' : '', 'Total a recibir = comisiones + tips; no incluye descuentos de insumos ni ajustes', '«Servicios» no incluye Redo/Fix ni Complimentary (se muestran aparte)'].filter(Boolean).join(' · ')}.</p></footer></div>`;
   },
-  /* servicios del mes: se listan TODOS los tipos con su nombre, en 3 columnas (más si hace falta) */
+  /* servicios del mes por CATEGORÍA (Full set, Refill, Brow & wax, Lash lift, Extras): cada una con su total y TODOS sus servicios debajo.
+     Las columnas se reparten sin dejar un título solo al final; si una categoría continúa en la siguiente columna se repite su título «(cont.)». */
   svcHtml(d, cols) {
-    const items = d.services, mxs = Math.max(1, ...items.map(x => x.n)), n = items.length;
-    return `<section class="rp-card rp-svcs"><h3>Servicios del Mes<span>${d.svc} servicio${d.svc === 1 ? '' : 's'} · ${n} tipo${n === 1 ? '' : 's'}</span></h3><div class="rp-svl" style="--rows:${Math.max(1, Math.ceil(n / cols))};--cols:${cols}">${items.map(x => `<div title="${esc(x.name)}"><i style="--w:${Math.round(x.n / mxs * 100)}%"></i><span>${esc(x.name)}</span><b>${x.n}</b></div>`).join('')}${n ? '' : '<p class="rp-mut">Sin servicios registrados este mes.</p>'}</div></section>`;
+    const L = []; d.groups.forEach(g => { L.push({ h: 1, label: g.label, n: g.n, size: 1 + g.types.length }); g.types.forEach(t => L.push({ name: t.name, n: t.n, g })); });
+    const mx = Math.max(1, ...d.services.map(x => x.n)), cap = Math.ceil((L.length + cols - 1) / cols), C = [[]]; let left = cols - 1;
+    for (const x of L) { let c = C[C.length - 1]; if (left > 0 && (x.h ? (c.length >= cap - 1 || cap - c.length < Math.min(x.size, 6) - 1) : (c.length >= cap && x.g.types.length + 1 > 6))) { C.push([]); left--; c = C[C.length - 1]; if (!x.h) c.push({ h: 1, label: x.g.label + ' (cont.)', n: null }); } c.push(x); }
+    const col = c => `<div class="rp-svc-c">${c.map(x => x.h ? `<div class="gh${x.n === 0 ? ' z' : ''}"><span>${esc(x.label)}</span>${x.n == null ? '' : `<b>${x.n}</b>`}</div>` : `<div class="t"><i style="--w:${Math.min(100, Math.round(x.n / mx * 100))}%"></i><span>${esc(x.name)}</span><b>${x.n}</b></div>`).join('')}</div>`;
+    const n = d.services.length;
+    return `<section class="rp-card rp-svcs"><h3>Servicios del Mes<span>${d.svc} servicio${d.svc === 1 ? '' : 's'} · ${n} tipo${n === 1 ? '' : 's'}</span></h3><div class="rp-svl" style="--cols:${cols}">${C.map(col).join('')}</div></section>`;
   },
   /* si el contenido no cabe en la hoja, se aprieta el diseño (nunca se corta ni pasa a otra página) */
   fit(root, d) { const rp = $('.rp', root); if (!rp) return; const main = $('.rp-main', rp);
     const over = () => rp.scrollHeight > rp.clientHeight + 1 || main.scrollHeight > main.clientHeight + 1 || [...rp.querySelectorAll('.rp-card, .rp-com, .rp-ben')].some(c => c.scrollHeight > c.clientHeight + 1);
-    for (const [lv, cols] of [[0, 3], [1, 3], [2, 3], [3, 3], [3, 4]]) { rp.classList.remove('dense', 'dense2', 'dense3'); ['dense', 'dense2', 'dense3'].slice(0, lv).forEach(c => rp.classList.add(c)); const c = $('.rp-svcs', rp); if (c && d) c.outerHTML = Rpt.svcHtml(d, cols); if (!over()) return; } },
+    for (const [lv, cols] of [[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [4, 4]]) { rp.classList.remove('dense', 'tight', 'dense2', 'dense3'); ['dense', 'tight', 'dense2', 'dense3'].slice(0, lv).forEach(c => rp.classList.add(c)); const c = $('.rp-svcs', rp); if (c && d) c.outerHTML = Rpt.svcHtml(d, cols); if (!over()) return; } },
   /* ---------- PDF: se imprime el MISMO diseño en tamaño carta ---------- */
   mountPrint(d) { let el = $('#rpt-print'); if (!el) { el = document.createElement('div'); el.id = 'rpt-print'; document.body.appendChild(el); } el.innerHTML = Rpt.html(d); el.style.display = 'block'; el.style.position = 'absolute'; el.style.left = '-9999px'; Rpt.fit(el, d); el.style.cssText = ''; return el; },
   async print(d) {
