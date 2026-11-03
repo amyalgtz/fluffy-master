@@ -916,7 +916,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-09 09:00';
+window.FM_VERSION = '2026-11-09 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -11590,7 +11590,7 @@ const Rpt = {
     const T = Inc.today(), WK = Perf.weeksOfMonth(ym), over = Inc.ended(ym), cr = c && c.results[id], failQ = ev.weeks.filter((w, i) => WK[i] + 6 < T && !w.quality).length, failE = ev.weeks.filter((w, i) => WK[i] + 6 < T && !w.excellence).length;
     /* «perdido» = ya no se puede alcanzar (el mes terminó, se ajustó a mano, o ya fallaron tantas semanas que no alcanzan las requeridas); no hace falta cerrar el mes */
     const lostQ = !ev.qualityOk && (ev.mQ || over || failQ > ev.total - ev.required), lostE = !ev.excellenceOk && (ev.mE || over || failE > ev.total - ev.required), nq = cr && cr.q != null ? cr.q : ev.q, ne = cr && cr.e != null ? cr.e : ev.e;
-    const pctTxt = p => num(p) > 0 ? `${num(p)}% de descuento en insumos${base != null ? ` (≈ ${money(r2(base * num(p) / 100), 1)})` : ''}` : 'descuento por definir', amtTxt = v => num(v) > 0 ? `${money(v, 1)} de descuento` : 'descuento por definir';
+    const pctTxt = p => num(p) > 0 ? `${num(p)}% de descuento en insumos` : 'descuento por definir',   /* solo el porcentaje: el reporte no muestra cuánto gastó en insumos */ amtTxt = v => num(v) > 0 ? `${money(v, 1)} de descuento` : 'descuento por definir';
     const when = cfg.requiredWeeks === 'all' ? 'todas las semanas' : `al menos ${cfg.requiredWeeks} semanas`, rows = [];
     const qR = rw('quality')[0], eR = rw('excellence')[0];
     rows.push({ ic: 'crown', name: 'Fluffy Quality', desc: `3 indicadores de calidad ${when}`, ...(qR ? { st: qR.status === 'aplicado' ? 'aplicado' : 'ganado', txt: pctTxt(qR.value) } : eR && repl && ev.qualityOk ? { st: 'incluido', txt: 'Incluido en Fluffy Excellence' } : !c && repl && ev.qualityOk && ev.excellenceOk ? { st: 'incluido', txt: 'Incluido en Fluffy Excellence' } : !c && ev.qualityOk ? { st: 'ganado', txt: pctTxt(cfg.quality.pct) } : !c && !lostQ ? { st: 'curso', txt: '' } : { st: 'no', lbl: 'NO ALCANZADO', txt: ev.total ? `${nq} de ${ev.total} semanas` : '' }) });
