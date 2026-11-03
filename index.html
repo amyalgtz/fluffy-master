@@ -841,6 +841,19 @@ tr.rd-sel td{background:var(--blush)}
 .rpt-grid{display:grid;grid-template-columns:270px minmax(0,1fr);gap:16px;align-items:start}.rpt-side{display:flex;flex-direction:column;gap:8px}.rpt-side textarea{min-height:110px;resize:vertical;font:inherit}.rpt-prev{border:1px solid var(--line);border-radius:12px;background:#f3ecea;overflow:hidden;max-height:74vh;overflow-y:auto}.rpt-scale{width:816px;height:1056px;transform-origin:0 0}
 @media (max-width:900px){.rpt-grid{grid-template-columns:1fr}}
 @media print{html,body{margin:0!important;padding:0!important;background:#fff!important}body>*:not(#rpt-print){display:none!important}#rpt-print{display:block!important;position:absolute;left:0;top:0;width:8.5in;height:11in}#rpt-print .rp{width:8.5in;height:11in}@page{size:letter;margin:0}}
+/* ===== NOTAS × INCENTIVOS: vista previa y panel del editor ===== */
+.pv-card{border:1px solid var(--line);border-radius:16px;background:var(--bg);padding:12px 16px 8px;margin:0 0 12px}
+.pv-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:6px}.pv-h b{font-size:16px}.pv-tot{text-align:right}.pv-tot small{display:block;color:var(--muted);font-size:11.5px}.pv-tot b{font-size:20px}
+.pv-l{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}.pv-l:first-of-type{border-top:0}.pv-l b{white-space:nowrap}.pv-l em{font-style:normal;color:var(--muted);font-size:12.5px}
+.pv-d b{color:var(--ok)}.pv-dash{color:var(--muted);font-size:13px}.pv-dash b{color:var(--muted)}
+.pv-t{font-style:normal;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;margin-left:6px;background:var(--bg2,#F1E7E5);color:var(--muted)}.pv-t.nota{background:#DCEACF;color:#3A6A31}.pv-t.ganado{background:#F8EBC8;color:#7a5b12}.pv-t.proy{background:#F1E7E5;color:#8a6a73}
+.pv-warn{margin:6px 0;padding:8px 10px;border-radius:10px;background:#FFF3D6;color:#7a5b12;font-size:12.5px}
+.pv-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0 4px}.pv-sum>div{border:1px solid var(--line);border-radius:14px;padding:10px 12px;background:var(--bg)}.pv-sum small{display:block;color:var(--muted);font-size:11.5px}.pv-sum b{font-size:16px}.pv-sum .big{background:var(--ink,#3B2329);border-color:transparent}.pv-sum .big small,.pv-sum .big b{color:#fff}.pv-sum .big b{font-size:19px}
+@media(max-width:620px){.pv-sum{grid-template-columns:1fr 1fr}}
+/* panel «Descuentos por rendimiento» dentro del editor de notas */
+.pf-box{border:1.5px solid #E7CE95;background:#FFFBF1;border-radius:14px;padding:10px 14px;margin:16px 0 4px}.pf-box h4{margin:0 0 2px}.pf-box .formula{margin:0 0 8px}
+.pf-r{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid #F0E3BD;font-size:14px}.pf-r:first-of-type{border-top:0}.pf-r .st{font-size:12.5px;color:var(--muted)}.pf-r .ok{color:var(--ok);font-weight:600}.pf-info{font-size:13px;color:var(--muted);padding:5px 0}.pf-warn{margin:6px 0 2px;padding:7px 10px;border-radius:10px;background:#FFF3D6;color:#7a5b12;font-size:12.5px}
+.discline.lk{grid-template-columns:minmax(0,1fr) 70px 100px auto 34px}.discline.lk input,.discline.lk select{background:#F6F1E7}.discline .lkt{font-size:11px;font-weight:600;color:#7a5b12;background:#F8EBC8;border-radius:999px;padding:1px 8px;align-self:center;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -903,7 +916,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-07 09:00';
+window.FM_VERSION = '2026-11-08 11:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2479,14 +2492,16 @@ Object.assign(Store, {
     const nextNo = 1 + this.appNotes.reduce((mx, n) => Math.max(mx, parseInt(String(n.invoice || '').replace(/\D/g, ''), 10) || 0), 0);
     const doc = { month: form.month, date: form.date, artistId: a.id, artistName: a.name, customerId: a.code, invoice: prev ? prev.invoice : String(nextNo).padStart(4, '0'),
       items: c.lines.map(l => ({ code: l.code || '', desc: l.desc, qty: num(l.qty), unit: num(l.unit), catalog: noteCatalog(l, prev), amount: l.amount })),
-      discounts: c.discounts.map(d => ({ label: d.label || '', type: d.type, value: num(d.value), amount: d.amount })),
+      discounts: c.discounts.map(d => ({ label: d.label || '', type: d.type, value: num(d.value), amount: d.amount, ...(d.rewardId ? { rewardId: d.rewardId } : {}) })),
       taxRate: num(this.config.taxRate), subtotal: c.subtotal, discountTotal: c.discountTotal, taxable: c.taxable, tax: c.tax, total: c.total,
       status: form.status, comments: (form.comments || '').trim(), statusHistory: (prev && prev.statusHistory || []).concat(prev && prev.status === form.status ? [] : [{ status: form.status, at: now, by: uid }]),
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid };
     if (!prev) doc.createdBy = uid;
     if (form.fromDeliveries || (prev && prev.fromDeliveries)) doc.fromDeliveries = true;
     const ref = id ? this.db.doc('productNotes/' + id) : this.db.collection('productNotes').doc();
-    await ref.set(doc); return ref.id;
+    await ref.set(doc);
+    if (typeof Inc !== 'undefined' && Inc.syncNote) { try { await Inc.syncNote(ref.id, doc); } catch (e) { throw new Error('La nota se guardó, pero no se pudieron actualizar los premios: ' + (e.message || e.code)); } }
+    return ref.id;
   },
   async deleteNote(id) { await this.db.doc('productNotes/' + id).delete(); },
 });
@@ -2603,8 +2618,8 @@ Views.rendimiento = {
   },
 
   notas() {
-    const f = S.perf, months = [...new Set(Store.notes.map(n => n.month || ''))].sort().reverse();
-    const list = Store.notes.filter(n => (!f.nMonth || (n.month || 'none') === f.nMonth) && (!f.nArtist || n.artistId === f.nArtist) && (!f.nStatus || n.status === f.nStatus));
+    const f = S.perf, src = Store.notes.filter(n => !n.month || n.month >= '2026-01'), months = [...new Set(src.map(n => n.month || ''))].sort().reverse();   /* el historial anterior a 2026 ya no se muestra aquí */
+    const list = src.filter(n => (!f.nMonth || (n.month || 'none') === f.nMonth) && (!f.nArtist || n.artistId === f.nArtist) && (!f.nStatus || n.status === f.nStatus));
     this._notesList = list;
     const tot = k => r2(list.filter(n => n.status !== 'Cancelada').reduce((t, n) => t + (n[k] || 0), 0));
     const due = r2(Store.notes.filter(n => n.status === 'Enviada').reduce((t, n) => t + n.total, 0));
@@ -2613,7 +2628,7 @@ Views.rendimiento = {
         <label class="field">Mes<select data-nf="nMonth"><option value="">Todos</option>${months.map(m => `<option value="${m || 'none'}" ${f.nMonth === (m || 'none') ? 'selected' : ''}>${esc(ymLabel(m))}</option>`).join('')}</select></label>
         <label class="field">Lashista<select data-nf="nArtist">${artistOptions(f.nArtist, 1, 1)}</select></label>
         <label class="field">Estado<select data-nf="nStatus"><option value="">Todos</option>${NOTE_STATUS.concat('Sin registrar').map(s => `<option ${f.nStatus === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
-        <div class="chips" style="margin-left:auto"><button class="btn primary" data-newnote ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva nota</button></div></div>
+        <div class="chips" style="margin-left:auto"><button class="btn" data-pvdesc="${f.nMonth && f.nMonth !== 'none' ? f.nMonth : shiftMonth(Dates.ym(Dates.today()), -1)}">Vista previa con descuentos</button><button class="btn primary" data-newnote ${Store.writable() ? '' : 'disabled'}>${ic('plus')}Nueva nota</button></div></div>
       ${table([{ label: 'Mes' }, { label: 'Lashista' }, { label: 'Invoice #' }, { label: 'Artículos', r: 1 }, { label: 'Subtotal', r: 1 }, { label: 'Descuentos', r: 1 }, { label: 'Tax', r: 1 }, { label: 'Total', r: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
         list.map(n => [ymLabel(n.month), n.artistName, n.invoice || '—', intf(n.items.reduce((t, i) => t + num(i.qty), 0)), money(n.subtotal, 1), n.discountTotal ? '−' + money(n.discountTotal, 1) : '—', money(n.tax, 1), money(n.total, 1),
           statusTag(n.status), n.source === 'app' ? '<span class="tag app">App</span>' : (n.month ? '' : '<span class="tag warn">Mes por confirmar</span>')]),
@@ -2751,9 +2766,10 @@ function noteEditor(n) {
       <input class="inp num" type="number" min="0" step="1" data-li="qty" value="${esc(it.qty)}" aria-label="Cantidad">
       <input class="inp num" type="number" min="0" step="0.01" data-li="unit" value="${esc(it.unit)}" aria-label="Precio unitario">
       <span class="amt">${money(r2(num(it.qty) * num(it.unit)), 1)}</span><button class="btn sm" data-li="rm" aria-label="Quitar artículo">×</button></div>`; };
-  const discRow = (d, k) => `<div class="discline" data-disc="${k}"><input class="inp" data-di="label" placeholder="Motivo (ej. meta cumplida)" value="${esc(d.label || '')}" aria-label="Motivo del descuento">
-      <select class="inp" data-di="type" aria-label="Tipo"><option value="pct" ${d.type === 'pct' ? 'selected' : ''}>%</option><option value="amount" ${d.type === 'amount' ? 'selected' : ''}>$</option></select>
-      <input class="inp num" type="number" min="0" step="0.01" data-di="value" value="${esc(d.value)}" aria-label="Valor"><button class="btn sm" data-di="rm" aria-label="Quitar descuento">×</button></div>`;
+  const discRow = (d, k) => { const lk = !!d.rewardId, ro = lk ? 'readonly' : '';
+    return `<div class="discline${lk ? ' lk' : ''}" data-disc="${k}"><input class="inp" data-di="label" placeholder="Motivo (ej. meta cumplida)" value="${esc(d.label || '')}" aria-label="Motivo del descuento" ${ro}>
+      <select class="inp" data-di="type" aria-label="Tipo" ${lk ? 'disabled' : ''}><option value="pct" ${d.type === 'pct' ? 'selected' : ''}>%</option><option value="amount" ${d.type === 'amount' ? 'selected' : ''}>$</option></select>
+      <input class="inp num" type="number" min="0" step="0.01" data-di="value" value="${esc(d.value)}" aria-label="Valor" ${ro}>${lk ? '<span class="lkt" title="Viene de un premio de rendimiento">premio</span>' : ''}<button class="btn sm" data-di="rm" aria-label="Quitar descuento">×</button></div>`; };
   const totals = m => {
     const c = Perf.calculateNote(st.items, rate, st.discounts);
     $('[data-tot]', m).innerHTML = noteTotalsHtml({ ...c, taxRate: rate });
@@ -2765,10 +2781,31 @@ function noteEditor(n) {
       $('[data-stockwarn]', m).textContent = short.length ? 'Sin existencia suficiente en salón: ' + short.join(', ') + '. Puedes guardar, pero el inventario quedará en negativo hasta registrar la entrada.' : '';
     }
   };
+  /* ---- descuentos por rendimiento (vinculados a los premios de Incentivos) ---- */
+  const rwRank = d => { const r = Store.rewards.find(x => x.id === d.rewardId); return Inc.RANK[r ? r.type : ''] ?? 9; };
+  const inNote = l => st.discounts.some(x => (x.rewardId && x.rewardId === l.rid) || (!x.rewardId && x.label === l.label));
+  const orderDiscs = () => { const lk = st.discounts.filter(d => d.rewardId).sort((a, b) => ((a.type === 'pct' ? 0 : 1) - (b.type === 'pct' ? 0 : 1)) || (rwRank(a) - rwRank(b))); st.discounts = lk.concat(st.discounts.filter(d => !d.rewardId)); };
+  const addRw = (m, ids) => { const P = Inc.plan(st.artistId, st.month); P.lines.filter(l => l.st === 'ganado' && ids.includes(l.rid) && !inNote(l)).forEach(l => st.discounts.push({ label: l.label, type: l.type, value: l.value, rewardId: l.rid })); orderDiscs(); draw(m); };
+  const perfDraw = m => {
+    const host = $('[data-perf]', m); if (!host) return;
+    if (!st.artistId || !/^\d{4}-\d{2}$/.test(st.month || '')) { host.innerHTML = ''; return; }
+    const P = Inc.plan(st.artistId, st.month), sent = n && n.status !== 'Borrador', addable = P.lines.filter(l => l.st === 'ganado' && !inNote(l));
+    const amt = l => l.type === 'pct' ? `${num(l.value)}%` : money(l.value, 1);
+    const rows = P.lines.map(l => { const mine = l.st === 'aplicado' && n && l.noteId === n.id, here = inNote(l);
+      const s = here ? '<span class="ok">✓ en esta nota</span>' : mine ? '<span class="ok">✓ aplicado en esta nota</span>' : l.st === 'aplicado' ? `<span class="st">ya aplicado en la nota #${esc(l.invoice || '—')}</span>` : l.st === 'proy' ? '<span class="st">proyección · cierra el mes para confirmarlo</span>' : `<button class="btn sm" data-addrw="${esc(l.rid)}">Agregar</button>`;
+      return `<div class="pf-r"><span><b>${esc(l.label)}</b> · ${amt(l)}</span>${s}</div>`; }).join('');
+    const tomb = P.tomb === 'participa' ? 'Tómbola: participa. El monto se agrega aquí cuando se registre el sorteo de la junta.' : P.tomb === 'proy' ? 'Tómbola: participaría si el mes cierra así. El monto se agrega después del sorteo.' : '';
+    host.innerHTML = `<div class="pf-box"><h4>Descuentos por rendimiento · ${esc(ymLabel(st.month))}</h4><p class="formula">Premios que ganó esta lashista. Al guardar la nota quedan aplicados a ella (y se ven en su portal al enviarla). Los porcentajes se aplican primero.</p>
+      ${rows || '<div class="pf-info">Sin premios en este mes todavía.</div>'}${tomb ? `<div class="pf-info">${esc(tomb)}</div>` : ''}
+      ${addable.length > 1 ? `<div style="text-align:right;margin-top:6px"><button class="btn sm primary" data-addallrw>Agregar todos los ganados</button></div>` : ''}
+      ${sent && addable.length ? `<div class="pf-warn">Esta nota ya está ${esc(n.status.toLowerCase())}: si agregas descuentos, la lashista verá el total nuevo en su portal. Para no cambiarla, déjala en Borrador, agrégalos y vuelve a enviarla.</div>` : ''}</div>`;
+    $$('[data-addrw]', host).forEach(b => b.onclick = () => addRw(m, [b.dataset.addrw]));
+    const all = $('[data-addallrw]', host); if (all) all.onclick = () => addRw(m, addable.map(l => l.rid));
+  };
   const draw = m => {
     $('[data-lines]', m).innerHTML = st.items.map(itemRow).join('');
     $('[data-discs]', m).innerHTML = st.discounts.map(discRow).join('');
-    totals(m);
+    perfDraw(m); totals(m);
   };
   UI.modal(`<h3>${n ? 'Editar nota ' + (n.invoice ? '#' + esc(n.invoice) : '') : 'Nueva nota de insumos'}</h3>
     <div class="formgrid"><label class="field">Lashista<select data-nk="artistId">${artistOptions(st.artistId, 0, !!n)}</select></label>
@@ -2777,7 +2814,7 @@ function noteEditor(n) {
       <label class="field">Estado<select data-nk="status">${NOTE_STATUS.filter(s => s !== 'Pagada').map(s => `<option ${st.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></label></div>
     <div class="notehead"><span>Artículo</span><span></span><span>Cant.</span><span>Precio</span><span>Monto</span><span></span></div>
     <div data-lines></div><button class="btn sm" data-add style="margin-top:8px">${ic('plus')}Agregar artículo</button>
-    <h4 style="margin:18px 0 4px">Descuentos</h4><p class="formula" style="margin:0 0 6px">Se aplican en orden, cada uno sobre el resultado del anterior. Ej.: descuento por metas.</p>
+    <div data-perf></div><h4 style="margin:18px 0 4px">Descuentos</h4><p class="formula" style="margin:0 0 6px">Se aplican en orden, cada uno sobre el resultado del anterior. Los de rendimiento van primero; aquí también puedes escribir uno a mano.</p>
     <div data-discs></div><button class="btn sm" data-adddisc style="margin-top:6px">${ic('plus')}Agregar descuento</button>
     <div style="max-width:320px;margin:14px 0 0 auto" data-tot></div>
     <p class="formula" data-stockwarn style="color:var(--warn)"></p>
@@ -2785,7 +2822,8 @@ function noteEditor(n) {
     <p class="err" data-gerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar nota</button></div>`, m => {
     m.classList.add('wide'); draw(m);
-    $$('[data-nk]', m).forEach(el => el.onchange = el.oninput = () => { st[el.dataset.nk] = el.value; });
+    $$('[data-nk]', m).forEach(el => el.onchange = el.oninput = () => { st[el.dataset.nk] = el.value;
+      if (el.dataset.nk === 'artistId' || el.dataset.nk === 'month') { st.discounts = st.discounts.filter(d => { if (!d.rewardId) return true; const r = Store.rewards.find(x => x.id === d.rewardId); return r && r.artistId === st.artistId && r.period === st.month; }); draw(m); } });
     $('[data-add]', m).onclick = () => { st.items.push({ code: '', desc: '', qty: 1, unit: '' }); draw(m); };
     $('[data-adddisc]', m).onclick = () => { st.discounts.push({ label: '', type: 'pct', value: '' }); draw(m); };
     $('[data-lines]', m).addEventListener('change', e => {
@@ -6051,7 +6089,7 @@ async function billArtist(aid, ym) {
   const n = monthNote(aid, ym);
   let nid;
   if (n && n.status === 'Borrador') {
-    nid = n.id; await Store.saveNote({ artistId: aid, month: ym, date: n.date, status: n.status, comments: (n.comments || '') + (reqs.length ? ' · Se agregaron solicitudes: ' + reqDates(reqs) : ''), items: mergeItems(n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), reqs), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value })), fromDeliveries: true }, n.id);
+    nid = n.id; await Store.saveNote({ artistId: aid, month: ym, date: n.date, status: n.status, comments: (n.comments || '') + (reqs.length ? ' · Se agregaron solicitudes: ' + reqDates(reqs) : ''), items: mergeItems(n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), reqs), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value, ...(d.rewardId ? { rewardId: d.rewardId } : {}) })), fromDeliveries: true }, n.id);
   } else nid = await Store.saveNote({ artistId: aid, month: ym, date: Dates.toISO(Dates.today()), status: 'Borrador', comments: 'Generada desde las entregas del mes. Solicitudes: ' + reqDates(reqs), items: mergeItems([], reqs), discounts: [], fromDeliveries: true });
   for (const r of reqs) await Store.saveRequest({ billedNoteId: nid }, r.id);
   return nid;
@@ -11194,7 +11232,7 @@ const Inc = {
     const list = Inc.rw(r => r.artistId === artistId && r.period === ym && r.status === 'ganado' && (r.valueType === 'pct' || r.valueType === 'amt') && num(r.value) > 0); if (!list.length) throw new Error('No hay descuentos ganados pendientes de aplicar.');
     const n = Store.notes.find(x => x.source === 'app' && x.artistId === artistId && x.month === ym && x.status !== 'Cancelada'); if (!n) throw new Error(`Primero prepara la nota de insumos de ${ymLabel(ym)} en Insumos.`);
     if (n.status !== 'Borrador') throw new Error(`La nota #${n.invoice} ya está ${n.status === 'Pagada' ? 'pagada' : 'enviada'}: no se le pueden agregar descuentos. Los premios siguen como ganados.`);
-    const lines = list.map(r => ({ label: `${Inc.TY[r.type]}${r.detail && r.detail.concept ? ': ' + r.detail.concept : ''} (${ymLabel(r.period)})`, type: r.valueType === 'pct' ? 'pct' : 'amount', value: num(r.value) }));
+    const lines = list.map(r => ({ k: r.type, rewardId: r.id, label: Inc.rewardLabel(r), type: r.valueType === 'pct' ? 'pct' : 'amount', value: num(r.value) })).sort(Inc.ordR).map(({ k, ...d }) => d);
     await Store.saveNote({ artistId: n.artistId, month: n.month, date: n.date, status: 'Borrador', comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: [...(n.discounts || []), ...lines] }, n.id);
     for (const r of list) await Store.db.doc('rewards/' + r.id).set({ ...(({ id, ...d }) => d)(r), status: 'aplicado', noteId: n.id, noteInvoice: n.invoice, appliedAt: new Date().toISOString(), appliedByName: Mode.who() });
     await Inc.publish(); return { n, count: list.length };
@@ -11385,7 +11423,7 @@ const NT = {
     if (n.status === 'Enviada' || n.status === 'Sin cargo') return { ok: false, why: 'La nota ya se envió: no se elimina. Cancélala (queda en el historial) o vuelve a Borrador.' };
     return { ok: true };
   },
-  formOf(n, status) { return { artistId: n.artistId, month: n.month, date: n.date, status, comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value })) }; },
+  formOf(n, status) { return { artistId: n.artistId, month: n.month, date: n.date, status, comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value, ...(d.rewardId ? { rewardId: d.rewardId } : {}) })) }; },
   async setStatus(n, status) {
     if (Mode.reception || !Store.writable()) throw new Error('Las notas de insumos las gestiona administración.'); if (n.status === 'Pagada') throw new Error('La nota ya está pagada: su estado no se cambia aquí.');
     if (Store.rewards.some(r => r.noteId === n.id) && status !== 'Enviada' && n.status !== 'Borrador') throw new Error('Tiene descuentos de incentivos aplicados: no puede regresar a borrador ni cancelarse.');
@@ -11635,6 +11673,100 @@ const Rpt = {
   const S0 = Rd.side; Rd.side = function (r, ws) { const h = S0.call(this, r, ws); return r && Store.writable() ? h.replace('data-inc-edit>Editar incentivos</button>', 'data-inc-edit>Editar incentivos</button><button type="button" class="btn sm" data-rpt-f>Reporte mensual</button>') : h; }; }
 if (!Rpt._d) { Rpt._d = true; document.addEventListener('click', e => { const b = e.target.closest('[data-rpt-f]'); if (b && Rd.sel) Rpt.open(Rd.sel, Perf.weekMonth(S.perf.week)); }); }
 
+
+/* =========================================================
+   NOTAS DE INSUMOS × INCENTIVOS
+   · Vista previa de cómo quedan las notas con los descuentos por rendimiento (antes de generarlas y enviarlas). Solo mira: no crea ni cambia nada.
+   · Descuentos por rendimiento VINCULADOS al editor de notas: al guardar, cada premio queda «aplicado» a esa nota; si se quita, vuelve a «ganado».
+   · Orden fijo: primero los porcentajes (Quality / Excellence) y luego los dólares (Tómbola, Content Reward, Extra).
+   ========================================================= */
+Object.assign(Inc, {
+  RANK: { quality: 0, excellence: 1, tombola: 2, content: 3, extra: 4 },
+  rewardLabel: r => `${Inc.TY[r.type]}${r.detail && r.detail.concept ? ': ' + r.detail.concept : ''} (${ymLabel(r.period)})`,
+  /* porcentajes antes que dólares; dentro de cada grupo, Quality → Excellence → Tómbola → Content → Extra */
+  ordR: (a, b) => ((a.type === 'pct' ? 0 : 1) - (b.type === 'pct' ? 0 : 1)) || ((Inc.RANK[a.k] ?? 9) - (Inc.RANK[b.k] ?? 9)) || String(a.label).localeCompare(String(b.label)),
+  /* qué descuentos tiene una lashista en un mes: ganados / aplicados / proyección (mes abierto) + estado de la tómbola */
+  plan(id, ym) {
+    const cfg = Inc.cfg(), ev = Inc.monthEval(id, ym), c = Inc.closeOf(ym), repl = cfg.excellenceReplacesQuality;
+    const lines = Inc.rw(r => r.artistId === id && r.period === ym && Inc.RANK[r.type] != null && (r.valueType === 'pct' || r.valueType === 'amt') && num(r.value) > 0)
+      .map(r => ({ k: r.type, rid: r.id, label: Inc.rewardLabel(r), type: r.valueType === 'pct' ? 'pct' : 'amount', value: num(r.value), st: r.status === 'aplicado' ? 'aplicado' : 'ganado', noteId: r.noteId || '', invoice: r.noteInvoice || '' }));
+    if (!c) {   /* el mes sigue abierto: se proyecta lo que ganaría si cerrara así */
+      const has = t => lines.some(l => l.k === t);
+      if (!has('quality') && ev.qualityOk && !(ev.excellenceOk && repl) && num(cfg.quality.pct) > 0) lines.push({ k: 'quality', rid: '', label: `Fluffy Quality (${ymLabel(ym)})`, type: 'pct', value: num(cfg.quality.pct), st: 'proy' });
+      if (!has('excellence') && ev.excellenceOk && num(cfg.excellence.pct) > 0) lines.push({ k: 'excellence', rid: '', label: `Fluffy Excellence (${ymLabel(ym)})`, type: 'pct', value: num(cfg.excellence.pct), st: 'proy' });
+    }
+    lines.sort(Inc.ordR);
+    const won = Inc.tmbOf(ym).find(t => t.winnerId === id), te = Inc.tombolaOk(id, ym);
+    return { lines, closed: !!c, tomb: won ? 'gano' : te ? (c ? 'participa' : 'proy') : 'no' };
+  },
+  /* deja los premios de la nota alineados con sus descuentos: aplicado ⇄ ganado */
+  async syncNote(nid, doc) {
+    if (!Inc.adm()) return;
+    const ds = doc.discounts || [], ids = new Set(ds.map(d => d.rewardId).filter(Boolean)), labels = new Set(ds.map(d => d.label)), now = new Date().toISOString();
+    const strip = r => (({ id, noteId, noteInvoice, appliedAt, appliedByName, ...d }) => d)(r);
+    let n = 0;
+    for (const r of Store.rewards.filter(x => x.noteId === nid && x.status === 'aplicado')) {
+      if (ids.has(r.id) || labels.has(Inc.rewardLabel(r))) continue;                   /* sigue en la nota */
+      await Store.db.doc('rewards/' + r.id).set({ ...strip(r), status: 'ganado' }); n++;  /* se quitó de la nota: vuelve a estar disponible */
+    }
+    for (const rid of ids) {
+      const r = Store.rewards.find(x => x.id === rid); if (!r || (r.status === 'aplicado' && r.noteId === nid)) continue;
+      if (r.status === 'aplicado' && r.noteId && r.noteId !== nid) throw new Error(`«${Inc.rewardLabel(r)}» ya está aplicado en otra nota.`);
+      await Store.db.doc('rewards/' + rid).set({ ...strip(r), status: 'aplicado', noteId: nid, noteInvoice: doc.invoice, appliedAt: now, appliedByName: Mode.who() }); n++;
+    }
+    if (n) { try { Inc.publishSoon ? Inc.publishSoon() : await Inc.publish(); } catch (e) { /* el portal se actualiza después */ } }
+  },
+  /* ---------- vista previa de las notas del mes ---------- */
+  previewData(ym) {
+    const ids = [...new Set(Store.requests.filter(r => (r.deliveredAt && r.deliveredAt.slice(0, 7) === ym) || (r.requestDate || (r.createdAt || '')).slice(0, 7) === ym).map(r => r.artistId)
+      .concat(Store.notes.filter(n => n.source === 'app' && n.month === ym && n.status !== 'Cancelada').map(n => n.artistId)))];
+    const rate = Store.config.taxRate;
+    const rows = ids.map(aid => {
+      const a = Store.config.artists.find(x => x.id === aid) || { name: aid }, n = monthNote(aid, ym);
+      const reqs = deliveredIn(aid, ym).filter(r => !r.billedNoteId && r.items.some(i => i.state === 'Entregado'));
+      const pendSub = r2(reqs.reduce((t, r) => t + r.items.filter(i => i.state === 'Entregado').reduce((s, i) => s + unitPrice(i.code) * num(i.qty), 0), 0));
+      const draft = !n || n.status === 'Borrador', sub = draft ? r2((n ? num(n.subtotal) : 0) + pendSub) : num(n.subtotal);
+      const applied = n ? (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: num(d.value), rewardId: d.rewardId, st: 'nota' })) : [];
+      const P = Inc.plan(aid, ym), have = d => applied.some(x => (x.rewardId && x.rewardId === d.rid) || x.label === d.label);
+      const pend = P.lines.filter(l => l.st !== 'aplicado' && !have(l)).map(l => ({ label: l.label, type: l.type, value: l.value, rewardId: l.rid, st: l.st }));
+      const lines = draft ? applied.concat(pend) : applied, c = Perf.calculateNote([{ qty: 1, unit: sub }], rate, lines);
+      return { aid, name: a.name, n, sub, pendSub, draft, c, tomb: P.tomb, blocked: draft ? [] : pend };
+    }).filter(r => r.sub > 0 || r.n).sort((a, b) => a.name.localeCompare(b.name));
+    const sum = k => r2(rows.reduce((t, r) => t + (r.c[k] || 0), 0));
+    return { ym, rows, rate, closed: !!Inc.closeOf(ym), tot: { sub: sum('subtotal'), disc: sum('discountTotal'), tax: sum('tax'), total: sum('total') } };
+  },
+  previewHtml(ym) {
+    const D = Inc.previewData(ym), chip = r => !r.n ? '<span class="tag warn">Aún sin nota</span>' : `<span class="tag ${r.n.status === 'Borrador' ? '' : 'ok'}">Nota #${esc(r.n.invoice || '—')} · ${esc(r.n.status)}</span>`;
+    const lab = { nota: 'ya en la nota', ganado: 'ganado', proy: 'proyección' };
+    const tmb = r => r.tomb === 'participa' ? 'Tómbola · participa: el monto se agrega después del sorteo en la junta' : r.tomb === 'proy' ? 'Tómbola · participaría si el mes cierra así (monto por definir en la junta)' : '';
+    const cards = D.rows.map(r => `<div class="pv-card"><div class="pv-h"><div><b>${esc(r.name)}</b> ${chip(r)}${r.pendSub ? `<br><small class="mutedc">Incluye ${money(r.pendSub, 1)} de entregas que aún no están en la nota</small>` : ''}</div><div class="pv-tot"><small>Total a pagar</small><b>${money(r.c.total, 1)}</b></div></div>
+      <div class="pv-l"><span>Subtotal</span><b>${money(r.c.subtotal, 1)}</b></div>
+      ${r.c.discounts.map(d => `<div class="pv-l pv-d"><span>− ${esc(d.label || 'Descuento')}${d.type === 'pct' ? ` <em>(${num(d.value)}%)</em>` : ''} <i class="pv-t ${d.st}">${lab[d.st] || ''}</i></span><b>−${money(d.amount, 1)}</b></div>`).join('')}
+      ${tmb(r) ? `<div class="pv-l pv-dash"><span>${esc(tmb(r))}</span><b>—</b></div>` : ''}
+      ${r.blocked.length ? `<div class="pv-warn">La nota ya está ${esc(r.n.status.toLowerCase())}: faltan por aplicar ${r.blocked.map(b => esc(b.label)).join(', ')}. Para agregarlos, ábrela y cámbiala a Borrador.</div>` : ''}
+      <div class="pv-l"><span>Tax ${pct(D.rate)} <em>(sobre ${money(r.c.taxable, 1)})</em></span><b>${money(r.c.tax, 1)}</b></div></div>`).join('');
+    return `${D.closed ? '' : '<div class="banner" style="margin:0 0 12px">El mes sigue abierto: los descuentos marcados como <b>proyección</b> son lo que ganarían si cerrara así. Al cerrar el mes se confirman.</div>'}
+      ${cards || '<p class="mutedc">No hay entregas ni notas de insumos en este mes.</p>'}
+      ${D.rows.length ? `<div class="pv-sum"><div><small>Subtotal</small><b>${money(D.tot.sub, 1)}</b></div><div><small>Descuentos</small><b>−${money(D.tot.disc, 1)}</b></div><div><small>Tax</small><b>${money(D.tot.tax, 1)}</b></div><div class="big"><small>Total a cobrar</small><b>${money(D.tot.total, 1)}</b></div></div>` : ''}`;
+  },
+  previewOpen(ym) {
+    ym = ym && /^\d{4}-\d{2}$/.test(ym) ? ym : shiftMonth(Dates.ym(Dates.today()), -1);
+    UI.modal(`<h3>Vista previa de notas de insumos</h3><div class="filters no-print" style="align-items:center"><div class="weeknav"><button class="btn sm" data-pvm="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w" data-pvl></span><button class="btn sm" data-pvm="1" aria-label="Mes siguiente">${ic('right')}</button></div></div>
+      <p class="formula" style="margin:0 0 10px">Así quedarían las notas con los descuentos por rendimiento. Es solo una vista previa: no crea ni cambia nada. Los porcentajes se aplican primero y luego los dólares, cada uno sobre el resultado anterior.</p>
+      <div data-pvbody></div><div class="acts"><button class="btn primary" data-x="no">Cerrar</button></div>`, m => {
+      m.classList.add('wide');
+      const draw = () => { $('[data-pvl]', m).textContent = ymLabel(ym); $('[data-pvbody]', m).innerHTML = Inc.previewHtml(ym); };
+      $$('[data-pvm]', m).forEach(b => b.onclick = () => { ym = shiftMonth(ym, +b.dataset.pvm); draw(); });
+      $('[data-x=no]', m).onclick = UI.close; draw();
+    });
+  },
+});
+document.addEventListener('click', e => { const b = e.target.closest('[data-pvdesc]'); if (b) { e.preventDefault(); Inc.previewOpen(b.dataset.pvdesc); } });
+/* botón en Insumos › Cobro (junto a «Generar / actualizar notas del mes») */
+{ const H = Views.insumos.html;
+  Views.insumos.html = function () { const h = H.apply(this, arguments); if (S.ins.tab !== 'cobro' || Mode.reception) return h; const ym = S.ins.month || Dates.ym(Dates.today());
+    return h.replace('<button class="btn primary" data-billall', `<span class="chips" style="gap:8px"><button class="btn" data-pvdesc="${ym}">Vista previa con descuentos</button><button class="btn primary" data-billall`).replace(/(data-billall[^>]*>[^<]*<\/button>)/, '$1</span>'); };
+}
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
