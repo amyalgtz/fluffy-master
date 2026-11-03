@@ -1350,7 +1350,7 @@ const Store = {
 
   fromSaleDoc(id, x) {
     return { id, source: 'app', day: Dates.fromISO(x.date), artistKey: x.artistId, artistName: x.artistName, service: x.serviceName,
-      serviceId: x.serviceId, servicePriceSnapshot: x.servicePriceSnapshot, price: num(x.price), discount: num(x.discount), tip: num(x.tip),
+      serviceId: x.serviceId, fixOf: x.fixOfArtistId || '', servicePriceSnapshot: x.servicePriceSnapshot, price: num(x.price), discount: num(x.discount), tip: num(x.tip),
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', tarifa: x.tarifa || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
@@ -1376,7 +1376,9 @@ const Store = {
     const rate = prev && prev.artistKey === artist.id ? prev.rate : artist.rate;
     const calc = Logic.calculateSale({ price: form.price, discount: form.discount, tip: form.tip, rate, manualCommission: form.manualOn ? form.manualCommission : null });
     const now = new Date().toISOString(), uid = await this.who();
+    const fixId = isFixSvc(svc.id) ? (form.fixOfArtistId || '') : '', fixArt = this.config.artists.find(a => a.id === fixId);
     const doc = {
+      fixOfArtistId: fixId, fixOfArtistName: fixArt ? fixArt.name : '',
       date: form.date, artistId: artist.id, artistName: artist.name, serviceId: svc.id, serviceName: svc.name,
       servicePriceSnapshot: prev && prev.serviceId === svc.id ? prev.servicePriceSnapshot : (form.tarifa === 'Master' && form.tarifaPrice != null ? num(form.tarifaPrice) : svc.price), tarifa: form.tarifa ? (form.tarifa === 'Master' ? 'Master' : 'Regular') : ((prev && prev.tarifa) || 'Regular'),
       commissionRateSnapshot: rate, price: calc.subtotal, discount: calc.discount, tip: calc.tip, totalPaid: calc.totalPaid,
@@ -1595,6 +1597,9 @@ function table(cols, rows, foot, opts = {}) {
 function exportButtons(id) {
   return `<div class="chips no-print"><button class="btn sm" data-export="${id}" data-kind="xlsx">${ic('dl')}Excel</button><button class="btn sm" data-export="${id}" data-kind="csv">${ic('dl')}CSV</button><button class="btn sm" data-export="${id}" data-kind="pdf">Imprimir / PDF</button></div>`;
 }
+/* Service Redo/Fix: una lashista corrige el trabajo de otra compañera. */
+const FIX_SERVICE = 'Service Redo/Fix';
+const isFixSvc = id => { const sv = Store.config.services.find(x => x.id === id); return !!sv && sv.name === FIX_SERVICE; };
 function artistOptions(sel, all, includeInactive) {
   const list = Store.config.artists.filter(a => includeInactive || a.active);
   return `${all ? '<option value="">Todas</option>' : '<option value="">Elige lashista</option>'}${list.map(a => `<option value="${a.id}" ${sel === a.id ? 'selected' : ''}>${esc(a.name)}${a.active ? '' : ' (inactiva)'}</option>`).join('')}`;
@@ -1783,7 +1788,7 @@ Views.nueva = {
   html() {
     const edit = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null;
     if (!this.form || this.form._for !== (UI.params.edit || 'new')) {
-      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
+      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
       this.form._for = UI.params.edit || 'new';
     }
     const f = this.form, ro = !Store.writable();
@@ -1800,6 +1805,8 @@ Views.nueva = {
         <label class="field">Cliente nombre<input name="first" value="${esc(f.first)}" autocomplete="off"></label>
         <label class="field">Cliente apellido<input name="last" value="${esc(f.last)}" autocomplete="off"></label>
         <label class="field full">Comentarios<textarea name="comments">${esc(f.comments)}</textarea></label>
+        <div class="full" data-fixof style="${isFixSvc(f.serviceId) ? '' : 'display:none'}"><label class="field" style="max-width:320px">Trabajo de (compañera)<select name="fixOfArtistId">${artistOptions(f.fixOfArtistId || '', 0, 1)}</select></label>
+          <p class="formula" style="margin-top:4px">Service Redo/Fix: elige la compañera cuyo trabajo se corrigió. Si a quien lo arregló se le paga comisión por este arreglo, marca "Ajuste manual de comisión" y escribe el monto; si no se paga, déjalo sin marcar.</p></div>
         <div class="full"><label class="check"><input type="checkbox" name="manualOn" ${f.manualOn ? 'checked' : ''}> Ajuste manual de comisión</label>
           <p class="formula" style="margin-top:4px">Úsalo solo para casos especiales (bonos, descuentos a la lashista, servicios de staff). Requiere confirmación con la administración.</p>
           <label class="field" data-manual style="max-width:220px;${f.manualOn ? '' : 'display:none'}">Comisión manual<input type="number" step="0.01" name="manualCommission" value="${esc(f.manualCommission)}"><span class="err"></span></label></div>
@@ -1832,6 +1839,7 @@ Views.nueva = {
       f[el.name] = el.type === 'checkbox' ? el.checked : el.value;
       if (el.name === 'serviceId') { const s = Store.config.services.find(x => x.id === el.value); if (s) { f.price = s.price; form.price.value = s.price; } }
       if (el.name === 'manualOn') $('[data-manual]', root).style.display = el.checked ? '' : 'none';
+      if (el.name === 'serviceId') { const fx = $('[data-fixof]', root); if (fx) fx.style.display = isFixSvc(el.value) ? '' : 'none'; }
       const fld = el.closest('.field'); if (fld && fld.classList.contains('invalid')) { fld.classList.remove('invalid'); $('.err', fld).textContent = ''; }
       paint();
     });
@@ -2394,7 +2402,7 @@ const Statement = {
    RENDIMIENTO — metas semanales, productividad mensual y notas de insumos.
    Logic first (pure), then store, then UI.
    ========================================================= */
-const SERVICE_GROUPS = ['Full set', 'Refill', 'Brow & wax', 'Lash lift', 'Extras', 'Complimentary fills'];
+const SERVICE_GROUPS = ['Full set', 'Refill', 'Brow & wax', 'Lash lift', 'Extras', 'Redo/Fix', 'Complimentary fills'];
 const LASH_LIFT = new Set(['Lash Lift + Tint', 'Lash Lift', 'Eyelash Tinting', 'Korean Lash Lift', 'lash lift reversible']);
 const NOT_A_SERVICE = new Set(['Descuento', 'Bono', 'DEPOSITO - NO SHOW']); // adjustment lines / forfeited deposit, not work done
 const COMPLIMENTARY = new Set(['Complimentary Fill', 'GARANTIA']); // la misma lashista repone el trabajo sin cobrar (señal de calidad)
@@ -2406,15 +2414,16 @@ const Perf = {
     if (NOT_A_SERVICE.has(name)) return null;
     if (LASH_LIFT.has(name)) return 'Lash lift';
     if (COMPLIMENTARY.has(name)) return 'Complimentary fills';
+    if (name === FIX_SERVICE) return 'Redo/Fix';
     const s = Store.config.services.find(x => x.name === name);
     const c = s ? s.category : '';
     return c === 'Full Set' ? 'Full set' : c === 'Refill' ? 'Refill' : c === 'Brows & Wax' ? 'Brow & wax' : 'Extras';
   },
   // A Fri–Thu week counts for the month that holds most of its days (= the month of its Monday).
-  weekMonth(ws) { return Dates.ym(ws + 3); },
+  weekMonth(ws) { const o = Store.config && Store.config.weekMonths && Store.config.weekMonths[Dates.toISO(ws)]; return o || Dates.ym(ws + 3); },
   weeksOfMonth(ym) {
     const [y, m] = ym.split('-').map(Number), out = [];
-    for (let ws = Dates.fluffyWeekStart(Dates.monthStart(y, m - 1)) - 7; ws <= Dates.monthEnd(y, m - 1); ws += 7) if (Perf.weekMonth(ws) === ym) out.push(ws);
+    for (let ws = Dates.fluffyWeekStart(Dates.monthStart(y, m - 1)) - 21; ws <= Dates.monthEnd(y, m - 1) + 14; ws += 7) if (Perf.weekMonth(ws) === ym) out.push(ws);
     return out;
   },
   weekSales(sales, ws) {
@@ -2563,7 +2572,7 @@ Views.rendimiento = {
       let meta = 0, real = 0, ok = 0, marked = 0;
       weeks.forEach(ws => { const g = Store.goalsFor(ws)[id] || {}; if (g.meta) { meta += num(g.meta); real += Perf.weekSales(Store.sales, ws).get(id) || 0; } CHECKS.forEach(([k]) => { if (g[k] === 'O' || g[k] === 'X') { marked++; if (g[k] === 'O') ok++; } }); });
       const ev = evals[id] || {};
-      return { _key: id, _name: artistName(id), score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
+      return { _key: id, _name: artistName(id), fixRecv: Store.sales.filter(x => x.fixOf === id && Perf.serviceGroup(x.service) === 'Redo/Fix' && x.day >= Dates.monthStart(y, m - 1) && x.day <= Dates.monthEnd(y, m - 1)).length, score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
         checklist: marked ? `${ok}/${marked}` : '', count: p.count, groups: p.groups, ticket: p.ticket, tips: p.tips, ins: r2(notes.filter(n => n.artistId === id).reduce((t, n) => t + n.total, 0)) };
     }).sort((a, b) => b.ventas - a.ventas);
   },
@@ -2578,6 +2587,7 @@ Views.rendimiento = {
       { key: 'checklist', label: 'Checklist', r: 1, get: r => r.checklist },
       { key: 'count', label: 'Servicios', r: 1, type: 'int', get: r => r.count },
       ...SERVICE_GROUPS.map(g => ({ key: 'g_' + g, label: g === 'Complimentary fills' ? 'Compl. fills' : g, r: 1, type: 'int', get: r => r.groups[g] })),
+      { key: 'fixRecv', label: 'Arreglos recibidos', r: 1, type: 'int', get: r => r.fixRecv },
       { key: 'ticket', label: 'Ticket prom.', r: 1, type: 'money0', get: r => r.ticket },
       { key: 'tips', label: 'Tips', r: 1, type: 'money0', get: r => r.tips },
       { key: 'ins', label: 'Insumos', r: 1, type: 'money', get: r => r.ins || null },
@@ -3881,6 +3891,7 @@ function apptForm(a, preset) {
       <label class="field">Lashista<select data-a="artistId">${artistOptions(st.artistId, 0, !!a)}</select></label><label class="field">Teléfono<input type="tel" data-a="phone" value="${esc(st.phone || '')}" required inputmode="tel" placeholder="(305) 555-0123" autocomplete="off"></label>
       <label class="field full">Correo electrónico (opcional)<input type="email" data-a="email" value="${esc(st.email || '')}" placeholder="clienta@correo.com" autocomplete="off"></label>
       <label class="field full">Servicio<select data-a="serviceId">${serviceOptions(st.serviceId, 0, !!a)}</select></label>
+      <label class="field full" data-fixof-a style="${isFixSvc(st.serviceId) ? '' : 'display:none'}">Trabajo de (compañera)<select data-a="fixOfArtistId">${artistOptions(st.fixOfArtistId || '', 0, 1)}</select></label>
       <div class="full xbox"><div class="xhead"><b>Complementos</b><span class="mutedc">Bottom lashes, wax, brow lamination, lash removal… lo que la clienta agregue.</span></div><div data-addons></div><button type="button" class="btn sm" data-addaddon>${ic('plus')}Agregar complemento</button></div>
       <label class="field full">Depósito<select data-a="depositId"><option value="">Sin depósito</option><option value="__new">Registrar depósito ahora…</option>${avail.map(d => `<option value="${d.id}" ${st.depositId === d.id ? 'selected' : ''}>${esc(depClient(d))} · ${money(d.amount)} · ${esc(d.method)}${d.status === 'Pendiente' ? ' · por verificar' : ''}</option>`).join('')}</select></label>
       <div class="full newdep" data-newdep style="display:none"><div class="formgrid">
@@ -3892,6 +3903,7 @@ function apptForm(a, preset) {
     <p class="err" data-aerr style="color:var(--bad);font-size:13px;font-weight:600"></p>
     <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${a ? 'Guardar cambios' : 'Agendar'}</button></div>`, m => {
     const addons = (st.addons || []).map(x => ({ ...x })); AddOns.mountForm(m, addons, () => $('[data-a=artistId]', m).value);
+    { const fxs = $('[data-a=serviceId]', m), fxb = $('[data-fixof-a]', m); if (fxs && fxb) fxs.addEventListener('change', () => { fxb.style.display = isFixSvc(fxs.value) ? '' : 'none'; }); }
     const dsel = $('[data-a=depositId]', m); dsel.onchange = () => { $('[data-newdep]', m).style.display = dsel.value === '__new' ? '' : 'none'; };
     $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-a=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
     if (preset && preset._focusDate) setTimeout(() => $('[data-a=date]', m).focus(), 0);
@@ -3907,7 +3919,7 @@ function apptForm(a, preset) {
       if (v('email') && !/^\S+@\S+\.\S+$/.test(v('email'))) { err.textContent = 'Revisa el correo electrónico.'; return; }
       const art = Store.config.artists.find(x => x.id === v('artistId')), svc = Store.config.services.find(x => x.id === v('serviceId'));
       const adErr = AddOns.validate(addons); if (adErr) { err.textContent = adErr; return; }
-      const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes') };
+      const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes'), fixOfArtistId: isFixSvc(svc.id) ? v('fixOfArtistId') : '', fixOfArtistName: isFixSvc(svc.id) ? ((Store.config.artists.find(x => x.id === v('fixOfArtistId')) || {}).name || '') : '' };
       const b = $('[data-x=ok]', m); b.disabled = true;
       try {
         let depId = dsel.value === '__new' ? '' : dsel.value;
@@ -3930,7 +3942,7 @@ function apptForm(a, preset) {
 function apptDetail(a) {
   const d = apptDeposit(a), s = apptSale(a), can = Store.writable(), ac = typeof CL !== 'undefined' ? CL.apptContact(a, d) : { phone: a.phone || (d && d.phone) || '', email: a.email || '', c: null, from: {} };
   UI.modal(`<h3>${esc(apptClient(a))}</h3><p style="color:var(--muted);margin:0 0 14px">${Dates.fmt(a.day, { weekday: 'long', day: 'numeric', month: 'long' })}${a.time ? ' · ' + esc(a.time) : ''} · ${APPT_STATUS[a.status] || ''}</p>
-    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd><dt>Teléfono</dt><dd>${esc(ac.phone || '—')}${ac.from.phone ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd><dt>Correo</dt><dd>${ac.email ? `<a href="mailto:${esc(ac.email)}">${esc(ac.email)}</a>` : '—'}${ac.from.email ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd>${Contact.html(ac.phone)}
+    <dl class="dl"><dt>Lashista</dt><dd>${esc(a.artistName)}</dd><dt>Servicio</dt><dd>${esc(a.serviceName)} · ${money(a.price)}</dd>${a.fixOfArtistName ? `<dt>Trabajo de</dt><dd>${esc(a.fixOfArtistName)}</dd>` : ''}<dt>Teléfono</dt><dd>${esc(ac.phone || '—')}${ac.from.phone ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd><dt>Correo</dt><dd>${ac.email ? `<a href="mailto:${esc(ac.email)}">${esc(ac.email)}</a>` : '—'}${ac.from.email ? ' <span class="mutedc" style="font-weight:400;font-size:12px">de su ficha</span>' : ''}</dd>${Contact.html(ac.phone)}
     <dt>Depósito</dt><dd>${d ? `${money(d.amount, 1)} · ${esc(d.method || '')} · ${d.status === 'Verificado' ? 'verificado' : String(d.status || '').toLowerCase()}` : 'Sin depósito'}</dd>
     <dt>Pago</dt><dd style="white-space:normal">${s ? `Pagó ${money(r2(s.price - s.discount + s.tip - s.depositAmount), 1)} con ${esc(s.method || 'sin método')}${s.depositAmount ? ` + depósito ${money(s.depositAmount, 1)}` : ''} · cobró ${esc(s.cashierName || a.paidByName || '—')}` : a.status === 'Pagada' ? 'Pagada' : 'Pendiente'}</dd>
     <dt>Notas</dt><dd style="white-space:normal">${esc(a.notes || '—')}</dd><dt>Agendó</dt><dd>${esc(a.createdByName || '—')}</dd></dl>
@@ -3960,7 +3972,7 @@ Store.saveDeposit = async function (data, id) {
 /* ---------- cobrar a partir de la cita ---------- */
 function chargeAppt(a) {
   const nv = Views.nueva, d = apptDeposit(a) || (suggestDeposit(a) || null);
-  nv.form = { ...nv.blank(), date: Dates.toISO(Dates.today()), artistId: a.artistId, serviceId: a.serviceId, price: a.price, first: a.first || '', last: a.last || '', depositId: d && !d.outcome ? d.id : '', comments: a.notes || '', _for: 'new', _appt: a.id };
+  nv.form = { ...nv.blank(), date: Dates.toISO(Dates.today()), artistId: a.artistId, serviceId: a.serviceId, price: a.price, first: a.first || '', last: a.last || '', depositId: d && !d.outcome ? d.id : '', comments: a.notes || '', fixOfArtistId: a.fixOfArtistId || '', _for: 'new', _appt: a.id };
   UI.formDirty = false; UI.route = 'nueva'; UI.params = {}; UI.render();
 }
 const _saveSale3 = Store.saveSale;
@@ -11073,7 +11085,7 @@ const Inc = {
   TY: { quality: 'Fluffy Quality', excellence: 'Fluffy Excellence', tombola: 'Tómbola mensual', content: 'Content Reward', extra: 'Extra', commission100: 'Comisión 100% Before/After Hours' },
   DEF: { quality: { pct: 0 }, excellence: { pct: 0 }, tombola: { amount: 0 }, content: { amount: 0 }, requiredWeeks: 'all', excellenceReplacesQuality: true, contentMax: 1 },
   cfg() { const c = (Store.config && Store.config.incentives) || {}, D = Inc.DEF; return { quality: { ...D.quality, ...c.quality }, excellence: { ...D.excellence, ...c.excellence }, tombola: { ...D.tombola, ...c.tombola }, content: { ...D.content, ...c.content }, requiredWeeks: c.requiredWeeks != null ? c.requiredWeeks : D.requiredWeeks, excellenceReplacesQuality: c.excellenceReplacesQuality != null ? !!c.excellenceReplacesQuality : D.excellenceReplacesQuality, contentMax: c.contentMax != null ? num(c.contentMax) : D.contentMax }; },
-  configured() { const c = Inc.cfg(); return [c.quality.pct, c.excellence.pct, c.tombola.amount, c.content.amount].some(v => num(v) > 0); },
+  configured() { const c = Inc.cfg(); return [c.quality.pct, c.excellence.pct, c.content.amount].some(v => num(v) > 0); },
   adm: () => !Mode.reception && Store.writable(),
   today: () => Dates.today(), ym0: () => Dates.ym(Dates.today()), next: ym => shiftMonth(ym, 1),
   key(s) { const n = String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); let h = 5381; for (const ch of n) h = ((h << 5) + h + ch.charCodeAt(0)) | 0; return n.replace(/ /g, '-').slice(0, 40) + '-' + (h >>> 0).toString(36); },
@@ -11138,12 +11150,13 @@ const Inc = {
     }
     await Store.db.doc('incentiveCloses/' + ym).set({ ym, closedAt: new Date().toISOString(), byName: Mode.who(), config: cfg, results: res }); await Inc.publish();
   },
-  eligible(ym) { return Inc.closeOf(ym) ? Inc.activeArtists().filter(a => Inc.tombolaOk(a.id, ym)) : []; },
+  tmbOf(ym) { return Store.tombolas.filter(t => (t.month || String(t.id).slice(0, 7)) === ym).sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || ''))); },
+  eligible(ym) { return Inc.closeOf(ym) ? Inc.activeArtists().filter(a => Inc.tombolaOk(a.id, ym) && !Inc.tmbOf(ym).some(t => t.winnerId === a.id)) : []; },
   async tombola(ym, winnerId, date, vt, value) {
     if (!Inc.adm()) throw new Error('Solo administración registra la tómbola.'); if (!Inc.closeOf(ym)) throw new Error('Cierra el mes primero: la tómbola se hace con las lashistas elegibles de un mes cerrado.');
-    if (Store.tombolas.some(t => t.id === ym)) throw new Error('La tómbola de ese mes ya está registrada.'); const w = Inc.eligible(ym).find(a => a.id === winnerId); if (!w) throw new Error('La ganadora debe ser una lashista elegible.');
-    if (!Dates.fromISO(date)) throw new Error('Escribe la fecha de la tómbola.'); if (!(num(value) >= 0)) throw new Error('Escribe un descuento válido.');
-    await Store.db.doc('tombolas/' + ym).set({ month: ym, date, winnerId, winnerName: w.name, valueType: vt, value: num(value), eligibleIds: Inc.eligible(ym).map(a => a.id), createdAt: new Date().toISOString(), byName: Mode.who() });
+    const w = Inc.eligible(ym).find(a => a.id === winnerId); if (!w) throw new Error('La ganadora debe ser una lashista que cumplió todo y que no haya ganado ya este mes.');
+    if (!Dates.fromISO(date)) throw new Error('Escribe la fecha del sorteo.'); if (!(num(value) > 0)) throw new Error('Escribe el monto de este sorteo.');
+    await Store.db.doc('tombolas/' + ym + '_' + Date.now().toString(36)).set({ month: ym, date, winnerId, winnerName: w.name, valueType: vt, value: num(value), eligibleIds: Inc.eligible(ym).map(a => a.id), createdAt: new Date().toISOString(), byName: Mode.who() });
     await Inc.put({ id: `rw_tombola_${winnerId}_${ym}`, type: 'tombola', artistId: winnerId, artistName: w.name, period: ym, valueType: vt, value: num(value), detail: { date } }); await Inc.publish();
   },
   async content(artistId, ym, ref, date, vt, value, force) {
@@ -11190,14 +11203,14 @@ const Inc = {
   snap(a) {
     const cfg = Inc.cfg(), cur = Inc.ym0(), prev = shiftMonth(cur, -1), mk = ym => { const ev = Inc.monthEval(a.id, ym), c = Inc.closeOf(ym), r = c && c.results[a.id]; return { ym, label: ymLabel(ym), closed: !!c, ended: Inc.ended(ym), required: ev.required, total: ev.total, q: r ? r.q : ev.q, e: r ? r.e : ev.e, qualityOk: r ? r.qualityOk : ev.qualityOk, excellenceOk: r ? r.excellenceOk : ev.excellenceOk, manualQ: ev.mQ, manualE: ev.mE, weeks: ev.weeks.map(w => ({ ws: Dates.toISO(w.ws), label: weekLabel(w.ws), n: w.n, quality: w.quality, goal: w.goal, excellence: w.excellence, meta: w.meta, qm: w.mQ ? w.quality : null, gm: w.mG ? w.goal : null, reason: w.adj ? w.adj.reason : '' })) }; };
     const rewards = Inc.rw(r => r.artistId === a.id && String(r.period) >= shiftMonth(cur, -12)).map(r => ({ id: r.id, type: r.type, label: Inc.TY[r.type], period: r.period, periodLabel: ymLabel(r.period), valueType: r.valueType, value: r.value, status: r.status, noteInvoice: r.noteInvoice || '', detail: r.type === 'content' ? { ref: Inc.refTxt(r) } : r.type === 'extra' ? { ref: (r.detail || {}).concept } : undefined, edited: !!r.edited }));
-    const tmb = ym => { const t = Store.tombolas.find(x => x.id === ym), c = Inc.closeOf(ym), el = Inc.tombolaOk(a.id, ym); return { ym, label: ymLabel(ym), closed: !!c, eligible: el, drawn: !!t, date: t ? t.date : '', winner: !!t && t.winnerId === a.id, status: t ? (t.winnerId === a.id ? 'ganadora' : (el ? 'participo' : 'no_califica')) : c ? (el ? 'participa' : 'no_califica') : 'pendiente' }; };
+    const tmb = ym => { const t = Inc.tmb(a.id, ym), ts = Inc.tmbOf(ym), mine = ts.find(x => x.winnerId === a.id), last = ts[ts.length - 1]; return { ym, label: ymLabel(ym), closed: t.closed, eligible: t.eligible, drawn: t.drawn, date: mine ? mine.date : (last ? last.date : ''), winner: t.winner, amount: t.amount, status: t.status }; };
     return { v: 1, artistId: a.id, artistName: a.name, updatedAt: new Date().toISOString(), cfg: { quality: cfg.quality.pct, excellence: cfg.excellence.pct, tombola: cfg.tombola.amount, content: cfg.content.amount, requiredWeeks: cfg.requiredWeeks, replaces: cfg.excellenceReplacesQuality }, cur: mk(cur), prev: mk(prev), rewards, tombola: { cur: tmb(cur), prev: tmb(prev) } };
   },
   _t: null, publishSoon() { clearTimeout(Inc._t); Inc._t = setTimeout(() => Inc.publish().catch(() => {}), 1500); },
   async publish() { if (!Inc.adm() || !Store.config) return; for (const a of Inc.activeArtists()) await Store.db.doc('incentives/' + a.id).set(Inc.snap(a)); },
 };
 /* estado de la tómbola de una lashista en un mes (lo usan el portal y el panel) */
-Inc.tmb = (id, ym) => { const t = Store.tombolas.find(x => x.id === ym), c = Inc.closeOf(ym), el = Inc.tombolaOk(id, ym); return { ym, closed: !!c, eligible: el, drawn: !!t, winner: !!t && t.winnerId === id, status: t ? (t.winnerId === id ? 'ganadora' : (el ? 'participo' : 'no_califica')) : c ? (el ? 'participa' : 'no_califica') : 'pendiente' }; };
+Inc.tmb = (id, ym) => { const ts = Inc.tmbOf(ym), mine = ts.find(x => x.winnerId === id), c = Inc.closeOf(ym), el = Inc.tombolaOk(id, ym); return { ym, closed: !!c, eligible: el, drawn: ts.length > 0, winner: !!mine, amount: mine ? num(mine.value) : 0, status: ts.length ? (mine ? 'ganadora' : (el ? 'participo' : 'no_califica')) : c ? (el ? 'participa' : 'no_califica') : 'pendiente' }; };
 /* cada vez que Administración cambia metas o checks, se actualiza lo que ve el portal */
 { const G = Store.saveGoals; Store.saveGoals = async function () { const r = await G.apply(this, arguments); try { Inc.publishSoon(); } catch (e) { /* el portal se actualiza después */ } return r; }; }
 { const C = Store.saveConfig; Store.saveConfig = async function (p) { const r = await C.apply(this, arguments); try { if (p && p.incentives) Inc.publishSoon(); } catch (e) { /* idem */ } return r; }; }
@@ -11207,15 +11220,15 @@ Inc.sel = null;
 Inc.month = () => Inc.sel || (Inc.sel = Inc.ym0());
 Inc.chip = r => `<span class="rd-rw ${r.status}" title="${esc(Inc.TY[r.type])}">${esc(Inc.TY[r.type].replace('Fluffy ', ''))} ${esc(Inc.val(r))} · ${Inc.STL[r.status]}</span>`;
 Inc.html = function () {
-  const ym = Inc.month(), c = Inc.closeOf(ym), cfg = Inc.cfg(), A = Inc.activeArtists(), ro = !Inc.adm(), ended = Inc.ended(ym), man = '<span class="rd-man" title="Ajuste manual de administración">manual</span>', tm = Store.tombolas.find(t => t.id === ym);
+  const ym = Inc.month(), c = Inc.closeOf(ym), cfg = Inc.cfg(), A = Inc.activeArtists(), ro = !Inc.adm(), ended = Inc.ended(ym), man = '<span class="rd-man" title="Ajuste manual de administración">manual</span>', tm = Inc.tmbOf(ym);
   const rows = A.map(a => { const ev = Inc.monthEval(a.id, ym), r = c && c.results[a.id], q = r ? r.qualityOk : ev.qualityOk, e = r ? r.excellenceOk : ev.excellenceOk, tb = Inc.tombolaOk(a.id, ym), rw = Inc.rw(x => x.artistId === a.id && x.period === ym && x.type !== 'commission100'), pend = rw.some(x => x.status === 'ganado' && x.valueType !== 'benefit' && num(x.value) > 0), alb = Inc.rw(x => x.artistId === a.id && x.period === ym && x.type === 'content' && (x.detail || {}).album)[0];
     return `<tr><td><b>${esc(a.name)}</b></td><td class="r">${r ? r.q : ev.q}/${ev.total}${ev.weeks.some(w => w.mQ) ? ' ' + man : ''}</td><td class="r">${ev.gl}/${ev.total}${ev.weeks.some(w => w.mG) ? ' ' + man : ''}</td><td>${q ? '<span class="rd-pill ok">Sí</span>' : '<span class="mutedc">—</span>'}${ev.mQ ? ' ' + man : ''}</td><td>${e ? '<span class="rd-pill ok">Sí</span>' : '<span class="mutedc">—</span>'}${ev.mE ? ' ' + man : ''}</td><td>${tm && tm.winnerId === a.id ? '<span class="rd-pill gold">★ Ganó</span>' : tb ? '<span class="rd-pill ok">Elegible</span>' : '<span class="mutedc">—</span>'}${ev.mT ? ' ' + man : ''}</td>
       <td><label class="rd-sw" title="¿Uno de sus videos se seleccionó para promocionar en redes?"><input type="checkbox" data-inc-album="${a.id}" ${alb ? 'checked' : ''} ${ro || (alb && alb.status === 'aplicado') ? 'disabled' : ''} aria-label="Video seleccionado para redes: ${esc(a.name)}"><i></i><span>${alb ? 'Sí' : 'No'}</span></label></td>
       <td class="rd-chips">${rw.length ? rw.map(Inc.chip).join(' ') : (c ? '<span class="mutedc">Sin premios</span>' : '<span class="mutedc">Proyección</span>')}</td><td class="r nowrap">${ro ? '' : `<button class="btn sm" data-inc-edit-a="${a.id}">Editar</button>${pend ? ` <button class="btn sm" data-inc-apply="${a.id}" title="Agregar los descuentos ganados a su nota de insumos">A la nota</button>` : ''}`}</td></tr>`; }).join('');
   const mv = Inc.rw(r => r.period === ym), el = c ? Inc.eligible(ym) : A.filter(a => Inc.monthEval(a.id, ym).tombolaOk);
   return `<div class="filters no-print rd-top"><div class="weeknav"><button class="btn sm" data-inc-m="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w">${esc(ymLabel(ym))}</span><button class="btn sm" data-inc-m="1" aria-label="Mes siguiente">${ic('right')}</button><button class="btn sm pink" data-inc-m="0">Este mes</button></div>
-      <div class="chips">${c ? `<span class="tag ok">Mes cerrado · ${esc(Dates.fmt(Dates.fromISO(c.closedAt.slice(0, 10)), { day: 'numeric', month: 'short' }))}</span>` : `<span class="tag">${ended ? 'Mes terminado, sin cerrar' : `Abierto · proyección (${Inc.daysLeft(ym)} día(s) para terminar)`}</span>`}${ro ? '' : `<button class="btn sm" data-inc-cfg>Configurar valores</button>${c ? '' : `<button class="btn sm primary" data-inc-close ${ended ? '' : 'disabled title="El mes todavía no termina"'}>Cerrar el mes</button>`}`}</div></div>
-    ${Inc.configured() ? '' : '<div class="banner" style="margin:0 0 12px;border-color:var(--warn)">Todavía no hay valores configurados: % de Quality y Excellence, e importes en $ de Tómbola y Content Reward. Toca «Configurar valores».</div>'}
+      <div class="chips">${c ? `<span class="tag ok">Mes cerrado · ${esc(Dates.fmt(Dates.fromISO(c.closedAt.slice(0, 10)), { day: 'numeric', month: 'short' }))}</span>` : `<span class="tag">${ended ? 'Mes terminado, sin cerrar' : `Abierto · proyección (${Inc.daysLeft(ym)} día(s) para terminar)`}</span>`}${ro ? '' : `<button class="btn sm" data-inc-weeks>Semanas del mes</button><button class="btn sm" data-inc-cfg>Configurar valores</button>${c ? '' : `<button class="btn sm primary" data-inc-close ${ended ? '' : 'disabled title="El mes todavía no termina"'}>Cerrar el mes</button>`}`}</div></div>
+    ${Inc.configured() ? '' : '<div class="banner" style="margin:0 0 12px;border-color:var(--warn)">Todavía no hay valores configurados: % de Quality y Excellence, e importe en $ de Content Reward. Toca «Configurar valores».</div>'}
     <section class="rd-card"><div class="rd-ch"><h2>Resumen por lashista</h2>${ro ? '' : '<select class="inp" data-inc-pick aria-label="Editar los incentivos de una lashista" style="max-width:240px"><option value="">Editar a una lashista…</option>' + A.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('') + '</select>'}</div><div class="tablewrap"><table class="rd-inctab"><thead><tr><th>Lashista</th><th class="r" title="Semanas con los 3 indicadores">Indic.</th><th class="r" title="Semanas con la meta monetaria">Meta</th><th>Quality</th><th>Excellence</th><th>Tómbola</th><th title="Content Reward: uno de sus videos se seleccionó para promocionar en redes">Content</th><th>Premios</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="formula">Quality: los 3 indicadores en ${cfg.requiredWeeks === 'all' ? 'todas las semanas' : 'al menos ' + cfg.requiredWeeks + ' semanas'} del mes. Excellence: los 3 indicadores y la meta monetaria en ${cfg.requiredWeeks === 'all' ? 'todas las semanas' : 'al menos ' + cfg.requiredWeeks + ' semanas'}${cfg.excellenceReplacesQuality ? ' (reemplaza al descuento de Quality)' : ''}. Quality y Excellence son un % de la nota; Tómbola, Content Reward y Extra son importes en $. Content: marca «Sí» cuando uno de los videos que subió se seleccionó para promocionar en redes. Lo marcado <i>manual</i> es un ajuste de administración, con su motivo. Un mes cerrado no se recalcula.</p></section>
     <div class="rd-grid2"><section class="rd-card"><div class="rd-ch"><h2>Tómbola mensual</h2></div>${Inc.tombolaHtml(ym, c, tm, el, ro)}</section>
@@ -11223,23 +11236,45 @@ Inc.html = function () {
     <section class="rd-card"><div class="rd-ch"><h2>Movimientos de ${esc(ymLabel(ym))}</h2></div>${mv.length ? `<div class="tablewrap"><table><thead><tr><th>Tipo</th><th>Lashista</th><th>Período</th><th class="r">Importe / %</th><th>Estado</th><th>Nota de insumos</th><th></th></tr></thead><tbody>${mv.map(r => `<tr><td>${esc(Inc.TY[r.type])}${r.detail && (r.detail.ref || r.detail.concept) ? `<br><small class="mutedc">${esc(Inc.refTxt(r).slice(0, 70))}</small>` : ''}</td><td>${esc(r.artistName)}</td><td>${esc(ymLabel(r.period))}</td><td class="r">${esc(Inc.val(r))}${r.edited ? ` <span class="rd-man" title="Importe original: ${esc(String(r.originalValue))}">editado</span>` : ''}</td><td><span class="rd-rw ${r.status}">${Inc.STL[r.status]}</span></td><td>${r.noteInvoice ? '#' + esc(r.noteInvoice) : '—'}</td><td class="r">${!ro && r.status === 'ganado' && r.valueType !== 'benefit' ? `<button class="btn sm" data-inc-redit="${esc(r.id)}">Editar importe</button>` : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><b>Sin movimientos</b>Aparecen al cerrar el mes, registrar la tómbola, marcar el Content Reward o agregar un extra.</div>'}</section>`;
 };
 Inc.tombolaHtml = (ym, c, tm, el, ro) => {
-  if (tm) return `<p><b>${esc(tm.winnerName)}</b> ganó la tómbola de ${esc(ymLabel(ym))}.</p><p class="mutedc">Fecha: ${esc(Dates.fmt(Dates.fromISO(tm.date), { day: 'numeric', month: 'long', year: 'numeric' }))} · Descuento: ${esc(tm.valueType === 'pct' ? tm.value + '%' : money(tm.value, 1))}</p><p class="mutedc">Participaron ${tm.eligibleIds.length} lashista(s).</p>`;
-  return `<p class="mutedc" style="margin:0 0 8px">Lashistas elegibles (misma elegibilidad que Excellence): <b>${el.length}</b>${c ? '' : ' · proyección, el mes sigue abierto'}</p>${el.length ? `<div class="chips" style="margin:0 0 10px">${el.map(a => `<span class="tag">${esc(a.name)}</span>`).join('')}</div>` : '<p class="mutedc">Nadie califica por ahora.</p>'}${!c ? '<p class="mutedc">La tómbola se registra con el mes cerrado.</p>' : ro || !el.length ? '' : '<button class="btn sm primary" data-inc-tombola>Registrar la ganadora</button>'}`;
+  const draws = (tm || []).map(t => `<div style="display:flex;justify-content:space-between;gap:10px;margin:0 0 6px"><div><b>${esc(t.winnerName)}</b> ganó<br><small class="mutedc">${esc(Dates.fmt(Dates.fromISO(t.date), { day: 'numeric', month: 'long', year: 'numeric' }))}</small></div><div class="r"><b>${esc(t.valueType === 'pct' ? t.value + '%' : money(t.value, 1))}</b></div></div>`).join('');
+  return `${draws ? `<div style="margin:0 0 10px">${draws}</div>` : ''}<p class="mutedc" style="margin:0 0 8px">Lashistas que cumplieron todo y pueden ganar${draws ? ' el siguiente sorteo' : ''} (misma elegibilidad que Excellence): <b>${el.length}</b>${c ? '' : ' · proyección, el mes sigue abierto'}</p>${el.length ? `<div class="chips" style="margin:0 0 10px">${el.map(a => `<span class="tag">${esc(a.name)}</span>`).join('')}</div>` : `<p class="mutedc">${draws ? 'Ya no quedan lashistas elegibles sin premio este mes.' : 'Nadie califica por ahora.'}</p>`}${!c ? '<p class="mutedc">Los sorteos se registran con el mes cerrado.</p>' : ro || !el.length ? '' : '<button class="btn sm primary" data-inc-tombola>Registrar sorteo</button>'}`;
 };
 Inc.contentHtml = ym => { const l = Inc.rw(r => (r.type === 'content' || r.type === 'extra') && r.period === ym); return l.length ? l.map(r => `<div class="rd-line"><div><b>${esc(r.artistName)}</b> · ${esc(Inc.TY[r.type])}<br><small class="mutedc">${esc(Inc.refTxt(r))}</small></div><div class="r">${esc(Inc.val(r))}<br><span class="rd-rw ${r.status}">${Inc.STL[r.status]}</span></div></div>`).join('') : '<p class="mutedc">No hay contenido ni extras este mes.</p>'; };
 Inc.cfgForm = function () {
   const c = Inc.cfg();
   DP.layer(`<h3>Configurar incentivos</h3><p style="color:var(--muted);margin:0 0 10px">Estos valores se usan al cerrar cada mes y como sugerencia al registrar premios. Un mes ya cerrado conserva los valores con que se cerró.</p>
     <div class="formgrid"><label class="field">Fluffy Quality · descuento % de la nota<input type="number" min="0" max="100" step="0.5" data-ic="q" value="${c.quality.pct}"></label><label class="field">Fluffy Excellence · descuento % de la nota<input type="number" min="0" max="100" step="0.5" data-ic="e" value="${c.excellence.pct}"></label>
-    <label class="field">Tómbola · descuento sugerido en $<input type="number" min="0" step="1" data-ic="t" value="${c.tombola.amount}"></label><label class="field">Content Reward (video seleccionado para redes) · descuento en $<input type="number" min="0" step="1" data-ic="c" value="${c.content.amount}"></label>
+    <label class="field">Content Reward (video seleccionado para redes) · descuento en $<input type="number" min="0" step="1" data-ic="c" value="${c.content.amount}"></label>
     <label class="field">Semanas del mes que deben cumplirse<select data-ic="w"><option value="all" ${c.requiredWeeks === 'all' ? 'selected' : ''}>Todas las semanas del mes</option>${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${String(c.requiredWeeks) === String(n) ? 'selected' : ''}>Al menos ${n}</option>`).join('')}</select></label>
     <label class="check full" style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-ic="r" ${c.excellenceReplacesQuality ? 'checked' : ''}> <span>Excellence reemplaza el descuento de Quality (no se suman)</span></label></div>
     <p class="mutedc" style="font-size:12.5px">Quality y Excellence se aplican como % de la nota. Tómbola, Content Reward (video seleccionado para redes) y Extra son importes fijos en dólares; el importe de cada uno se puede cambiar individualmente. Comisión 100% Before/After Hours: se registra como beneficio para el mes siguiente.</p>
     <p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, (m, close) => {
     $('[data-x=no]', m).onclick = close;
-    $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-ic=${k}]`, m), p = k => num(g(k).value); if ([p('q'), p('e')].some(v => v < 0 || v > 100) || [p('t'), p('c')].some(v => v < 0)) { $('[data-ie]', m).textContent = 'Revisa los valores (los % van de 0 a 100; los importes no pueden ser negativos).'; return; }
-      try { await Store.saveConfig({ incentives: { quality: { pct: p('q') }, excellence: { pct: p('e') }, tombola: { amount: p('t') }, content: { amount: p('c') }, requiredWeeks: g('w').value === 'all' ? 'all' : num(g('w').value), contentMax: c.contentMax, excellenceReplacesQuality: g('r').checked } }); close(); UI.toast('Valores guardados'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); } };
+    $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-ic=${k}]`, m), p = k => num(g(k).value); if ([p('q'), p('e')].some(v => v < 0 || v > 100) || [p('c')].some(v => v < 0)) { $('[data-ie]', m).textContent = 'Revisa los valores (los % van de 0 a 100; los importes no pueden ser negativos).'; return; }
+      try { await Store.saveConfig({ incentives: { quality: { pct: p('q') }, excellence: { pct: p('e') }, tombola: c.tombola, content: { amount: p('c') }, requiredWeeks: g('w').value === 'all' ? 'all' : num(g('w').value), contentMax: c.contentMax, excellenceReplacesQuality: g('r').checked } }); close(); UI.toast('Valores guardados'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); } };
   }, 580);
+};
+/* ---------- Semanas de cada mes: administración decide a qué mes cuenta cada semana (viernes a jueves) ---------- */
+Inc.weeksForm = function (ym) {
+  const [y, mo] = ym.split('-').map(Number), start = Dates.fluffyWeekStart(Dates.monthStart(y, mo - 1)) - 14, end = Dates.monthEnd(y, mo - 1) + 14;
+  const opts = [shiftMonth(ym, -1), ym, shiftMonth(ym, 1)], man = (Store.config && Store.config.weekMonths) || {}, weeks = [];
+  for (let ws = start; ws <= end; ws += 7) weeks.push(ws);
+  const rows = weeks.map(ws => { const cur = Perf.weekMonth(ws), auto = Dates.ym(ws + 3), list = opts.includes(cur) ? opts : opts.concat(cur);
+    return `<div style="display:flex;align-items:center;gap:10px;justify-content:space-between;margin:0 0 8px"><div><b>${esc(weekLabel(ws))}</b>${man[Dates.toISO(ws)] ? `<br><small class="mutedc">Asignada a mano · automático: ${esc(ymLabel(auto))}</small>` : ''}</div><select class="inp" data-wk="${Dates.toISO(ws)}" style="max-width:190px">${list.map(o => `<option value="${o}" ${o === cur ? 'selected' : ''}>${esc(ymLabel(o))}</option>`).join('')}</select></div>`; }).join('');
+  DP.layer(`<h3>Semanas de ${esc(ymLabel(ym))}</h3><p style="color:var(--muted);margin:0 0 10px">Cada semana (viernes a jueves) cuenta para un mes. Si no cambias nada, cuenta para el mes de su lunes. Elige a qué mes cuenta cada una; se usa en Metas semanales, Productividad mensual e Incentivos. Un mes ya cerrado no se modifica.</p>${rows}
+    <p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, (m, close) => {
+    $('[data-x=no]', m).onclick = close;
+    $('[data-x=ok]', m).onclick = async () => {
+      const next = { ...man };
+      for (const ws of weeks) {
+        const iso = Dates.toISO(ws), sel = $(`[data-wk="${iso}"]`, m).value, cur = Perf.weekMonth(ws), auto = Dates.ym(ws + 3);
+        if (sel !== cur) { const bad = [cur, sel].find(x => Inc.closeOf(x)); if (bad) { $('[data-ie]', m).textContent = `${ymLabel(bad)} ya está cerrado: no se cambian sus semanas.`; return; } }
+        if (sel === auto) delete next[iso]; else next[iso] = sel;
+      }
+      try { await Store.saveConfig({ weekMonths: next }); close(); UI.toast('Semanas guardadas'); try { Inc.publishSoon(); } catch (e) { /* el portal se actualiza después */ } UI.render(); }
+      catch (e) { $('[data-ie]', m).textContent = 'No se pudo guardar: ' + (e.message || e.code); }
+    };
+  }, 560);
 };
 /* ---------- Editar incentivos de una lashista (ajustes manuales con motivo) ---------- */
 /* Base en $ para convertir un % en dinero: el subtotal de la nota de insumos de ese mes, si ya existe */
@@ -11248,7 +11283,7 @@ Inc.VIDEO_TXT = 'Uno de sus videos se seleccionó para promocionar en redes';
 Inc.refTxt = r => (r.detail || {}).album ? Inc.VIDEO_TXT : ((r.detail || {}).ref || (r.detail || {}).concept || '');
 /* qué gana una lashista en un mes (con la fórmula vigente y sus ajustes) */
 Inc.earn = function (id, ym) {
-  const ev = Inc.monthEval(id, ym), cfg = Inc.cfg(), c = Inc.closeOf(ym), base = Inc.noteBase(id, ym), repl = cfg.excellenceReplacesQuality, tm = Store.tombolas.find(t => t.id === ym);
+  const ev = Inc.monthEval(id, ym), cfg = Inc.cfg(), c = Inc.closeOf(ym), base = Inc.noteBase(id, ym), repl = cfg.excellenceReplacesQuality, tm = Inc.tmbOf(ym).find(t => t.winnerId === id);
   const rw = t => Inc.rw(r => r.artistId === id && r.period === ym && r.type === t);
   const pctTxt = p => `${num(p)}%${base != null && num(p) > 0 ? ` ≈ ${money(r2(base * num(p) / 100), 1)}` : ''}`, rows = []; let pct = 0, amt = 0;
   const qR = rw('quality')[0], eR = rw('excellence')[0], qOk = c ? !!qR : (ev.qualityOk && !(ev.excellenceOk && repl)), eOk = c ? !!eR : ev.excellenceOk;
@@ -11256,7 +11291,7 @@ Inc.earn = function (id, ym) {
   rows.push({ k: 'quality', label: 'Fluffy Quality', ok: qOk, txt: qOk ? `Gana ${pctTxt(qv)}` : (ev.qualityOk && ev.excellenceOk && repl ? 'Incluido en Excellence' : 'No gana') }); if (qOk) pct += num(qv);
   rows.push({ k: 'excellence', label: 'Fluffy Excellence', ok: eOk, txt: eOk ? `Gana ${pctTxt(ev2)}` : 'No gana' }); if (eOk) pct += num(ev2);
   const tw = tm && tm.winnerId === id, te = Inc.tombolaOk(id, ym);
-  rows.push({ k: 'tombola', label: 'Tómbola', ok: !!tw, txt: tw ? `Ganó ${money(tm.value, 1)}` : te ? `Elegible · sorteo de ${money(cfg.tombola.amount, 1)}` : 'No elegible' }); if (tw) amt += num(tm.value);
+  rows.push({ k: 'tombola', label: 'Tómbola', ok: !!tw, txt: tw ? `Ganó ${money(tm.value, 1)}` : te ? 'Elegible para el sorteo' : 'No elegible' }); if (tw) amt += num(tm.value);
   const cR = rw('content').filter(r => (r.detail || {}).album)[0]; rows.push({ k: 'content', label: 'Content Reward', ok: !!cR, txt: cR ? `Gana ${money(cR.value, 1)}` : 'No gana' }); if (cR) amt += num(cR.value);
   const ex = rw('extra'); ex.forEach(r => { rows.push({ k: 'extra', label: 'Extra · ' + ((r.detail || {}).concept || ''), ok: true, txt: `Gana ${money(r.value, 1)}` }); amt += num(r.value); });
   return { rows, pct, amt, base, approx: base != null ? r2(base * pct / 100 + amt) : null, closed: !!c };
@@ -11310,14 +11345,15 @@ Inc.bind = function (root) {
   const ym = Inc.month(), fail = e => UI.toast(e.message || 'No se pudo guardar', true);
   $$('[data-inc-m]', root).forEach(b => b.onclick = () => { const k = +b.dataset.incM; Inc.sel = k ? shiftMonth(ym, k) : Inc.ym0(); UI.render(); });
   const cfgb = $('[data-inc-cfg]', root); if (cfgb) cfgb.onclick = Inc.cfgForm;
+  const wkb = $('[data-inc-weeks]', root); if (wkb) wkb.onclick = () => Inc.weeksForm(ym);
   const cl = $('[data-inc-close]', root); if (cl) cl.onclick = async () => { if (!await UI.confirm('Cerrar ' + ymLabel(ym), `Se registran los premios de ${esc(ymLabel(ym))} (Quality y Excellence) con los valores actuales y los ajustes manuales, y el mes queda <b>cerrado</b>: ya no se recalcula. Esta acción no se puede deshacer.`, 'Cerrar el mes')) return; try { await Inc.close(ym); UI.toast('Mes cerrado'); UI.render(); } catch (e) { fail(e); } };
   $$('[data-inc-apply]', root).forEach(b => b.onclick = async () => { try { const r = await Inc.apply(b.dataset.incApply, ym); UI.toast(`${r.count} descuento(s) aplicado(s) a la nota #${r.n.invoice}`); UI.render(); } catch (e) { fail(e); } });
   $$('[data-inc-edit-a]', root).forEach(b => b.onclick = () => Inc.editForm(b.dataset.incEditA, ym));
   $$('[data-inc-redit]', root).forEach(b => b.onclick = () => Inc.rewardForm(b.dataset.incRedit));
   const eb = $('[data-inc-extra]', root); if (eb) eb.onclick = () => Inc.extraForm('', ym);
   const tb = $('[data-inc-tombola]', root); if (tb) tb.onclick = () => { const el = Inc.eligible(ym), cfg = Inc.cfg(), today = Dates.toISO(Dates.today());
-    DP.layer(`<h3>Tómbola de ${esc(ymLabel(ym))}</h3><label class="field">Ganadora<select data-it="w"><option value="">Elige</option>${el.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label><div class="formgrid"><label class="field">Fecha de la tómbola<input type="date" data-it="d" value="${today}" max="${today}"></label><label class="field">Descuento adicional en $<input type="number" min="0" step="1" data-it="v" value="${cfg.tombola.amount}"></label></div><p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar</button></div>`, (m, close) => {
-      $('[data-x=no]', m).onclick = close; $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-it=${k}]`, m).value; try { await Inc.tombola(ym, g('w'), g('d'), 'amt', g('v')); close(); UI.toast('Tómbola registrada'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = e.message; } }; }, 520); };
+    DP.layer(`<h3>Sorteo de tómbola · ${esc(ymLabel(ym))}</h3><label class="field">Ganadora<select data-it="w"><option value="">Elige</option>${el.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select></label><div class="formgrid"><label class="field">Fecha del sorteo<input type="date" data-it="d" value="${today}" max="${today}"></label><label class="field">Premio de este sorteo en $<input type="number" min="1" step="1" data-it="v" value="" placeholder="Monto"></label></div><p class="err" data-ie style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Registrar</button></div>`, (m, close) => {
+      $('[data-x=no]', m).onclick = close; $('[data-x=ok]', m).onclick = async () => { const g = k => $(`[data-it=${k}]`, m).value; try { await Inc.tombola(ym, g('w'), g('d'), 'amt', g('v')); close(); UI.toast('Sorteo registrado'); UI.render(); } catch (e) { $('[data-ie]', m).textContent = e.message; } }; }, 520); };
   $$('[data-inc-album]', root).forEach(cb => cb.onchange = async () => { try { await Inc.setAlbum(cb.dataset.incAlbum, ym, cb.checked); UI.toast(cb.checked ? 'Video seleccionado: Content Reward ganado' : 'Content Reward quitado'); UI.render(); } catch (e) { cb.checked = !cb.checked; fail(e); } });
   const pk = $('[data-inc-pick]', root); if (pk) pk.onchange = () => { if (pk.value) Inc.editForm(pk.value, ym); pk.value = ''; };
 };
@@ -11510,7 +11546,7 @@ const Rpt = {
     const reg = S.filter(s => Perf.serviceGroup(s.service) !== null && !Redo.is(s.service) && !Rpt.COMPL(s.service)), by = new Map(); reg.forEach(s => by.set(s.service, (by.get(s.service) || 0) + 1));
     const services = [...by.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'es')), redoN = S.filter(s => Redo.is(s.service)).length, complN = S.filter(s => Rpt.COMPL(s.service)).length, svc = reg.length, GL = [['Full set', 'FULL SET'], ['Refill', 'REFILL'], ['Brow & wax', 'BROW & WAX'], ['Lash lift', 'LASH LIFT'], ['Extras', 'EXTRAS']], groups = GL.map(([g, label]) => { const types = services.filter(x => Perf.serviceGroup(x.name) === g); return { g, label, n: types.reduce((t, x) => t + x.n, 0), types }; }), tips = r2(S.reduce((t, s) => t + num(s.tip), 0));
     /* incentivos del mes */
-    const rw = t => Inc.rw(r => r.artistId === id && r.period === ym && r.type === t), base = Inc.noteBase(id, ym), ev = Inc.monthEval(id, ym), tm = Store.tombolas.find(t => t.id === ym), nx = Inc.next(ym);
+    const rw = t => Inc.rw(r => r.artistId === id && r.period === ym && r.type === t), base = Inc.noteBase(id, ym), ev = Inc.monthEval(id, ym), tm = Inc.tmbOf(ym).find(t => t.winnerId === id), nx = Inc.next(ym);
     const T = Inc.today(), WK = Perf.weeksOfMonth(ym), over = Inc.ended(ym), cr = c && c.results[id], failQ = ev.weeks.filter((w, i) => WK[i] + 6 < T && !w.quality).length, failE = ev.weeks.filter((w, i) => WK[i] + 6 < T && !w.excellence).length;
     /* «perdido» = ya no se puede alcanzar (el mes terminó, se ajustó a mano, o ya fallaron tantas semanas que no alcanzan las requeridas); no hace falta cerrar el mes */
     const lostQ = !ev.qualityOk && (ev.mQ || over || failQ > ev.total - ev.required), lostE = !ev.excellenceOk && (ev.mE || over || failE > ev.total - ev.required), nq = cr && cr.q != null ? cr.q : ev.q, ne = cr && cr.e != null ? cr.e : ev.e;
