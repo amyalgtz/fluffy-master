@@ -916,7 +916,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-09 12:00';
+window.FM_VERSION = '2026-11-10 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -6029,10 +6029,10 @@ function requestEditor(r, deliver) {
   const line = (it, k) => { const s = stock.get(it.code) || { salon: 0 };
     return `<div class="rqline" data-rl="${k}"><select class="inp" data-r="code" ${locked ? 'disabled' : ''}>${opts(it.code)}</select><input class="inp num" type="number" min="1" step="1" data-r="qty" value="${esc(it.qty)}" ${locked ? 'disabled' : ''} aria-label="Cantidad">
       <select class="inp" data-r="state" ${locked ? 'disabled' : ''} aria-label="Estado">${ITEM_STATES.map(x => `<option ${it.state === x ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="btn sm" data-r="rm" ${locked ? 'disabled' : ''} aria-label="Quitar">×</button>
-      ${it.code ? `<span class="rqinfo ${s.salon < num(it.qty) ? 'neg' : 'mutedc'}">En salón: ${intf(s.salon)} · ${money(unitPrice(it.code), 1)} c/u${it.state === 'Entregado' ? ' · subtotal ' + money(r2(unitPrice(it.code) * num(it.qty)), 1) : ''}</span>` : ''}</div>`; };
+      ${it.code ? `<span class="rqinfo ${s.salon < num(it.qty) ? 'neg' : 'mutedc'}">En salón: ${intf(s.salon)}${Mode.reception ? '' : ` · ${money(unitPrice(it.code), 1)} c/u${it.state === 'Entregado' ? ' · subtotal ' + money(r2(unitPrice(it.code) * num(it.qty)), 1) : ''}`}</span>` : ''}</div>`; };
   UI.modal(`<h3>${deliver ? 'Entregar a ' + esc(r.artistName) : r ? 'Solicitud de ' + esc(r.artistName) : 'Nueva solicitud de insumos'}</h3>
     <p style="color:var(--muted);margin:0 0 12px">${r ? `${reqTag(r.status)} ${r.source === 'link' ? '<span class="tag">Por link</span>' : ''} · registró ${esc(r.createdByName || '—')}${r.deliveredAt ? ' · entregó ' + esc(r.deliveredByName || '—') + ' el ' + new Date(r.deliveredAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : ''}` : 'Marca cada artículo como Pendiente (por entregar), Entregado o Sin stock. Se cobra en la nota del mes solo lo entregado.'}</p>
-    ${billed ? `<div class="banner">Está en la nota #${esc(billed.invoice)} (${esc(billed.status)}).${locked ? ' Ya no se puede cambiar aquí: corrige la nota.' : ' Si cambias algo, después usa “Actualizar nota” en Cobro del mes.'}</div>` : ''}
+    ${billed ? (Mode.reception ? `<div class="banner">${locked ? 'Esta entrega ya fue cobrada por administración: ya no se puede cambiar aquí.' : 'Esta entrega ya está incluida en el cobro del mes. Si cambias algo, avisa a administración.'}</div>` : `<div class="banner">Está en la nota #${esc(billed.invoice)} (${esc(billed.status)}).${locked ? ' Ya no se puede cambiar aquí: corrige la nota.' : ' Si cambias algo, después usa “Actualizar nota” en Cobro del mes.'}</div>`) : ''}
     <div class="formgrid"><label class="field">Lashista<select data-ra ${r ? 'disabled' : ''}>${artistOptions(st.artistId, 0, 0)}</select></label><label class="field">Fecha de solicitud<input type="date" data-rdate value="${esc(st.date)}" ${locked ? 'disabled' : ''}></label></div>
     <div class="rqhead"><span>Producto</span><span>Cant.</span><span>Estado</span><span></span></div><div data-rlines></div>
     ${locked ? '' : `<div class="chips" style="margin-top:8px"><button class="btn sm" data-radd>${ic('plus')}Agregar producto</button><button class="btn sm" data-rall>Marcar pendientes como entregados</button></div>`}
@@ -6041,7 +6041,7 @@ function requestEditor(r, deliver) {
     <div class="acts">${r && !billed && Store.writable() ? '<button class="btn danger" data-x="del">Eliminar solicitud</button>' : ''}<button class="btn" data-x="no">${locked ? 'Cerrar' : 'Cancelar'}</button>${locked ? '' : `<button class="btn primary" data-x="ok">${deliver ? 'Confirmar entrega' : r ? 'Guardar cambios' : 'Guardar solicitud'}</button>`}</div>`, m => {
     m.classList.add('wide');
     const draw = () => { $('[data-rlines]', m).innerHTML = st.items.map(line).join('');
-      const ent = st.items.filter(i => i.code && i.state === 'Entregado'); $('[data-rtot]', m).innerHTML = `<span>${intf(st.items.filter(i => i.code).length)} productos</span><span>Entregado: <b>${money(r2(ent.reduce((t, i) => t + unitPrice(i.code) * num(i.qty), 0)), 1)}</b> a precio lashista</span>`; };
+      const ent = st.items.filter(i => i.code && i.state === 'Entregado'); $('[data-rtot]', m).innerHTML = `<span>${intf(st.items.filter(i => i.code).length)} productos</span>${Mode.reception ? '' : `<span>Entregado: <b>${money(r2(ent.reduce((t, i) => t + unitPrice(i.code) * num(i.qty), 0)), 1)}</b> a precio lashista</span>`}`; };
     draw();
     const box = $('[data-rlines]', m);
     box.addEventListener('change', e => { const l = e.target.closest('[data-rl]'), k = e.target.dataset.r; if (!l || !k || k === 'rm') return; st.items[+l.dataset.rl][k] = e.target.value; draw(); });
@@ -7925,7 +7925,7 @@ const _insHtmlL = Views.insumos.html, _insMountL = Views.insumos.mount;
 const linkUrl = () => location.origin + location.pathname.replace(/[^/]*$/, '') + 'solicitud.html';
 Views.insumos.html = function () {
   let h = _insHtmlL.call(this);
-  if (FM.member.role !== 'admin') return h;
+  if (FM.member.role !== 'admin' || Mode.reception) return h;
   h = h.replace(/(<div class="tabs no-print" role="tablist">[\s\S]*?)(<\/div>)/, (m0, a, b) => a + `<button role="tab" class="${S.ins.tab === 'link' ? 'on' : ''}" data-itab="link">Link para lashistas</button>` + b);
   if (S.ins.tab !== 'link') return h;
   const pins = this._pins, arts = Store.config.artists.filter(a => a.active !== false).sort((a, b) => a.name.localeCompare(b.name));
@@ -7940,7 +7940,7 @@ Views.insumos.html = function () {
 };
 Views.insumos.mount = function (root) {
   _insMountL.call(this, root);
-  if (FM.member.role !== 'admin') return;
+  if (FM.member.role !== 'admin' || Mode.reception) return;
   const lt = $('[data-itab=link]', root); if (lt) lt.onclick = () => { S.ins.tab = 'link'; this._pins = null; UI.render(); };
   if (S.ins.tab !== 'link') return;
   if (this._pins == null) { FM.sb.rpc('fm_pins_status').then(({ data, error }) => { this._pins = error ? { error: /function|does not exist|schema cache/i.test(error.message) ? 'Falta correr el archivo actualizacion-link-insumos.sql en Supabase.' : error.message } : (data || []); if (UI.route === 'insumos') UI.render(); }); return; }
@@ -10666,6 +10666,7 @@ const IN3 = {
   /* lo que el servidor guardó de la nota (no la copia local) */
   async serverNote(id) { try { if (!window.FM || !FM.sb) { const d = (await Store.db.doc('productNotes/' + id).get()); return d.exists ? d.data() : null; } const { data, error } = await FM.sb.from('docs').select('data').match({ collection: 'productNotes', id }).maybeSingle(); if (error) return null; return data ? data.data : null; } catch (e) { return null; } },
   async save(form, id) {
+    if (Mode.reception) throw new Error('Las notas de insumos las gestiona administración.');
     const c = Perf.calculateNote(form.items, Store.config.taxRate, form.discounts);
     if (form.status === 'Pagada') form = { ...form, status: 'Enviada' };            /* Pagada solo se logra confirmando el pago */
     if (form.status === 'Enviada' && c.total <= 0.005) form = { ...form, status: 'Sin cargo' };
@@ -10718,8 +10719,10 @@ const noteCatalog = (l, prev) => { const old = prev && l.code ? (prev.items || [
 const appliedPrice = (r, code) => { const nn = r && r.billedNoteId ? Store.notes.find(x => x.id === r.billedNoteId) : null, it = nn && (nn.items || []).find(x => x.code === code); return it ? num(it.unit) : unitPrice(code); };
 NOTE_DEDUCTS.add('Sin cargo');
 
-/* ---------- permisos: Recepción vuelve a gestionar Insumos ---------- */
-{ const E = noteEditor; noteEditor = function (n) { if (n && (n.status === 'Pagada' || n.status === 'Sin cargo' || n.paid > 0.005)) { UI.toast('Una nota pagada ya no se edita.', true); return noteDetail(n); } return E.apply(this, arguments); }; }
+/* ---------- permisos: solo Administración ---------- */
+{ const S0 = Store.saveNote; Store.saveNote = function (f, id) { if (Mode.reception) return Promise.reject(new Error('Las notas de insumos las gestiona administración.')); return S0.call(this, f, id); }; }
+/* Recepción SÍ entrega insumos (Por entregar / Entregadas). Notas, descuentos y pagos siguen siendo solo de Administración (bloqueados aquí y más abajo). */
+{ const E = noteEditor; noteEditor = function (n) { if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; } if (n && (n.status === 'Pagada' || n.status === 'Sin cargo' || n.paid > 0.005)) { UI.toast('Una nota pagada ya no se edita.', true); return noteDetail(n); } return E.apply(this, arguments); }; }
 
 /* ---------- estados derivados ---------- */
 { const D = Object.getOwnPropertyDescriptor(Store, 'notes');
@@ -10738,8 +10741,6 @@ NOTE_DEDUCTS.add('Sin cargo');
     if (raw) { const { id, source, ...doc } = raw; try { await Store.db.doc('productNotes/' + id).set({ ...doc, status: 'Pagada', paidAt: data.date, paidMethod: data.method, statusHistory: (doc.statusHistory || []).concat([{ status: 'Pagada', at: new Date().toISOString(), by: Mode.who() }]), updatedAt: new Date().toISOString() }); } catch (e) { /* el pago ya quedó; el estado se deriva de los pagos */ } }
   }; }
 notePaymentForm = function (preId) { IN3.payModal(preId); };
-/* Recepción no gestiona insumos: se retira su acceso del menú lateral y de la barra inferior */
-{ const R = UI.renderNav; UI.renderNav = function () { R.apply(this, arguments); if (Mode.reception) $$('#side a[data-go=insumos], #bottom a[data-go=insumos]').forEach(a => a.remove()); }; }
 
 /* ---------- Cobrar → Pago de lashista: bandeja ---------- */
 LashPay.open = () => IN3.open();
@@ -10756,6 +10757,7 @@ LashPay.mount = function (root) { $$('[data-ctipo]', root).forEach(b => b.onclic
 
 /* ---------- detalle de la nota: precio de catálogo vs aplicado, pago, aclaraciones y regularización ---------- */
 { const D = noteDetail; noteDetail = function (n) {
+    if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; }
     D.apply(this, arguments); const m = $('.modal'); if (!m || !n || n.source !== 'app') return; const acts = $('.acts', m), extra = [];
     const diff = (n.items || []).filter(i => i.catalog != null && Math.abs(num(i.catalog) - num(i.unit)) > 0.004);
     if (diff.length) extra.push(`<p class="formula">Precio modificado en esta nota (el catálogo no cambia): ${diff.map(i => `${esc(i.desc)} · catálogo ${money(i.catalog, 1)} → aplicado ${money(i.unit, 1)}`).join(' · ')}</p>`);
@@ -11421,7 +11423,7 @@ const NT = {
   },
   formOf(n, status) { return { artistId: n.artistId, month: n.month, date: n.date, status, comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value, ...(d.rewardId ? { rewardId: d.rewardId } : {}) })) }; },
   async setStatus(n, status) {
-    if (!Store.writable()) throw new Error('Sin permiso para editar.'); if (n.status === 'Pagada') throw new Error('La nota ya está pagada: su estado no se cambia aquí.');
+    if (Mode.reception || !Store.writable()) throw new Error('Las notas de insumos las gestiona administración.'); if (n.status === 'Pagada') throw new Error('La nota ya está pagada: su estado no se cambia aquí.');
     if (Store.rewards.some(r => r.noteId === n.id) && status !== 'Enviada' && n.status !== 'Borrador') throw new Error('Tiene descuentos de incentivos aplicados: no puede regresar a borrador ni cancelarse.');
     return IN3.save(NT.formOf(n, status), n.id);
   },
@@ -11760,7 +11762,7 @@ Object.assign(Inc, {
 document.addEventListener('click', e => { const b = e.target.closest('[data-pvdesc]'); if (b) { e.preventDefault(); Inc.previewOpen(b.dataset.pvdesc); } });
 /* botón en Insumos › Cobro (junto a «Generar / actualizar notas del mes») */
 { const H = Views.insumos.html;
-  Views.insumos.html = function () { const h = H.apply(this, arguments); if (S.ins.tab !== 'cobro' || Mode.reception) return h; const ym = S.ins.month || Dates.ym(Dates.today());
+  Views.insumos.html = function () { if (Mode.reception && !['cola', 'hechas'].includes(S.ins.tab)) S.ins.tab = 'cola'; const h = H.apply(this, arguments); if (S.ins.tab !== 'cobro' || Mode.reception) return h; const ym = S.ins.month || Dates.ym(Dates.today());
     return h.replace('<button class="btn primary" data-billall', `<span class="chips" style="gap:8px"><button class="btn" data-pvdesc="${ym}">Vista previa con descuentos</button><button class="btn primary" data-billall`).replace(/(data-billall[^>]*>[^<]*<\/button>)/, '$1</span>'); };
 }
 
