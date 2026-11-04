@@ -10666,7 +10666,6 @@ const IN3 = {
   /* lo que el servidor guardó de la nota (no la copia local) */
   async serverNote(id) { try { if (!window.FM || !FM.sb) { const d = (await Store.db.doc('productNotes/' + id).get()); return d.exists ? d.data() : null; } const { data, error } = await FM.sb.from('docs').select('data').match({ collection: 'productNotes', id }).maybeSingle(); if (error) return null; return data ? data.data : null; } catch (e) { return null; } },
   async save(form, id) {
-    if (Mode.reception) throw new Error('Las notas de insumos las gestiona administración.');
     const c = Perf.calculateNote(form.items, Store.config.taxRate, form.discounts);
     if (form.status === 'Pagada') form = { ...form, status: 'Enviada' };            /* Pagada solo se logra confirmando el pago */
     if (form.status === 'Enviada' && c.total <= 0.005) form = { ...form, status: 'Sin cargo' };
@@ -10719,10 +10718,8 @@ const noteCatalog = (l, prev) => { const old = prev && l.code ? (prev.items || [
 const appliedPrice = (r, code) => { const nn = r && r.billedNoteId ? Store.notes.find(x => x.id === r.billedNoteId) : null, it = nn && (nn.items || []).find(x => x.code === code); return it ? num(it.unit) : unitPrice(code); };
 NOTE_DEDUCTS.add('Sin cargo');
 
-/* ---------- permisos: solo Administración ---------- */
-{ const S0 = Store.saveNote; Store.saveNote = function (f, id) { if (Mode.reception) return Promise.reject(new Error('Las notas de insumos las gestiona administración.')); return S0.call(this, f, id); }; }
-{ const i = RECEP_ROUTES.indexOf('insumos'); if (i >= 0) RECEP_ROUTES.splice(i, 1); const m = RECEP_MENU.findIndex(x => x[0] === 'insumos'); if (m >= 0) RECEP_MENU.splice(m, 1); }
-{ const E = noteEditor; noteEditor = function (n) { if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; } if (n && (n.status === 'Pagada' || n.status === 'Sin cargo' || n.paid > 0.005)) { UI.toast('Una nota pagada ya no se edita.', true); return noteDetail(n); } return E.apply(this, arguments); }; }
+/* ---------- permisos: Recepción vuelve a gestionar Insumos ---------- */
+{ const E = noteEditor; noteEditor = function (n) { if (n && (n.status === 'Pagada' || n.status === 'Sin cargo' || n.paid > 0.005)) { UI.toast('Una nota pagada ya no se edita.', true); return noteDetail(n); } return E.apply(this, arguments); }; }
 
 /* ---------- estados derivados ---------- */
 { const D = Object.getOwnPropertyDescriptor(Store, 'notes');
@@ -10759,7 +10756,6 @@ LashPay.mount = function (root) { $$('[data-ctipo]', root).forEach(b => b.onclic
 
 /* ---------- detalle de la nota: precio de catálogo vs aplicado, pago, aclaraciones y regularización ---------- */
 { const D = noteDetail; noteDetail = function (n) {
-    if (Mode.reception) { UI.toast('Las notas de insumos las gestiona administración.', true); return; }
     D.apply(this, arguments); const m = $('.modal'); if (!m || !n || n.source !== 'app') return; const acts = $('.acts', m), extra = [];
     const diff = (n.items || []).filter(i => i.catalog != null && Math.abs(num(i.catalog) - num(i.unit)) > 0.004);
     if (diff.length) extra.push(`<p class="formula">Precio modificado en esta nota (el catálogo no cambia): ${diff.map(i => `${esc(i.desc)} · catálogo ${money(i.catalog, 1)} → aplicado ${money(i.unit, 1)}`).join(' · ')}</p>`);
@@ -11425,7 +11421,7 @@ const NT = {
   },
   formOf(n, status) { return { artistId: n.artistId, month: n.month, date: n.date, status, comments: n.comments || '', items: n.items.map(i => ({ code: i.code, desc: i.desc, qty: i.qty, unit: i.unit })), discounts: (n.discounts || []).map(d => ({ label: d.label, type: d.type, value: d.value, ...(d.rewardId ? { rewardId: d.rewardId } : {}) })) }; },
   async setStatus(n, status) {
-    if (Mode.reception || !Store.writable()) throw new Error('Las notas de insumos las gestiona administración.'); if (n.status === 'Pagada') throw new Error('La nota ya está pagada: su estado no se cambia aquí.');
+    if (!Store.writable()) throw new Error('Sin permiso para editar.'); if (n.status === 'Pagada') throw new Error('La nota ya está pagada: su estado no se cambia aquí.');
     if (Store.rewards.some(r => r.noteId === n.id) && status !== 'Enviada' && n.status !== 'Borrador') throw new Error('Tiene descuentos de incentivos aplicados: no puede regresar a borrador ni cancelarse.');
     return IN3.save(NT.formOf(n, status), n.id);
   },
