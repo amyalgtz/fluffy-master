@@ -854,6 +854,9 @@ tr.rd-sel td{background:var(--blush)}
 .pf-box{border:1.5px solid #E7CE95;background:#FFFBF1;border-radius:14px;padding:10px 14px;margin:16px 0 4px}.pf-box h4{margin:0 0 2px}.pf-box .formula{margin:0 0 8px}
 .pf-r{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid #F0E3BD;font-size:14px}.pf-r:first-of-type{border-top:0}.pf-r .st{font-size:12.5px;color:var(--muted)}.pf-r .ok{color:var(--ok);font-weight:600}.pf-info{font-size:13px;color:var(--muted);padding:5px 0}.pf-warn{margin:6px 0 2px;padding:7px 10px;border-radius:10px;background:#FFF3D6;color:#7a5b12;font-size:12.5px}
 .discline.lk{grid-template-columns:minmax(0,1fr) 70px 100px auto 34px}.discline.lk input,.discline.lk select{background:#F6F1E7}.discline .lkt{font-size:11px;font-weight:600;color:#7a5b12;background:#F8EBC8;border-radius:999px;padding:1px 8px;align-self:center;white-space:nowrap}
+/* ===== PRODUCTIVIDAD: rango de fechas ===== */
+.rangebox{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.rangebox .field{margin:0;min-width:0}.rangebox input[type=date]{min-width:150px}.rangebox .btn{align-self:flex-end}
+.rangehint{margin:6px 0 0;font-size:13px;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -916,7 +919,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-10 09:00';
+window.FM_VERSION = '2026-11-11 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -2577,9 +2580,10 @@ Views.rendimiento = {
       <p class="formula">Ventas = suma de precios de viernes a jueves. El cumplimiento total solo cuenta a las lashistas con meta. Toca cada casilla para marcar: ✓ cumplió, ✗ no cumplió, ? pendiente.</p>`;
   },
 
-  prodData(ym) {
-    const [y, m] = ym.split('-').map(Number), perf = Perf.calculatePerformance(Store.sales, Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1));
-    const weeks = Perf.weeksOfMonth(ym), evals = Store.evalsFor(ym), notes = Store.notes.filter(n => n.month === ym && n.status !== 'Cancelada');
+  prodData(ym, rg) {
+    const [y, m] = ym.split('-').map(Number), A = rg ? rg.from : Dates.monthStart(y, m - 1), B = rg ? rg.to : Dates.monthEnd(y, m - 1), perf = Perf.calculatePerformance(Store.sales, A, B);
+    /* con rango: solo las semanas completas dentro del rango; Rendimiento, Comentarios e Insumos son del mes y no se mezclan */
+    const weeks = rg ? Perf.weeksInRange(A, B) : Perf.weeksOfMonth(ym), evals = rg ? {} : Store.evalsFor(ym), notes = rg ? [] : Store.notes.filter(n => n.month === ym && n.status !== 'Cancelada');
     const ids = new Set([...perf.keys(), ...Object.keys(evals)]);
     weeks.forEach(ws => Object.keys(Store.goalsFor(ws)).forEach(k => ids.add(k)));
     return [...ids].filter(Boolean).map(id => {
@@ -2587,12 +2591,12 @@ Views.rendimiento = {
       let meta = 0, real = 0, ok = 0, marked = 0;
       weeks.forEach(ws => { const g = Store.goalsFor(ws)[id] || {}; if (g.meta) { meta += num(g.meta); real += Perf.weekSales(Store.sales, ws).get(id) || 0; } CHECKS.forEach(([k]) => { if (g[k] === 'O' || g[k] === 'X') { marked++; if (g[k] === 'O') ok++; } }); });
       const ev = evals[id] || {};
-      return { _key: id, _name: artistName(id), fixRecv: Store.sales.filter(x => x.fixOf === id && Perf.serviceGroup(x.service) === 'Redo/Fix' && x.day >= Dates.monthStart(y, m - 1) && x.day <= Dates.monthEnd(y, m - 1)).length, score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
+      return { _key: id, _name: artistName(id), fixRecv: Store.sales.filter(x => x.fixOf === id && Perf.serviceGroup(x.service) === 'Redo/Fix' && x.day >= A && x.day <= B).length, score: ev.score == null ? null : ev.score, comment: ev.comment || '', ventas: p.ventas, meta: meta || null, real, ratio: meta ? r2(real / meta * 1000) / 1000 : null,
         checklist: marked ? `${ok}/${marked}` : '', count: p.count, groups: p.groups, ticket: p.ticket, tips: p.tips, ins: r2(notes.filter(n => n.artistId === id).reduce((t, n) => t + n.total, 0)) };
     }).sort((a, b) => b.ventas - a.ventas);
   },
   prodCols() {
-    const ro = !Store.writable();
+    const ro = !Store.writable() || !!Perf.rangeNow();
     return [
       { key: 'name', label: 'Lashista', always: 1, get: r => r._name, html: r => `<button class="linkbtn" data-detail="${r._key}">${esc(r._name)}</button>` },
       { key: 'score', label: 'Rendimiento', type: 'pct', get: r => r.score, html: r => `<span class="pctin"><input class="inp num" type="number" min="0" max="100" step="1" data-score="${r._key}" value="${r.score != null ? Math.round(r.score * 100) : ''}" placeholder="—" ${ro ? 'disabled' : ''} aria-label="Rendimiento de ${esc(r._name)}">%</span>` },
@@ -2610,11 +2614,13 @@ Views.rendimiento = {
     ];
   },
   productividad() {
-    const ym = S.perf.month, data = this.prodData(ym), cols = this.prodCols();
+    const ym = S.perf.month, rg = Perf.rangeNow(), data = this.prodData(ym, rg), cols = this.prodCols(), f = S.perf, half = !rg && (!!f.pFrom !== !!f.pTo);
     this._prod = data;
-    return `<div class="filters no-print" style="align-items:center;justify-content:space-between"><div class="weeknav"><button class="btn sm" data-pm="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w">${esc(ymLabel(ym))}</span><button class="btn sm" data-pm="1" aria-label="Mes siguiente">${ic('right')}</button></div>${TT.toolbar('prod', cols, data)}</div>
-      ${TT.table('prod', cols, data, null, { emptyTitle: 'Sin lashistas en la tabla', empty: 'Elige otro mes, o vuelve a marcar lashistas en el selector.' })}
-      <p class="formula">Servicios, ventas y tips salen solos de las ventas del mes. Meta del mes = suma de metas de las semanas que caen en este mes. Rendimiento y Comentarios los escribe la administración. El PDF sale con las lashistas y columnas que tengas marcadas.</p>`;
+    const nav = rg ? `<div class="weeknav"><span class="w">${esc(Perf.rangeLabel(rg))}</span></div>` : `<div class="weeknav"><button class="btn sm" data-pm="-1" aria-label="Mes anterior">${ic('left')}</button><span class="w">${esc(ymLabel(ym))}</span><button class="btn sm" data-pm="1" aria-label="Mes siguiente">${ic('right')}</button></div>`;
+    const box = `<div class="rangebox"><label class="field">Desde<input type="date" data-prf value="${esc(f.pFrom || '')}"></label><label class="field">Hasta<input type="date" data-prt value="${esc(f.pTo || '')}"></label>${rg ? '<button class="btn sm" data-prx>Quitar rango</button>' : `<button class="btn sm" data-prw ${Perf.weeksOfMonth(ym).length ? '' : 'disabled'} title="Pone las fechas de las semanas que cuentan para este mes, las mismas del reporte individual">Semanas del reporte</button>`}</div>`;
+    return `<div class="filters no-print" style="align-items:center;justify-content:space-between">${nav}${box}${TT.toolbar('prod', cols, data)}</div>${half ? '<p class="rangehint no-print">Elige también la otra fecha para ver el rango.</p>' : ''}
+      ${TT.table('prod', cols, data, null, { emptyTitle: 'Sin lashistas en la tabla', empty: rg ? 'No hay ventas en esas fechas.' : 'Elige otro mes, o vuelve a marcar lashistas en el selector.' })}
+      <p class="formula">${rg ? 'Rango de fechas: servicios, ventas y tips salen de las ventas de esos días. Meta, % meta y checklist cuentan solo las semanas completas (viernes a jueves) que quedan dentro del rango. Rendimiento y Comentarios son del mes, así que aquí no se muestran ni se editan, e Insumos no aplica. Para volver al mes, pulsa «Quitar rango».' : 'Servicios, ventas y tips salen solos de las ventas del mes. Meta del mes = suma de metas de las semanas que caen en este mes. Rendimiento y Comentarios los escribe la administración. El PDF sale con las lashistas y columnas que tengas marcadas. Si necesitas otras fechas, usa «Desde» y «Hasta».'}</p>`;
   },
 
   notas() {
@@ -2672,7 +2678,12 @@ Views.rendimiento = {
       });
       $$('[data-comment]', root).forEach(el => el.onchange = () => saveEval(el.dataset.comment, { comment: el.value.trim() }, 'Comentario guardado'));
       $$('[data-detail]', root).forEach(b => b.onclick = () => perfDetail(b.dataset.detail, f.month));
-      TT.mount(root, 'prod', this.prodCols(), this._prod, { title: 'Productividad mensual', subtitle: ymLabel(f.month), file: 'Productividad_' + f.month });
+      const rf = $('[data-prf]', root), rt = $('[data-prt]', root), setR = () => { f.pFrom = rf.value; f.pTo = rt.value; const A = Dates.fromISO(f.pFrom), B = Dates.fromISO(f.pTo); if (A && B && B < A) { UI.toast('La fecha final debe ser igual o posterior a la inicial.', true); f.pTo = ''; } UI.render(); };
+      if (rf) rf.onchange = setR; if (rt) rt.onchange = setR;
+      const rx = $('[data-prx]', root); if (rx) rx.onclick = () => { f.pFrom = ''; f.pTo = ''; UI.render(); };
+      const rw = $('[data-prw]', root); if (rw) rw.onclick = () => { const W = Perf.weeksOfMonth(f.month); if (!W.length) return; f.pFrom = Dates.toISO(W[0]); f.pTo = Dates.toISO(W[W.length - 1] + 6); UI.render(); };
+      const rg = Perf.rangeNow();
+      TT.mount(root, 'prod', this.prodCols(), this._prod, { title: 'Productividad mensual', subtitle: rg ? Perf.rangeLabel(rg) : ymLabel(f.month), file: rg ? 'Productividad_' + Dates.toISO(rg.from) + '_a_' + Dates.toISO(rg.to) : 'Productividad_' + f.month });
     }
     if (f.tab === 'notas') {
       $$('[data-nf]', root).forEach(el => el.onchange = () => { f[el.dataset.nf] = el.value; UI.render(); });
@@ -11455,7 +11466,7 @@ const NT = {
         if (changed) await ref.set({ ...d, editHistory: ((prev.editHistory || []).concat([{ at: new Date().toISOString(), byName: Mode.who(), before: { total: prev.total, subtotal: prev.subtotal, discountTotal: prev.discountTotal, items: (prev.items || []).length }, after: { total: d.total, subtotal: d.subtotal, discountTotal: d.discountTotal, items: (d.items || []).length } }])).slice(-30) }); } } } catch (e) { console.warn('historial de nota', e); }
     return r; }; }
 /* Productividad mensual: Rendimiento automático (ventas ÷ meta del mes) y diferencia */
-{ const V = Views.rendimiento, P0 = V.prodCols; V.prodCols = function () { const ro = !Store.writable();
+{ const V = Views.rendimiento, P0 = V.prodCols; V.prodCols = function () { const ro = !Store.writable() || !!Perf.rangeNow();   /* con rango de fechas, Rendimiento no se edita (es del mes) */
     return P0.call(this).flatMap(c => {
       if (c.key === 'score') return [{ ...c, label: 'Rendimiento', get: r => r.score != null ? r.score : r.ratio, html: r => { const auto = r.ratio != null ? Math.round(r.ratio * 100) : null, has = r.score != null, shown = has || auto == null;
         return `<span class="pctin" title="${has ? 'Capturado por administración' : 'Automático: ventas ÷ meta del mes'}"><input class="inp num ${shown ? '' : 'rd-hide'}" type="number" min="0" max="100" step="1" data-score="${r._key}" value="${has ? Math.round(r.score * 100) : ''}" placeholder="—" ${ro ? 'disabled' : ''} aria-label="Rendimiento de ${esc(r._name)}">${shown ? '%' : `<button type="button" class="rd-autobtn" data-score-edit="${r._key}" ${ro ? 'disabled' : ''} title="Automático: ventas ÷ meta del mes. Toca para escribir uno propio.">${auto}% <small>auto</small></button>`}</span>`; } }];
@@ -11765,6 +11776,18 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-pvde
   Views.insumos.html = function () { if (Mode.reception && !['cola', 'hechas'].includes(S.ins.tab)) S.ins.tab = 'cola'; const h = H.apply(this, arguments); if (S.ins.tab !== 'cobro' || Mode.reception) return h; const ym = S.ins.month || Dates.ym(Dates.today());
     return h.replace('<button class="btn primary" data-billall', `<span class="chips" style="gap:8px"><button class="btn" data-pvdesc="${ym}">Vista previa con descuentos</button><button class="btn primary" data-billall`).replace(/(data-billall[^>]*>[^<]*<\/button>)/, '$1</span>'); };
 }
+
+/* =========================================================
+   PRODUCTIVIDAD MENSUAL · RANGO DE FECHAS (opcional)
+   Por defecto la tabla sigue siendo por mes de calendario. Con «Desde» y «Hasta» se cuentan las ventas de esos días.
+   ========================================================= */
+Object.assign(Perf, {
+  /* rango activo (o null): solo si hay dos fechas válidas y la final no es anterior a la inicial */
+  rangeNow() { const f = S.perf, a = Dates.fromISO(f.pFrom || ''), b = Dates.fromISO(f.pTo || ''); return a && b && a <= b ? { from: a, to: b } : null; },
+  rangeLabel(rg) { const o = { day: 'numeric', month: 'short' }; return `${Dates.fmt(rg.from, o)} – ${Dates.fmt(rg.to, { ...o, year: 'numeric' })}`; },
+  /* semanas (viernes a jueves) COMPLETAS que caben dentro del rango */
+  weeksInRange(A, B) { const out = []; let ws = Dates.fluffyWeekStart(A); if (ws < A) ws += 7; for (; ws + 6 <= B; ws += 7) out.push(ws); return out; },
+});
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
