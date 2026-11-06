@@ -858,27 +858,19 @@ tr.rd-sel td{background:var(--blush)}
 .rangebox{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}.rangebox .field{margin:0;min-width:0}.rangebox input[type=date]{min-width:150px}.rangebox .btn{align-self:flex-end}
 .rangehint{margin:6px 0 0;font-size:13px;color:var(--muted)}
 /* ===== GIFT CARDS ===== */
-.gc-sum{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin:12px 0}
+.gc-sum{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin:12px 0 6px}
 .gc-face{width:250px;height:142px;border-radius:14px;background:linear-gradient(135deg,#5A1D43,#7E3260);color:#FBE9E3;padding:14px 16px;box-shadow:0 10px 24px rgba(90,29,67,.25);display:flex;flex-direction:column;justify-content:space-between;box-sizing:border-box}
-.gc-fb{letter-spacing:.3em;font-size:10px;font-weight:600;color:#E7CE95}.gc-fa{font-family:'Fraunces',Georgia,serif;font-size:40px;line-height:1;color:#F6D9A0}.gc-fc{font-size:13px;letter-spacing:.08em;font-variant-numeric:tabular-nums}
-.gc-meta{display:flex;flex-direction:column;gap:8px;min-width:0}.gc-bal{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.gc-bal small{display:block;width:100%;color:var(--muted);font-size:12px}.gc-bal b{font-family:'Fraunces',Georgia,serif;font-size:34px;line-height:1}.gc-dl{font-size:13px}
-.gc-act{margin-top:14px}.gc-sum{margin-bottom:6px}.gc-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.08em;text-transform:uppercase;font-size:16px}
-.err{color:var(--bad);font-size:13px;min-height:1em;margin:6px 0 0}
+.gc-fb{letter-spacing:.3em;font-size:10px;font-weight:600;color:#E7CE95}.gc-fa{font-family:'Fraunces',Georgia,serif;font-size:40px;line-height:1;color:#F6D9A0}.gc-fc{font-size:13px;letter-spacing:.08em;font-variant-numeric:tabular-nums;word-break:break-all}
+.gc-meta{display:flex;flex-direction:column;gap:8px;min-width:0}.gc-bal{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.gc-bal small{display:block;width:100%;color:var(--muted);font-size:12px}.gc-bal b{font-family:'Fraunces',Georgia,serif;font-size:34px;line-height:1}.gc-dl{font-size:13.5px}
+.gc-act{margin-top:14px}.gc-code{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;font-size:16px}
+.err{color:var(--bad);font-size:13px;min-height:1em;margin:6px 0 0}.gc-ok{font-size:13.5px;margin:6px 0}
 .gc-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-bottom:14px}.gc-grid .panel{margin:0}
 .gc-states{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.gc-states>div{display:flex;flex-direction:column;gap:4px;align-items:flex-start}.gc-states b{font-family:'Fraunces',Georgia,serif;font-size:28px;line-height:1}.gc-states small{color:var(--muted);font-size:11.5px;line-height:1.25}
 .gc-bar{display:grid;grid-template-columns:110px 1fr 90px;gap:10px;align-items:center;margin:9px 0;font-size:14px}.gc-bar i{height:10px;border-radius:999px;background:var(--line);overflow:hidden;display:block}.gc-bar u{display:block;height:100%;background:linear-gradient(90deg,#D9BD73,#B8913A);border-radius:999px;text-decoration:none}.gc-bar b{text-align:right}
+.gc-rel{position:relative}.gc-sug{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 24px rgba(60,30,40,.14);padding:4px;margin-top:4px}
+.gc-s{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;font:inherit;color:var(--ink);cursor:pointer}.gc-s:hover,.gc-s:focus{background:var(--line)}
+.gcbox{border:1px dashed var(--line);border-radius:14px;padding:10px 14px;margin:8px 0;background:var(--bg)}.gcbox.on{border-style:solid;border-color:var(--gold)}.gcsw{display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
 @media(max-width:820px){.gc-grid{grid-template-columns:1fr}.gc-sum{grid-template-columns:1fr}.gc-states{grid-template-columns:1fr 1fr}}
-/* tarjeta física (3.5 × 2 in, 10 por hoja carta) */
-#gc-print{display:none}
-.gcp-page{width:8.5in;height:11in;box-sizing:border-box;padding:.5in .75in;display:grid;grid-template-columns:3.5in 3.5in;grid-auto-rows:2in;align-content:start;page-break-after:always;break-after:page;background:#fff}
-.gcp-card{width:3.5in;height:2in;box-sizing:border-box;position:relative;overflow:hidden;display:flex;justify-content:space-between;align-items:stretch;gap:.08in;padding:.16in .18in;color:#FBE9E3;background:linear-gradient(135deg,#5A1D43 0%,#7E3260 100%);outline:.5px dashed #aaa;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-family:'DM Sans','Helvetica Neue',Arial,sans-serif}
-.gcp-l{display:flex;flex-direction:column;justify-content:space-between;min-width:0}.gcp-brand{letter-spacing:.26em;font-size:7.5pt;font-weight:600;color:#E7CE95}.gcp-brand sup{font-size:5pt;letter-spacing:0}
-.gcp-t{font-family:'Fraunces',Georgia,serif;font-style:italic;font-weight:600;font-size:17pt;line-height:1}.gcp-amt{font-family:'Fraunces',Georgia,serif;font-weight:600;font-size:30pt;line-height:1;color:#F6D9A0}.gcp-fine{font-size:5.4pt;letter-spacing:.03em;opacity:.9}
-.gcp-r{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.06in;flex:none}.gcp-qr{width:1.05in;height:1.05in;background:#fff;border-radius:.06in;padding:.06in;box-sizing:border-box}.gcp-qr svg{width:100%;height:100%;display:block}
-.gcp-code{font-size:6.4pt;letter-spacing:.05em;font-weight:600;color:#fff;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:nowrap}
-.gcp-prev{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:#F1E9E6;padding:12px;display:flex;justify-content:center}
-.gcp-previn{position:relative;width:calc(8.5in*.6);height:calc(11in*.6);flex:none}.gcp-previn .gcp-page{position:absolute;left:0;top:0;transform:scale(.6);transform-origin:top left;box-shadow:0 6px 18px rgba(60,30,40,.18)}
-@media print{html body>#gc-print{display:block!important;position:absolute;left:0;top:0;width:8.5in}}
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -941,7 +933,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-12 09:00';
+window.FM_VERSION = '2026-11-13 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1392,7 +1384,7 @@ const Store = {
       commission: num(x.commission), rate: num(x.commissionRateSnapshot), first: x.clientFirstName || '', last: x.clientLastName || '',
       comments: x.comments || '', tarifa: x.tarifa || '', manual: !!x.manualCommission, method: x.paymentMethod || null, createdAt: x.createdAt, updatedAt: x.updatedAt,
       depositId: x.depositId || null, depositAmount: num(x.depositAmount), depositMethod: x.depositMethod || null, cashierName: x.cashierName || '',
-      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '', redoOf: x.redoOf || null };
+      packageId: x.packageId || null, packageSession: num(x.packageSession), txn: x.txn || '', origin: x.origin || '', createdBy: x.createdBy || '', payments: Array.isArray(x.payments) ? x.payments : [], giftCards: Array.isArray(x.giftCards) ? x.giftCards : [], payGroup: x.payGroup || '', dupOk: Array.isArray(x.dupOk) ? x.dupOk : [], visitOf: x.visitOf || '', redoOf: x.redoOf || null };
   },
 
   writable() { return this.dbState === 'on' && this.canWrite !== false; },
@@ -1426,7 +1418,7 @@ const Store = {
       cashierName: prev ? (prev.cashierName || '') : (form.cashierName || ''),
       packageId: form.packageId || '', packageSession: form.packageId ? num(form.packageSession) : 0,
       txn: String(form.txn || '').trim(), origin: prev ? (prev.origin || '') : (form.origin || ''),
-      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], payGroup: form.payGroup || '', visitOf: form.visitOf || (prev && prev.visitOf) || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [], redoOf: typeof Redo !== 'undefined' && Redo.is(svc.name) ? (form.redoOfId !== undefined ? Redo.snap(form.redoOfId, prev && prev.redoOf) : ((prev && prev.redoOf) || null)) : null,
+      payments: Array.isArray(form.payments) && form.payments.length > 1 ? form.payments.map(p => ({ method: p.method, amount: r2(p.amount), txn: String(p.txn || '').trim() })) : [], giftCards: Array.isArray(form.giftCards) ? form.giftCards.map(g => ({ code: String(g.code), amount: r2(g.amount), rid: String(g.rid) })) : ((prev && prev.giftCards) || []), payGroup: form.payGroup || '', visitOf: form.visitOf || (prev && prev.visitOf) || '', dupOk: prev && prev.dupOk && prev.dupOk.length ? prev.dupOk : [], redoOf: typeof Redo !== 'undefined' && Redo.is(svc.name) ? (form.redoOfId !== undefined ? Redo.snap(form.redoOfId, prev && prev.redoOf) : ((prev && prev.redoOf) || null)) : null,
       createdAt: prev ? prev.createdAt || now : now, updatedAt: now, updatedBy: uid,
     };
     doc.createdBy = prev ? prev.createdBy || '' : uid;
@@ -1743,7 +1735,7 @@ Views.dia = {
       .concat((Store.packages || []).filter(p => p.day === d).flatMap(p => (p.payments || []).length > 1 ? p.payments.map(q => ({ m: q.method + ' (paquete vendido)', v: num(q.amount) })) : [{ m: p.method + ' (paquete vendido)', v: num(p.total) + num(p.tipTotal) }]))
       .concat((Store.moves || []).filter(x => x.type === 'Venta en salón' && Dates.fromISO(x.date) === d).flatMap(x => x.payGroup ? (x.payLead ? (x.payments || []).map(q => ({ m: q.method + ' (producto)', v: num(q.amount) })) : []) : [{ m: (x.method || 'Sin registrar') + ' (producto)', v: num(x.qty) * num(x.unitPrice) }]))
       .concat(typeof Orders !== 'undefined' ? (Store.orders || []).filter(o => Orders.isIncome(o) && Orders.incomeDay(o) === d).map(o => ({ m: (o.payMethod || 'PayPal') + ' (pedido en línea)', v: Orders.received(o), t: 'ord' + o.id })) : [])
-      .concat((Store.notePayments || []).filter(x => x.day === d).map(x => ({ m: x.method + ' (pago de lashista)', v: num(x.amount) }))).filter(x => x.v);
+      .concat((Store.notePayments || []).filter(x => x.day === d).map(x => ({ m: x.method + ' (pago de lashista)', v: num(x.amount) }))).concat(GC_daySales(d)).filter(x => x.v);
     const byM = Logic.groupBy(parts, x => x.m, x => x.v).map(g => ({ ...g, count: new Set(parts.filter(x => x.m === g.key).map((x, i) => x.t || ('u' + i))).size }));
     return `<div class="head"><div><h1>Hoja del día</h1><p>${esc(Dates.fmt(d, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))}</p></div>
       <div class="chips no-print"><button class="btn sm" data-d="-1" aria-label="Día anterior">${ic('left')}</button><input type="date" class="inp" style="width:auto" data-day value="${Dates.toISO(d)}"><button class="btn sm" data-d="1" aria-label="Día siguiente">${ic('right')}</button><button class="btn sm" data-d="0">Hoy</button></div></div>
@@ -1898,7 +1890,7 @@ Views.nueva = {
       if (Object.keys(errs).length) { form[Object.keys(errs)[0]].focus(); return; }
       const btn = $('[type=submit]', form); btn.disabled = true; btn.textContent = 'Guardando…';
       try {
-        await Store.saveSale(f, UI.params.edit);
+        await GC.cobroSave(f, UI.params.edit);
         UI.formDirty = false; UI.toast(UI.params.edit ? 'Cambios guardados' : 'Venta guardada');
         if (UI.params.edit) { this.form = null; UI.go('ventas'); }
         else { const keep = { date: f.date, artistId: f.artistId }; this.form = Object.assign(this.blank(), keep, { _for: 'new' }); UI.render(); }
@@ -6383,7 +6375,7 @@ const payMethodsAll = () => [...new Set(Store.config.methods.concat(DEPOSIT_METH
 const cobroDue = f => {
   const main = num(f.price) - num(f.discount) + num(f.tip), ex = (f.extras || []).filter(x => x.serviceId).reduce((t, x) => t + num(x.price) - num(x.discount), 0);
   const d = f.depositId === '__new' ? num((f.newDep || {}).amount) : f.depositId ? num((Store.deposits.find(x => x.id === f.depositId) || {}).amount) : 0;
-  return r2(Math.max(0, main + ex - d));
+  return r2(Math.max(0, main + ex - d - GC_amt(f)));
 };
 const splitLine = (p, k) => `<div class="payline" data-pl2="${k}"><select class="inp" data-p2="method" aria-label="Forma de pago"><option value="">Forma de pago</option>${payMethodsAll().map(m => `<option ${p.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select>
   <input class="inp num" type="number" min="0" step="0.01" data-p2="amount" value="${esc(p.amount)}" placeholder="Monto" aria-label="Monto"><input class="inp" data-p2="txn" value="${esc(p.txn || '')}" placeholder="TXN" aria-label="TXN" autocomplete="off"><button type="button" class="btn sm" data-p2="rm" aria-label="Quitar">×</button></div>`;
@@ -11812,31 +11804,43 @@ Object.assign(Perf, {
 });
 
 /* =========================================================
-   GIFT CARDS · tarjetas de regalo físicas
-   · Administración crea lotes (códigos únicos + QR), imprime y consulta; Recepción activa al confirmar el pago, consulta saldo y canjea (parcial o total).
-   · Toda operación de dinero pasa por las funciones fm_gc_* de Supabase (atómicas y con historial). Esta pantalla SOLO lee las tablas y llama a esas funciones:
-     jamás inserta, actualiza ni borra saldos desde el navegador.
-   · Códigos QR: qrcode-generator 2.0.4 © Kazuhiko Arase, licencia MIT (QR Code es marca registrada de DENSO WAVE).
+   GIFT CARDS (versión 2) · tarjetas de regalo que el salón compra a un proveedor
+   · El número de la tarjeta se asigna AL VENDERLA y se liga a una clienta. Se paga en Cobrar con el bloque «Pagar con Gift Card» (parcial o total).
+   · Toda operación de dinero pasa por las funciones fm_gc_* de Supabase (atómicas y con historial). Esta pantalla SOLO lee las tablas y llama a esas
+     funciones: jamás inserta, actualiza ni borra saldos desde el navegador.
+   · Vender una tarjeta NO es una venta de servicio (no suma a ventas ni a comisiones); su dinero entra a la Hoja del día y al Corte de caja.
    ========================================================= */
-const GCQR = (() => { var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(o*r,n*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode}); return qrcode; })();
+/* monto de Gift Card aplicado en el formulario de Cobrar (lo usa cobroDue; declaración elevada a propósito) */
+function GC_amt(f) { return f && f.gc && f.gc.on ? Math.max(0, Math.round((parseFloat(f.gc.amount) || 0) * 100) / 100) : 0; }
+/* tarjetas vendidas ese día (para la Hoja del día y el Corte de caja); se piden en segundo plano y se guardan unos segundos */
+function GC_rows(dayNum) {
+  const iso = Dates.toISO(dayNum), g = GC.sales; let c = g[iso];
+  if (!c) c = g[iso] = { rows: [], loading: false, at: 0, tried: false };
+  if (!c.loading && Date.now() - c.at > 45000 && (GC.role() && GC.role() !== 'contador')) GC.loadSales(iso);
+  return c.rows;
+}
+function GC_daySales(dayNum) { return GC_rows(dayNum).map((r, i) => ({ m: (r.method || 'Sin registrar') + ' (gift card vendida)', v: Number(r.amount) || 0, t: 'gc' + i })); }
 
 const GC = {
   DENOMS: [50, 100, 200, 500],
   ST: { inactive: 'Inactive', active: 'Active', redeemed: 'Redeemed', blocked: 'Blocked' },
   STC: { inactive: 'tag warn', active: 'tag ok', redeemed: 'tag off', blocked: 'tag bad' },
-  STH: { inactive: 'Creada e impresa, todavía no vendida', active: 'Pagada y disponible', redeemed: 'Saldo agotado', blocked: 'Bloqueada por administración' },
+  STH: { inactive: 'Registrada, todavía no vendida', active: 'Pagada y disponible', redeemed: 'Saldo agotado', blocked: 'Bloqueada por administración' },
   CATS: [['servicios', 'Servicios'], ['productos', 'Productos'], ['merch', 'Fluffy Merch'], ['otro', 'Otro']],
-  TXN: { create: 'Creada', activate: 'Activación', redeem: 'Canje', adjust: 'Ajuste', block: 'Bloqueo', unblock: 'Desbloqueo' },
-  PAGE: 50,
+  TXN: { create: 'Registro', activate: 'Venta', redeem: 'Canje', refund: 'Reembolso', adjust: 'Ajuste', assign: 'Cambio de clienta', block: 'Bloqueo', unblock: 'Desbloqueo' },
+  PAGE: 50, sales: {},
   role() { return FM.member && FM.member.role; },
   isRec() { return !!Mode.reception || GC.role() === 'recepcion'; },
   isAdmin() { return GC.role() === 'admin' && !GC.isRec(); },
   canOperate() { return ['admin', 'editor', 'recepcion'].includes(GC.role()); },
-  tabs() { return GC.isRec() ? [['ops', 'Activar y canjear']] : [['dash', 'Dashboard'], ['cards', 'Tarjetas'], ['batches', 'Lotes'], ['ops', 'Operar'], ['hist', 'Historial']]; },
+  tabs() { const t = GC.isRec() ? [['sell', 'Vender'], ['find', 'Consultar y canjear']] : [['dash', 'Dashboard'], ['cards', 'Tarjetas'], ['sell', 'Vender'], ['find', 'Consultar y canjear'], ['hist', 'Historial']]; return GC.canOperate() ? t : t.filter(x => x[0] !== 'sell'); },
   catName(k) { const c = GC.CATS.find(x => x[0] === k); return c ? c[1] : (k || '—'); },
+  fmt(c) { return String(c || '').replace(/(.{4})(?=.)/g, '$1 '); },
   fdt(ts) { try { return new Date(ts).toLocaleString('es-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return String(ts || ''); } },
   fday(ts) { try { return new Date(ts).toLocaleDateString('es-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return String(ts || ''); } },
   tag(s) { return `<span class="${GC.STC[s] || 'tag'}" title="${esc(GC.STH[s] || '')}">${esc(GC.ST[s] || s)}</span>`; },
+  payMethods() { return [...new Set(Store.config.methods.concat(DEPOSIT_METHODS))].filter(m => m !== 'Depósito' && m !== 'Paquete prepagado'); },
+  clean(s) { return String(s || '').replace(/[^\p{L}\p{N} ]/gu, '').trim().slice(0, 40); },
   /* ---------- acceso a Supabase: solo lectura directa + funciones fm_gc_* ---------- */
   friendly(msg) {
     msg = String(msg || '');
@@ -11847,84 +11851,108 @@ const GC = {
   async rpc(name, args) { const { data, error } = await FM.sb.rpc(name, args || {}); if (error) throw new Error(GC.friendly(error.message)); return data; },
   async select(table, build) { let q = FM.sb.from(table).select('*', { count: 'exact' }); q = build(q); const { data, error, count } = await q; if (error) throw new Error(GC.friendly(error.message)); return { rows: data || [], count: count == null ? (data || []).length : count }; },
   uuid() { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); const b = new Uint8Array(16); crypto.getRandomValues(b); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128; const h = [...b].map(x => x.toString(16).padStart(2, '0')).join(''); return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`; },
-  /* un mismo intento (misma tarjeta y mismos datos) usa el mismo request_id: si el botón se toca dos veces, la base no repite el movimiento */
+  /* un mismo intento (mismos datos) usa el mismo request_id: si el botón se toca dos veces, la base no repite el movimiento */
   rid(key) { const g = S.gc; if (!g.pend || g.pend.key !== key) g.pend = { key, id: GC.uuid() }; return g.pend.id; },
-  invalidate() { const g = S.gc; g.stats = null; g.cards = null; g.tx = null; g.err = {}; },
+  invalidate() { const g = S.gc; g.stats = null; g.cards = null; g.tx = null; g.err = {}; GC.sales = {}; },
+  async loadSales(iso) {
+    const c = GC.sales[iso]; if (!c || c.loading) return; c.loading = true;
+    try { const rows = await GC.rpc('fm_gc_sales', { p_from: iso, p_to: iso }), ch = JSON.stringify(rows) !== JSON.stringify(c.rows); c.rows = rows || []; c.at = Date.now(); c.loading = false; if (ch && ['dia', 'caja'].includes(UI.route)) UI.render(); }
+    catch (e) { c.at = Date.now(); c.loading = false; }
+  },
   /* ---------- carga de datos por pestaña ---------- */
+  orFilter(s, cols) { const t = GC.clean(s); if (!t) return ''; const n = t.replace(/[^A-Za-z0-9]/g, ''); const p = []; if (n.length >= 2) p.push(`code.ilike.%${n}%`); cols.forEach(c => p.push(`${c}.ilike.%${t}%`)); return p.join(','); },
   async load(tab) {
     const g = S.gc; if (g.loading[tab]) return; g.loading[tab] = true;
     try {
-      if (tab === 'dash' || tab === 'batches') g.stats = await GC.rpc('fm_gc_stats');
+      if (tab === 'dash') g.stats = await GC.rpc('fm_gc_stats');
       if (tab === 'cards') { const f = g.f, a = g.page * GC.PAGE, r = await GC.select('gift_cards', q => { q = q.order('created_at', { ascending: false }).order('code', { ascending: true });
-        if (f.status) q = q.eq('status', f.status); if (f.value) q = q.eq('initial_value', +f.value); if (f.batch) q = q.eq('batch_id', f.batch); if (f.q) q = q.ilike('code', `%${f.q}%`); return q.range(a, a + GC.PAGE - 1); });
-        g.cards = r.rows; g.cardsTotal = r.count; if (!g.stats) g.stats = await GC.rpc('fm_gc_stats'); }
+        if (f.status) q = q.eq('status', f.status); if (f.value) q = q.eq('initial_value', +f.value); const o = GC.orFilter(f.q, ['client_name', 'recipient_name']); if (o) q = q.or(o); return q.range(a, a + GC.PAGE - 1); });
+        g.cards = r.rows; g.cardsTotal = r.count; }
       if (tab === 'hist') { const f = g.tf, a = g.txPage * GC.PAGE, r = await GC.select('gift_card_transactions', q => { q = q.order('seq', { ascending: false });
-        if (f.type) q = q.eq('type', f.type); if (f.q) q = q.ilike('code', `%${f.q}%`); return q.range(a, a + GC.PAGE - 1); }); g.tx = r.rows; g.txTotal = r.count; }
+        if (f.type) q = q.eq('type', f.type); const o = GC.orFilter(f.q, ['note']); if (o) q = q.or(o); return q.range(a, a + GC.PAGE - 1); }); g.tx = r.rows; g.txTotal = r.count; }
       g.err[tab] = '';
     } catch (e) { g.err[tab] = e.message || String(e); if (tab === 'cards') g.cards = g.cards || []; if (tab === 'hist') g.tx = g.tx || []; }
     g.loading[tab] = false; if (UI.route === 'giftcards') UI.render();
   },
-  /* ---------- QR e impresión ---------- */
-  qrSvg(text) { const q = GCQR(0, 'M'); q.addData(String(text)); q.make(); return q.createSvgTag({ cellSize: 3, margin: 0, scalable: true }); },
-  cardFace(c) {
-    return `<div class="gcp-card"><div class="gcp-l"><div class="gcp-brand">FLUFFY LASHES<sup>®</sup></div><div class="gcp-t">Gift Card</div><div class="gcp-amt">${money(c.initial_value, 0)}</div><div class="gcp-fine">Servicios · Productos · Fluffy Merch</div></div>
-      <div class="gcp-r"><div class="gcp-qr">${GC.qrSvg(c.code)}</div><div class="gcp-code">${esc(c.code)}</div></div></div>`;
+  /* ---------- buscador de clientas (de la sección Clientas) ---------- */
+  clients(q) {
+    q = String(q || '').trim(); if (q.length < 2) return [];
+    try {
+      const I = CL.idx(), tq = ckey(q, '').split(' ').filter(Boolean), dg = q.replace(/\D/g, ''); const out = [];
+      for (const c of I.act) { const words = CL.keys(c).join(' ').split(' '); const hit = (tq.length && tq.every(t => words.some(w => w.startsWith(t)))) || (dg.length >= 4 && (c.phones || []).some(p => p.n.includes(dg)));
+        if (hit) out.push({ id: c.id, name: CL.name(c), phone: (c.phones || [])[0] ? CL.show(c.phones[0].n) : '' }); if (out.length >= 6) break; }
+      return out;
+    } catch (e) { return []; }
   },
-  pagesHtml(cards) { const out = []; for (let i = 0; i < cards.length; i += 10) out.push(`<div class="gcp-page">${cards.slice(i, i + 10).map(GC.cardFace).join('')}</div>`); return out.join(''); },
-  /* vista previa con botón de imprimir (solo Administración: los códigos de tarjetas sin vender son dinero en efectivo) */
-  printOpen(cards, title) {
-    if (!GC.isAdmin()) return UI.toast('Solo administración imprime tarjetas.', true);
-    if (!cards.length) return UI.toast('No hay tarjetas para imprimir.', true);
-    const pages = Math.ceil(cards.length / 10);
-    UI.modal(`<h3>Imprimir tarjetas</h3><p class="formula" style="margin:0 0 10px">${esc(title || '')} <b>${cards.length}</b> tarjeta${cards.length === 1 ? '' : 's'} · <b>${pages}</b> hoja${pages === 1 ? '' : 's'} tamaño carta (10 por hoja, 3.5 × 2 in). Imprime a tamaño real (100%) y recorta por las líneas punteadas.</p>
-      <div class="gcp-prev"><div class="gcp-previn">${GC.pagesHtml(cards.slice(0, 10))}</div></div>
-      ${pages > 1 ? `<p class="mutedc" style="margin:6px 0 0">Vista previa de la primera hoja.</p>` : ''}
-      <div class="acts"><button class="btn" data-x="no">Cerrar</button><button class="btn primary" data-x="ok">${ic('dl')}Imprimir</button></div>`, m => {
-      m.classList.add('wide'); $('[data-x=no]', m).onclick = UI.close;
-      $('[data-x=ok]', m).onclick = () => GC.print(cards);
+  /* conecta un campo de nombre con la lista de sugerencias; onPick(id, nombre) / onFree(texto) */
+  picker(root, inp, sug, onPick, onFree) {
+    const paint = () => { const l = GC.clients(inp.value); sug.innerHTML = l.map(c => `<button type="button" class="gc-s" data-sid="${esc(c.id)}" data-sn="${esc(c.name)}">${esc(c.name)}${c.phone ? ` <span class="mutedc">· ${esc(c.phone)}</span>` : ''}</button>`).join(''); sug.style.display = l.length ? '' : 'none';
+      $$('[data-sid]', sug).forEach(b => b.onmousedown = e => { e.preventDefault(); inp.value = b.dataset.sn; sug.style.display = 'none'; onPick(b.dataset.sid, b.dataset.sn); }); };
+    inp.addEventListener('input', () => { onFree(inp.value); paint(); }); inp.addEventListener('blur', () => setTimeout(() => { sug.style.display = 'none'; }, 150));
+  },
+  /* ---------- Vender ---------- */
+  async sell() {
+    const g = S.gc, s = g.sale; s.err = '';
+    if (!s.value) return (s.err = 'Elige el valor de la tarjeta.', UI.render());
+    if (String(s.clientName).trim().length < 2) return (s.err = 'Asigna la tarjeta a una clienta (escribe o elige su nombre).', UI.render());
+    if (!s.method) return (s.err = 'Elige el método de pago.', UI.render());
+    const code = String(s.code || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase(); if (code && (code.length < 4 || code.length > 32)) return (s.err = 'El número debe tener de 4 a 32 letras o números (o déjalo vacío para que el sistema genere uno).', UI.render());
+    if (!await UI.confirm('Vender tarjeta', `Confirma que ya se recibió <b>${money(s.value, 0)}</b> por <b>${esc(s.method)}</b>. La tarjeta quedará a nombre de <b>${esc(s.clientName)}</b>${code ? ` con el número <b>${esc(GC.fmt(code))}</b>` : ' con un número generado por el sistema'}.`, 'Sí, vender')) return;
+    s.busy = true; UI.render();
+    try {
+      const rid = GC.rid(['sell', code, s.value, s.clientName, s.method, s.ref].join('|'));
+      const d = await GC.rpc('fm_gc_sell', { p_code: code, p_value: s.value, p_client_id: s.clientId || '', p_client_name: s.clientName.trim(), p_recipient: s.recipient.trim(), p_method: s.method, p_ref: s.ref.trim(), p_request_id: rid });
+      g.pend = null; GC.invalidate(); const c = d.card; g.sale = GC.blankSale(); g.sale.method = s.method; g.sold = { card: c, generated: d.generated }; g.code = c.code;
+      UI.render(); GC.soldModal();
+    } catch (e) { s.busy = false; s.err = e.message; UI.render(); }
+  },
+  blankSale() { return { code: '', value: 0, clientId: '', clientName: '', recipient: '', method: '', ref: '', busy: false, err: '' }; },
+  soldModal() {
+    const c = S.gc.sold.card, gen = S.gc.sold.generated;
+    UI.modal(`<h3>Tarjeta vendida ✓</h3><div class="gc-sum" style="grid-template-columns:1fr"><div class="gc-face"><div class="gc-fb">FLUFFY LASHES</div><div class="gc-fa">${money(c.initial_value, 0)}</div><div class="gc-fc">${esc(GC.fmt(c.code))}</div></div></div>
+      <p class="formula" style="margin:10px 0">A nombre de <b>${esc(c.client_name)}</b>${c.recipient_name ? ` (para ${esc(c.recipient_name)})` : ''}. Saldo disponible <b>${money(c.balance, 1)}</b>.${gen ? ' <b>Anota este número en la tarjeta</b>: la clienta lo necesitará para usarla.' : ''}</p>
+      <div class="acts"><button class="btn" data-x="no">Vender otra</button><button class="btn primary" data-x="ok">Ver tarjeta</button></div>`, m => {
+      $('[data-x=no]', m).onclick = () => { UI.close(); S.gc.tab = 'sell'; UI.render(); };
+      $('[data-x=ok]', m).onclick = () => { UI.close(); S.gc.tab = 'find'; GC.find(c.code); };
     });
   },
-  async print(cards) {
-    let el = $('#gc-print'); if (!el) { el = document.createElement('div'); el.id = 'gc-print'; document.body.appendChild(el); }
-    el.innerHTML = GC.pagesHtml(cards);
-    try { await Promise.race([Promise.all([document.fonts.ready, ...['italic 600 30px Fraunces', '600 12px "DM Sans"'].map(f => document.fonts.load(f).catch(() => 0))]), new Promise(r => setTimeout(r, 1500))]); } catch (e) { /* usa las fuentes de respaldo */ }
-    const done = () => { const x = $('#gc-print'); if (x) x.remove(); window.removeEventListener('afterprint', done); }; window.addEventListener('afterprint', done); setTimeout(done, 180000); window.print();
-  },
-  /* ---------- tarjeta consultada (Operar) ---------- */
-  async find(code) {
-    const g = S.gc; g.findErr = ''; g.found = null; g.pend = null;
-    code = String(code || '').trim(); if (!code) { g.findErr = 'Escribe o escanea el código de la tarjeta.'; return UI.render(); }
+  /* ---------- Consultar ---------- */
+  async find(q) {
+    const g = S.gc; g.findErr = ''; g.found = null; g.results = null; g.pend = null; q = String(q || '').trim();
+    if (q.length < 3) { g.findErr = 'Escribe o escanea el número de la tarjeta, o parte del nombre de la clienta.'; return UI.render(); }
     g.finding = true; UI.render();
-    try { g.found = await GC.rpc('fm_gc_lookup', { p_code: code }); g.code = g.found.card.code; } catch (e) { g.findErr = e.message; }
+    try {
+      const l = await GC.rpc('fm_gc_find', { p_q: q }), n = q.replace(/[^A-Za-z0-9]/g, '').toUpperCase(), exact = l.find(x => x.code === n);
+      if (exact || l.length === 1) { g.found = await GC.rpc('fm_gc_lookup', { p_code: (exact || l[0]).code }); g.code = g.found.card.code; }
+      else if (l.length) { g.results = l; } else g.findErr = 'No encontré tarjetas con ese número o nombre.';
+    } catch (e) { g.findErr = e.message; }
     g.finding = false; UI.render();
   },
   async refresh() { const g = S.gc; GC.invalidate(); if (g.code) { try { g.found = await GC.rpc('fm_gc_lookup', { p_code: g.code }); } catch (e) { /* se queda con lo anterior */ } } UI.render(); },
+  txDetail(t) { const p = []; if (t.type === 'redeem' && t.category) p.push(GC.catName(t.category)); if (t.type === 'activate' && t.payment_method) p.push(t.payment_method); if (t.reference) p.push('ref. ' + t.reference); if (t.note) p.push(t.note); return p.join(' · ') || '—'; },
   cardPanel() {
     const g = S.gc, d = g.found; if (!d) return '';
-    const c = d.card, tx = d.transactions || [], adm = GC.isAdmin(), pm = PAYMENT_METHODS;
-    const info = `<div class="gc-sum"><div class="gc-face"><div class="gc-fb">FLUFFY LASHES</div><div class="gc-fa">${money(c.initial_value, 0)}</div><div class="gc-fc">${esc(c.code)}</div></div>
+    const c = d.card, tx = d.transactions || [], adm = GC.isAdmin(), can = GC.canOperate();
+    const info = `<div class="gc-sum"><div class="gc-face"><div class="gc-fb">FLUFFY LASHES</div><div class="gc-fa">${money(c.initial_value, 0)}</div><div class="gc-fc">${esc(GC.fmt(c.code))}</div></div>
       <div class="gc-meta"><div>${GC.tag(c.status)} <span class="mutedc">${esc(GC.STH[c.status] || '')}</span></div>
         <div class="gc-bal"><small>Saldo disponible</small><b>${money(c.balance, 1)}</b><span class="mutedc">de ${money(c.initial_value, 0)}</span></div>
-        <div class="mutedc gc-dl">${c.activated_at ? `Activada el ${esc(GC.fdt(c.activated_at))} por ${esc(c.activated_by_name || c.activated_by || '—')} · ${esc(c.payment_method || '')}${c.payment_ref ? ' · ref. ' + esc(c.payment_ref) : ''}` : 'Todavía no se ha activado.'}</div></div></div>`;
+        <div class="gc-dl"><b>${esc(c.client_name || 'Sin clienta asignada')}</b>${c.recipient_name ? ` <span class="mutedc">· para ${esc(c.recipient_name)}</span>` : ''}${can ? ` <button class="btn sm" data-gcasg>Cambiar clienta</button>` : ''}</div>
+        <div class="mutedc gc-dl">${c.activated_at ? `Vendida el ${esc(GC.fdt(c.activated_at))} por ${esc(c.activated_by_name || c.activated_by || '—')} · ${esc(c.payment_method || '')}${c.payment_ref ? ' · ref. ' + esc(c.payment_ref) : ''}` : 'Todavía no se ha vendido.'}</div></div></div>`;
     let act = '';
-    if (!GC.canOperate()) act = '<div class="banner">Tu usuario es de solo lectura: puedes consultar, pero no activar ni canjear.</div>';
-    else if (c.status === 'inactive') act = `<section class="panel gc-act"><h2>Activar tarjeta</h2><p class="formula">Activa solo cuando la clienta ya pagó <b>${money(c.initial_value, 0)}</b>. Queda registrado quién y cómo se pagó.</p>
-      <div class="filters"><label class="field">Método de pago<select data-gcm><option value="">Elige…</option>${pm.map(x => `<option>${esc(x)}</option>`).join('')}</select></label>
-      <label class="field" style="flex:1;min-width:200px">Referencia del pago (opcional)<input class="inp" data-gcr placeholder="Ej. últimos 4 de la tarjeta, nombre en Zelle, # de cobro" maxlength="120"></label></div>
-      <p class="err" data-gcerr></p><div class="acts" style="justify-content:flex-start"><button class="btn primary" data-gcact>Confirmar pago y activar</button></div></section>`;
-    else if (c.status === 'active') act = `<section class="panel gc-act"><h2>Canjear</h2><p class="formula">Descuenta lo que la clienta use ahora; el resto queda en la tarjeta. Sirve para servicios, productos y Fluffy Merch.</p>
+    if (!can) act = '<div class="banner">Tu usuario es de solo lectura: puedes consultar, pero no canjear.</div>';
+    else if (c.status === 'inactive') act = '<div class="banner">Esta tarjeta está registrada pero todavía no se vende. Véndela en la pestaña <b>Vender</b> con su número.</div>';
+    else if (c.status === 'active') act = `<section class="panel gc-act"><h2>Canjear</h2><p class="formula">Descuenta lo que la clienta use ahora; el resto queda en la tarjeta. Para cobrar un <b>servicio</b>, lo más fácil es usar «Pagar con Gift Card» dentro de Cobrar. Aquí puedes canjear para productos, Fluffy Merch u otros.</p>
       <div class="filters"><label class="field">Monto ($)<input class="inp num" type="number" step="0.01" min="0.01" max="${esc(c.balance)}" data-gca placeholder="0.00" inputmode="decimal"></label>
-      <label class="field">En qué se usa<select data-gcc>${GC.CATS.map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+      <label class="field">En qué se usa<select data-gcc>${GC.CATS.map(([k, l]) => `<option value="${k}" ${k === 'productos' ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="field" style="flex:1;min-width:180px">Cobro o ticket (opcional)<input class="inp" data-gcr maxlength="120" placeholder="Ej. # de venta, nombre de la clienta"></label></div>
       <p class="err" data-gcerr></p><div class="acts" style="justify-content:flex-start;gap:8px"><button class="btn primary" data-gcred>Canjear monto</button><button class="btn" data-gcall>Canjear todo el saldo (${money(c.balance, 1)})</button></div></section>`;
     else if (c.status === 'redeemed') act = '<div class="banner">Esta tarjeta ya no tiene saldo.</div>';
-    else act = '<div class="banner">Esta tarjeta está bloqueada. No se puede activar ni canjear hasta que administración la desbloquee.</div>';
+    else act = '<div class="banner">Esta tarjeta está bloqueada. No se puede canjear hasta que administración la desbloquee.</div>';
     const adminBtns = adm ? `<div class="chips" style="margin:10px 0"><button class="btn sm" data-gcadj ${c.status === 'inactive' || c.status === 'blocked' ? 'disabled' : ''}>Ajustar saldo</button><button class="btn sm ${c.status === 'blocked' ? '' : 'danger'}" data-gcblk>${c.status === 'blocked' ? 'Desbloquear' : 'Bloquear'}</button></div>` : '';
     const hist = table([{ label: 'Fecha' }, { label: 'Movimiento' }, { label: 'Monto', r: 1 }, { label: 'Saldo después', r: 1 }, { label: 'Detalle' }, { label: 'Usuario' }],
       tx.map(t => [GC.fdt(t.at), GC.TXN[t.type] || t.type, Number(t.amount) ? (Number(t.amount) > 0 ? '+' : '−') + money(Math.abs(t.amount), 1) : '—', money(t.balance_after, 1), GC.txDetail(t), t.by_name || t.by_email]), null, { emptyTitle: 'Sin movimientos' });
     return `${info}${act}${adminBtns}<h3 style="margin:14px 0 6px">Historial de esta tarjeta</h3>${hist}`;
   },
-  txDetail(t) { const p = []; if (t.type === 'redeem' && t.category) p.push(GC.catName(t.category)); if (t.type === 'activate' && t.payment_method) p.push(t.payment_method); if (t.reference) p.push('ref. ' + t.reference); if (t.note) p.push(t.note); return p.join(' · ') || '—'; },
   /* ---------- pestañas ---------- */
   kpi(lab, val, sub, cls) { return `<div class="kpi ${cls || ''}"><div class="lab">${lab}</div><div class="val">${val}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`; },
   errBox(t) { const e = S.gc.err[t]; return e ? `<div class="banner" role="alert">${esc(e)}</div>` : ''; },
@@ -11933,145 +11961,231 @@ const GC = {
     const c = s.cards, m = s.money, cat = s.by_category || {}, mx = Math.max(1, ...GC.CATS.map(([k]) => Number(cat[k] || 0)));
     return `${GC.errBox('dash')}<section class="kpis" aria-label="Indicadores">
         ${GC.kpi('Saldo disponible', money(m.outstanding, 1), `${intf(c.active)} tarjeta${c.active === 1 ? '' : 's'} active`, 'lead')}
-        ${GC.kpi('Vendido (activadas)', money(m.sold, 0), 'Valor de las tarjetas activadas')}
+        ${GC.kpi('Vendido', money(m.sold, 0), 'Valor de las tarjetas vendidas')}
         ${GC.kpi('Canjeado', money(s.redeemed_total, 1), `Últimos 30 días ${money(s.last30.redeemed_value, 1)}`)}
-        ${GC.kpi('Sin vender', intf(c.inactive), 'Inactive: impresas, sin activar')}
+        ${GC.kpi('Vendidas (30 días)', intf(s.last30.activations), money(s.last30.activated_value, 0))}
         ${GC.kpi('Bloqueadas', intf(c.blocked), Number(m.blocked_balance) ? `Saldo retenido ${money(m.blocked_balance, 1)}` : 'Blocked')}
       </section>
-      <div class="gc-grid"><section class="panel"><h2>Por estado</h2><div class="gc-states">${['inactive', 'active', 'redeemed', 'blocked'].map(k => `<div><b>${intf(c[k])}</b>${GC.tag(k)}<small>${esc(GC.STH[k])}</small></div>`).join('')}</div>
-          <p class="mutedc" style="margin:10px 0 0">Últimos 30 días: ${intf(s.last30.activations)} activaci${s.last30.activations === 1 ? 'ón' : 'ones'} (${money(s.last30.activated_value, 0)})${Number(s.adjustments_total) ? ` · ajustes acumulados ${Number(s.adjustments_total) > 0 ? '+' : '−'}${money(Math.abs(s.adjustments_total), 1)}` : ''}.</p></section>
+      <div class="gc-grid"><section class="panel"><h2>Por estado</h2><div class="gc-states">${['active', 'redeemed', 'blocked'].concat(Number(c.inactive) ? ['inactive'] : []).map(k => `<div><b>${intf(c[k])}</b>${GC.tag(k)}<small>${esc(GC.STH[k])}</small></div>`).join('')}</div>
+          ${Number(s.adjustments_total) ? `<p class="mutedc" style="margin:10px 0 0">Ajustes acumulados ${Number(s.adjustments_total) > 0 ? '+' : '−'}${money(Math.abs(s.adjustments_total), 1)}.</p>` : ''}</section>
         <section class="panel"><h2>En qué se canjeó</h2>${GC.CATS.map(([k, l]) => `<div class="gc-bar"><span>${l}</span><i><u style="width:${Math.round(Number(cat[k] || 0) / mx * 100)}%"></u></i><b>${money(cat[k] || 0, 1)}</b></div>`).join('')}</section></div>
-      <section class="panel"><h2>Por denominación</h2>${table([{ label: 'Valor' }, { label: 'Tarjetas', r: 1 }, { label: 'Inactive', r: 1 }, { label: 'Active', r: 1 }, { label: 'Redeemed', r: 1 }, { label: 'Blocked', r: 1 }, { label: 'Saldo disponible', r: 1 }],
-        (s.by_value || []).map(v => [money(v.value, 0), intf(v.total), intf(v.inactive), intf(v.active), intf(v.redeemed), intf(v.blocked), money(v.balance, 1)]), null, { emptyTitle: 'Todavía no hay tarjetas', empty: GC.isAdmin() ? 'Crea tu primer lote en la pestaña Lotes.' : 'Administración aún no ha creado lotes.' })}</section>`;
+      <section class="panel"><h2>Por denominación</h2>${table([{ label: 'Valor' }, { label: 'Tarjetas', r: 1 }, { label: 'Active', r: 1 }, { label: 'Redeemed', r: 1 }, { label: 'Blocked', r: 1 }, { label: 'Saldo disponible', r: 1 }],
+        (s.by_value || []).map(v => [money(v.value, 0), intf(v.total), intf(v.active), intf(v.redeemed), intf(v.blocked), money(v.balance, 1)]), null, { emptyTitle: 'Todavía no hay tarjetas', empty: 'Vende la primera en la pestaña Vender.' })}</section>`;
+  },
+  t_sell() {
+    const g = S.gc, s = g.sale, rows = GC_rows(Dates.today());
+    return `<section class="panel gc-ops"><h2>Vender una tarjeta</h2><p class="formula">Escanea o escribe el número de la tarjeta que le vas a entregar a la clienta (si no trae número, déjalo vacío y el sistema genera uno). Queda activa y a nombre de la clienta. <b>Vender una tarjeta no cuenta como venta de servicio</b>: su dinero se suma a la Hoja del día y al Corte de caja.</p>
+      <div class="filters"><label class="field" style="flex:1;min-width:240px">Número de la tarjeta<input class="inp gc-code" data-gs="code" value="${esc(s.code)}" placeholder="Escanea o escribe (vacío = generar uno)" maxlength="40" autocapitalize="characters" spellcheck="false" autocomplete="off"></label></div>
+      <div class="field" style="margin:4px 0 8px"><span style="font-size:13px;color:var(--muted)">Valor</span><div class="chips" style="margin-top:4px">${GC.DENOMS.map(v => `<button type="button" class="chip ${s.value === v ? 'on' : ''}" data-gsv="${v}">${money(v, 0)}</button>`).join('')}</div></div>
+      <div class="filters"><label class="field gc-rel" style="flex:1;min-width:230px">Clienta<input class="inp" data-gs="clientName" value="${esc(s.clientName)}" placeholder="Busca en Clientas o escribe el nombre" maxlength="120" autocomplete="off"><div class="gc-sug" data-gssug style="display:none"></div></label>
+        <label class="field" style="flex:1;min-width:200px">Para (si es un regalo, opcional)<input class="inp" data-gs="recipient" value="${esc(s.recipient)}" placeholder="Nombre de quien la recibe" maxlength="120" autocomplete="off"></label></div>
+      <div class="filters"><label class="field">Método de pago<select data-gs="method"><option value="">Elige…</option>${GC.payMethods().map(m => `<option ${s.method === m ? 'selected' : ''}>${esc(m)}</option>`).join('')}</select></label>
+        <label class="field" style="flex:1;min-width:200px">Referencia del pago (opcional)<input class="inp" data-gs="ref" value="${esc(s.ref)}" placeholder="Ej. # de transacción, nombre en Zelle" maxlength="120" autocomplete="off"></label></div>
+      ${s.err ? `<p class="err" role="alert">${esc(s.err)}</p>` : ''}<div class="acts" style="justify-content:flex-start"><button class="btn primary" data-gssell ${s.busy ? 'disabled' : ''}>${s.busy ? 'Vendiendo…' : 'Vender tarjeta'}</button></div></section>
+      <h3 style="margin:14px 0 6px">Tarjetas vendidas hoy</h3>${table([{ label: 'Hora' }, { label: 'Tarjeta' }, { label: 'Clienta' }, { label: 'Monto', r: 1 }, { label: 'Pago' }, { label: 'Vendió' }],
+        rows.map(r => [GC.fdt(r.at).replace(/^.*?, /, ''), '····' + r.last4, r.client || '—', money(r.amount, 1), r.method || '—', r.by || '—']), null, { emptyTitle: 'Todavía no hay ventas hoy', empty: 'Las tarjetas que vendas hoy aparecerán aquí.' })}`;
+  },
+  t_find() {
+    const g = S.gc;
+    const list = g.results ? table([{ label: 'Tarjeta', html: 1 }, { label: 'Clienta' }, { label: 'Saldo', r: 1 }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
+      g.results.map(x => [`<b>${esc(GC.fmt(x.code))}</b>`, x.client_name || '—', money(x.balance, 1), GC.tag(x.status), `<button class="btn sm" data-gcopen="${esc(x.code)}">Abrir</button>`]), null) : '';
+    return `<section class="panel gc-ops"><h2>Buscar tarjeta</h2><p class="formula">Escribe o escanea el número (con o sin espacios y guiones), o escribe parte del nombre de la clienta.</p>
+      <form class="filters" data-gcform autocomplete="off"><label class="field" style="flex:1;min-width:240px">Número o nombre<input class="inp gc-code" data-gccode value="${esc(g.qtext || '')}" placeholder="Número de la tarjeta o nombre" maxlength="40" spellcheck="false" autofocus></label>
+      <button class="btn primary" type="submit" style="align-self:flex-end" ${g.finding ? 'disabled' : ''}>${g.finding ? 'Buscando…' : 'Buscar'}</button></form>${g.findErr ? `<p class="err" role="alert">${esc(g.findErr)}</p>` : ''}${list}</section>
+      <div data-gcresult>${GC.cardPanel()}</div>`;
   },
   t_cards() {
-    const g = S.gc, f = g.f, adm = GC.isAdmin(), batches = (g.stats && g.stats.batches) || [], sel = g.sel.size;
-    /* la barra de filtros SIEMPRE se queda en pantalla (también mientras carga), para no perder el cursor */
+    const g = S.gc, f = g.f, adm = GC.isAdmin();
     const bar = `<div class="filters no-print">
         <label class="field">Estado<select data-gcf="status"><option value="">Todos</option>${Object.entries(GC.ST).map(([k, l]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="field">Valor<select data-gcf="value"><option value="">Todos</option>${GC.DENOMS.map(v => `<option value="${v}" ${String(f.value) === String(v) ? 'selected' : ''}>${money(v, 0)}</option>`).join('')}</select></label>
-        <label class="field">Lote<select data-gcf="batch"><option value="">Todos</option>${batches.map(b => `<option value="${b.id}" ${f.batch === b.id ? 'selected' : ''}>#${b.batch_no} · ${money(b.value, 0)} × ${b.quantity}</option>`).join('')}</select></label>
-        <label class="field">Buscar código<input class="inp" data-gcf="q" value="${esc(f.q)}" placeholder="Ej. ABCD" maxlength="20"></label>
-        <div class="chips" style="margin-left:auto">${adm ? `<button class="btn" data-gcprintsel ${sel ? '' : 'disabled'}>${ic('dl')}Imprimir seleccionadas${sel ? ' (' + sel + ')' : ''}</button>` : ''}<button class="btn" data-gcxls>${ic('dl')}Excel</button></div></div>`;
+        <label class="field">Buscar número o clienta<input class="inp" data-gcf="q" value="${esc(f.q)}" placeholder="Ej. ABCD o María" maxlength="40"></label>
+        <div class="chips" style="margin-left:auto"><button class="btn" data-gcxls>${ic('dl')}Excel</button></div></div>`;
     if (g.cards == null) return `${GC.errBox('cards')}${bar}${g.err.cards ? '' : '<p class="loading">Cargando…</p>'}`;
     const from = g.cardsTotal ? g.page * GC.PAGE + 1 : 0, to = Math.min(g.cardsTotal, (g.page + 1) * GC.PAGE), pages = Math.max(1, Math.ceil(g.cardsTotal / GC.PAGE));
-    const cols = [...(adm ? [{ label: '', html: 1 }] : []), { label: 'Código', html: 1 }, { label: 'Valor', r: 1 }, { label: 'Saldo', r: 1 }, { label: 'Estado', html: 1 }, { label: 'Lote' }, { label: 'Creada' }, { label: 'Activada' }, { label: '', html: 1 }];
-    const bno = id => { const b = batches.find(x => x.id === id); return b ? '#' + b.batch_no : '—'; };
-    const rows = g.cards.map(c => [...(adm ? [`<input type="checkbox" data-gcsel="${c.id}" ${g.sel.has(c.id) ? 'checked' : ''} aria-label="Elegir ${esc(c.code)}">`] : []), `<b>${esc(c.code)}</b>`, money(c.initial_value, 0), money(c.balance, 1), GC.tag(c.status), bno(c.batch_id), GC.fday(c.created_at), c.activated_at ? GC.fday(c.activated_at) : '—', `<button class="btn sm" data-gcopen="${esc(c.code)}">Ver</button>`]);
+    const cols = [{ label: 'Tarjeta', html: 1 }, { label: 'Clienta' }, { label: 'Valor', r: 1 }, { label: 'Saldo', r: 1 }, { label: 'Estado', html: 1 }, { label: 'Vendida' }, { label: 'Pago' }, { label: '', html: 1 }];
+    const rows = g.cards.map(c => [`<b>${esc(GC.fmt(c.code))}</b>`, c.client_name ? c.client_name + (c.recipient_name ? ' → ' + c.recipient_name : '') : '—', money(c.initial_value, 0), money(c.balance, 1), GC.tag(c.status), c.activated_at ? GC.fday(c.activated_at) : '—', c.payment_method || '—', `<button class="btn sm" data-gcopen="${esc(c.code)}">Ver</button>`]);
     return `${GC.errBox('cards')}${bar}
       ${table(cols, rows, null, { emptyTitle: 'Sin tarjetas', empty: 'No hay tarjetas con esos filtros.' })}
       <div class="chips no-print" style="justify-content:space-between;margin-top:10px"><span class="mutedc">${from}–${to} de ${intf(g.cardsTotal)}</span><span><button class="btn sm" data-gcpg="-1" ${g.page <= 0 ? 'disabled' : ''}>${ic('left')}</button> <span class="mutedc">Página ${g.page + 1} de ${pages}</span> <button class="btn sm" data-gcpg="1" ${g.page + 1 >= pages ? 'disabled' : ''}>${ic('right')}</button></span></div>`;
   },
-  t_batches() {
-    const g = S.gc, s = g.stats, adm = GC.isAdmin(); if (!s) return g.err.batches ? GC.errBox('batches') : '<p class="loading">Cargando…</p>';
-    const form = adm ? `<section class="panel"><h2>Nuevo lote</h2><p class="formula">Crea las tarjetas con sus códigos únicos y QR. Quedan <b>Inactive</b> (sin vender) hasta que Recepción las active al recibir el pago.</p>
-      <div class="filters"><label class="field">Valor de cada tarjeta<select data-gcbv>${GC.DENOMS.map(v => `<option value="${v}">${money(v, 0)}</option>`).join('')}</select></label>
-        <label class="field">Cantidad (1 a 500)<input class="inp num" type="number" min="1" max="500" step="1" value="10" data-gcbq></label>
-        <label class="field" style="flex:1;min-width:200px">Nota (opcional)<input class="inp" data-gcbn maxlength="200" placeholder="Ej. Regalos de diciembre"></label></div>
-      <p class="err" data-gcberr></p><div class="acts" style="justify-content:flex-start"><button class="btn primary" data-gcbnew>${ic('plus')}Crear lote</button></div></section>` : '<div class="banner">Los lotes los crea administración.</div>';
-    const rows = (s.batches || []).map(b => [`#${b.batch_no}`, money(b.value, 0), intf(b.quantity), GC.fday(b.created_at), b.created_by_name || '—', intf(b.inactive), intf(b.active), intf(b.redeemed), intf(b.blocked), b.note || '—',
-      adm ? `<button class="btn sm" data-gcpb="${b.id}" ${Number(b.inactive) ? '' : 'disabled'} title="Imprime las tarjetas Inactive de este lote">${ic('dl')}Imprimir</button>` : '']);
-    return `${GC.errBox('batches')}${form}<h3 style="margin:14px 0 6px">Lotes creados</h3>${table([{ label: 'Lote' }, { label: 'Valor', r: 1 }, { label: 'Cantidad', r: 1 }, { label: 'Creado' }, { label: 'Por' }, { label: 'Inactive', r: 1 }, { label: 'Active', r: 1 }, { label: 'Redeemed', r: 1 }, { label: 'Blocked', r: 1 }, { label: 'Nota' }, { label: '', html: 1 }],
-      rows, null, { emptyTitle: 'Sin lotes', empty: 'Todavía no se ha creado ningún lote.' })}`;
-  },
-  t_ops() {
-    const g = S.gc;
-    return `<section class="panel gc-ops"><h2>Buscar tarjeta</h2><p class="formula">Escribe o escanea el código (con un lector de QR USB basta con escanear). Puede ir con o sin guiones.</p>
-      <form class="filters" data-gcform autocomplete="off"><label class="field" style="flex:1;min-width:240px">Código<input class="inp gc-code" data-gccode value="${esc(g.code || '')}" placeholder="FL-XXXX-XXXX-XXXX" maxlength="24" autocapitalize="characters" spellcheck="false" autofocus></label>
-      <button class="btn primary" type="submit" style="align-self:flex-end" ${g.finding ? 'disabled' : ''}>${g.finding ? 'Buscando…' : 'Buscar'}</button></form>${g.findErr ? `<p class="err" role="alert">${esc(g.findErr)}</p>` : ''}</section>
-      <div data-gcresult>${GC.cardPanel()}</div>`;
-  },
   t_hist() {
     const g = S.gc, f = g.tf;
     const bar = `<div class="filters no-print"><label class="field">Movimiento<select data-gctf="type"><option value="">Todos</option>${Object.entries(GC.TXN).map(([k, l]) => `<option value="${k}" ${f.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <label class="field">Buscar código<input class="inp" data-gctf="q" value="${esc(f.q)}" placeholder="Ej. ABCD" maxlength="20"></label><div class="chips" style="margin-left:auto"><button class="btn" data-gcxlsh>${ic('dl')}Excel</button></div></div>`;
+        <label class="field">Buscar número o clienta<input class="inp" data-gctf="q" value="${esc(f.q)}" placeholder="Ej. ABCD o María" maxlength="40"></label><div class="chips" style="margin-left:auto"><button class="btn" data-gcxlsh>${ic('dl')}Excel</button></div></div>`;
     if (g.tx == null) return `${GC.errBox('hist')}${bar}${g.err.hist ? '' : '<p class="loading">Cargando…</p>'}`;
     const from = g.txTotal ? g.txPage * GC.PAGE + 1 : 0, to = Math.min(g.txTotal, (g.txPage + 1) * GC.PAGE), pages = Math.max(1, Math.ceil(g.txTotal / GC.PAGE));
-    const rows = g.tx.map(t => [GC.fdt(t.at), `<b>${esc(t.code)}</b>`, GC.TXN[t.type] || t.type, Number(t.amount) ? (Number(t.amount) > 0 ? '+' : '−') + money(Math.abs(t.amount), 1) : '—', money(t.balance_after, 1), esc(GC.txDetail(t)), esc(t.by_name || t.by_email)]);
+    const rows = g.tx.map(t => [GC.fdt(t.at), `<b>${esc(GC.fmt(t.code))}</b>`, GC.TXN[t.type] || t.type, Number(t.amount) ? (Number(t.amount) > 0 ? '+' : '−') + money(Math.abs(t.amount), 1) : '—', money(t.balance_after, 1), esc(GC.txDetail(t)), esc(t.by_name || t.by_email)]);
     return `${GC.errBox('hist')}${bar}
-      ${table([{ label: 'Fecha' }, { label: 'Código', html: 1 }, { label: 'Movimiento' }, { label: 'Monto', r: 1 }, { label: 'Saldo después', r: 1 }, { label: 'Detalle', html: 1 }, { label: 'Usuario', html: 1 }], rows, null, { emptyTitle: 'Sin movimientos', empty: 'No hay movimientos con esos filtros.' })}
+      ${table([{ label: 'Fecha' }, { label: 'Tarjeta', html: 1 }, { label: 'Movimiento' }, { label: 'Monto', r: 1 }, { label: 'Saldo después', r: 1 }, { label: 'Detalle', html: 1 }, { label: 'Usuario', html: 1 }], rows, null, { emptyTitle: 'Sin movimientos', empty: 'No hay movimientos con esos filtros.' })}
       <div class="chips no-print" style="justify-content:space-between;margin-top:10px"><span class="mutedc">${from}–${to} de ${intf(g.txTotal)}</span><span><button class="btn sm" data-gctp="-1" ${g.txPage <= 0 ? 'disabled' : ''}>${ic('left')}</button> <span class="mutedc">Página ${g.txPage + 1} de ${pages}</span> <button class="btn sm" data-gctp="1" ${g.txPage + 1 >= pages ? 'disabled' : ''}>${ic('right')}</button></span></div>`;
   },
 };
-S.gc = { tab: null, stats: null, cards: null, cardsTotal: 0, page: 0, f: { status: '', value: '', batch: '', q: '' }, sel: new Map(), tx: null, txTotal: 0, txPage: 0, tf: { type: '', q: '' }, found: null, findErr: '', finding: false, code: '', pend: null, loading: {}, err: {} };
+S.gc = { tab: null, stats: null, cards: null, cardsTotal: 0, page: 0, f: { status: '', value: '', q: '' }, tx: null, txTotal: 0, txPage: 0, tf: { type: '', q: '' }, found: null, results: null, findErr: '', finding: false, code: '', qtext: '', pend: null, loading: {}, err: {}, sale: GC.blankSale(), sold: null };
 ICON.gift = '<rect x="3.5" y="9" width="17" height="11.5" rx="1.4"/><path d="M12 9v11.5M3.5 13.5h17"/><path d="M12 9C9.5 9.2 7.2 8 7.8 6.3 8.6 4.4 11.6 6 12 9c.4-3 3.4-4.6 4.2-2.7.6 1.7-1.7 2.9-4.2 2.7z"/>';
 
 Views.giftcards = {
   html() {
     const g = S.gc, tabs = GC.tabs(); if (!tabs.some(t => t[0] === g.tab)) g.tab = tabs[0][0];
-    return `<div class="head"><div><h1>Gift Cards</h1><p>${GC.isRec() ? 'Activa una tarjeta cuando la clienta pague, consulta su saldo y descuenta lo que use.' : 'Tarjetas de regalo físicas: lotes, activación, saldos y movimientos.'}</p></div></div>
+    return `<div class="head"><div><h1>Gift Cards</h1><p>${GC.isRec() ? 'Vende una tarjeta a nombre de la clienta, consulta su saldo y descuenta lo que use.' : 'Tarjetas de regalo: ventas, saldos, clientas y movimientos.'}</p></div></div>
       ${tabs.length > 1 ? `<div class="tabs no-print" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="${g.tab === k ? 'on' : ''}" data-gtab="${k}">${l}</button>`).join('')}</div>` : ''}
       ${GC['t_' + g.tab]()}`;
   },
   mount(root) {
-    const g = S.gc, rerun = () => { GC.invalidate(); UI.render(); };
+    const g = S.gc;
     $$('[data-gtab]', root).forEach(b => b.onclick = () => { g.tab = b.dataset.gtab; UI.render(); });
-    if (['dash', 'batches'].includes(g.tab) && g.stats == null && !g.loading[g.tab] && !g.err[g.tab]) GC.load(g.tab);
+    if (g.tab === 'dash' && g.stats == null && !g.loading.dash && !g.err.dash) GC.load('dash');
     if (g.tab === 'cards' && g.cards == null && !g.loading.cards && !g.err.cards) GC.load('cards');
     if (g.tab === 'hist' && g.tx == null && !g.loading.hist && !g.err.hist) GC.load('hist');
-    /* ---- Tarjetas ---- */
-    $$('[data-gcf]', root).forEach(el => { const go = () => { g.f[el.dataset.gcf] = el.dataset.gcf === 'q' ? el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') : el.value; g.page = 0; g.cards = null; setTimeout(() => UI.render(), 0); };   /* diferido: Safari dispara change y blur en otro orden */
-      el.onchange = go; });
+    /* ---- Tarjetas / Historial: filtros ---- */
+    $$('[data-gcf]', root).forEach(el => el.onchange = () => { g.f[el.dataset.gcf] = el.dataset.gcf === 'q' ? GC.clean(el.value) : el.value; g.page = 0; g.cards = null; setTimeout(() => UI.render(), 0); });   /* diferido: Safari dispara change y blur en otro orden */
     $$('[data-gcpg]', root).forEach(b => b.onclick = () => { g.page = Math.max(0, g.page + (+b.dataset.gcpg)); g.cards = null; UI.render(); });
-    $$('[data-gcsel]', root).forEach(c => c.onchange = () => { const card = g.cards.find(x => x.id === c.dataset.gcsel); if (c.checked && card) g.sel.set(card.id, card); else g.sel.delete(c.dataset.gcsel); UI.render(); });
-    $$('[data-gcopen]', root).forEach(b => b.onclick = () => { g.tab = 'ops'; g.code = b.dataset.gcopen; GC.find(b.dataset.gcopen); });
-    const ps = $('[data-gcprintsel]', root); if (ps) ps.onclick = () => GC.printOpen([...g.sel.values()].sort((a, b) => a.code.localeCompare(b.code)), 'Tarjetas elegidas:');
-    const xl = $('[data-gcxls]', root); if (xl) xl.onclick = () => Exporter.run('xlsx', 'GiftCards_tarjetas', [['Código', 'Valor', 'Saldo', 'Estado', 'Creada', 'Activada', 'Activada por', 'Método de pago', 'Referencia']].concat((g.cards || []).map(c => [c.code, c.initial_value, c.balance, GC.ST[c.status], c.created_at, c.activated_at || '', c.activated_by_name || '', c.payment_method || '', c.payment_ref || ''])));
-    /* ---- Lotes ---- */
-    const nb = $('[data-gcbnew]', root); if (nb) nb.onclick = async () => {
-      const v = +$('[data-gcbv]', root).value, q = Math.round(+$('[data-gcbq]', root).value), n = $('[data-gcbn]', root).value.trim(), er = $('[data-gcberr]', root); er.textContent = '';
-      if (!GC.DENOMS.includes(v)) return (er.textContent = 'Elige $50, $100, $200 o $500.'); if (!(q >= 1 && q <= 500)) return (er.textContent = 'La cantidad debe estar entre 1 y 500.');
-      if (!await UI.confirm('Crear lote', `Se crearán <b>${q}</b> tarjeta${q === 1 ? '' : 's'} de <b>${money(v, 0)}</b> (total ${money(v * q, 0)} en tarjetas sin vender).`, 'Crear lote')) return;
-      nb.disabled = true; nb.textContent = 'Creando…';
-      try { const r = await GC.rpc('fm_gc_create_batch', { p_value: v, p_qty: q, p_note: n }); GC.invalidate(); UI.toast(`Lote #${r.batch_no} creado: ${r.quantity} × ${money(r.value, 0)}`);
-        const { rows } = await GC.select('gift_cards', x => x.eq('batch_id', r.batch_id).order('code', { ascending: true }).range(0, 499)); UI.render(); GC.printOpen(rows, `Lote #${r.batch_no} (${money(r.value, 0)}):`); }
-      catch (e) { nb.disabled = false; nb.textContent = 'Crear lote'; er.textContent = e.message; }
-    };
-    $$('[data-gcpb]', root).forEach(b => b.onclick = async () => { b.disabled = true;
-      try { const bt = (g.stats.batches || []).find(x => x.id === b.dataset.gcpb); const { rows } = await GC.select('gift_cards', x => x.eq('batch_id', b.dataset.gcpb).eq('status', 'inactive').order('code', { ascending: true }).range(0, 499)); b.disabled = false; GC.printOpen(rows, `Lote #${bt ? bt.batch_no : ''} (solo tarjetas Inactive):`); }
-      catch (e) { b.disabled = false; UI.toast(e.message, true); } });
-    /* ---- Operar: buscar, activar, canjear, ajustar, bloquear ---- */
-    const fm = $('[data-gcform]', root); if (fm) { fm.onsubmit = e => { e.preventDefault(); GC.find($('[data-gccode]', root).value); }; const ci = $('[data-gccode]', root); if (ci) { ci.oninput = () => { g.code = ci.value; }; if (!g.found && !g.finding) ci.focus(); } }
+    $$('[data-gcopen]', root).forEach(b => b.onclick = () => { g.tab = 'find'; g.qtext = b.dataset.gcopen; GC.find(b.dataset.gcopen); });
+    const xl = $('[data-gcxls]', root); if (xl) xl.onclick = () => Exporter.run('xlsx', 'GiftCards_tarjetas', [['Número', 'Clienta', 'Para', 'Valor', 'Saldo', 'Estado', 'Vendida', 'Método de pago', 'Referencia', 'Vendió']].concat((g.cards || []).map(c => [c.code, c.client_name || '', c.recipient_name || '', c.initial_value, c.balance, GC.ST[c.status], c.activated_at || '', c.payment_method || '', c.payment_ref || '', c.activated_by_name || ''])));
+    $$('[data-gctf]', root).forEach(el => el.onchange = () => { g.tf[el.dataset.gctf] = el.dataset.gctf === 'q' ? GC.clean(el.value) : el.value; g.txPage = 0; g.tx = null; setTimeout(() => UI.render(), 0); });
+    $$('[data-gctp]', root).forEach(b => b.onclick = () => { g.txPage = Math.max(0, g.txPage + (+b.dataset.gctp)); g.tx = null; UI.render(); });
+    const xh = $('[data-gcxlsh]', root); if (xh) xh.onclick = () => Exporter.run('xlsx', 'GiftCards_historial', [['Fecha', 'Número', 'Movimiento', 'Monto', 'Saldo antes', 'Saldo después', 'Método / categoría', 'Referencia', 'Nota', 'Usuario']].concat((g.tx || []).map(t => [t.at, t.code, GC.TXN[t.type] || t.type, t.amount, t.balance_before, t.balance_after, t.payment_method || GC.catName(t.category) || '', t.reference || '', t.note || '', t.by_name || t.by_email])));
+    /* ---- Vender ---- */
+    if (g.tab === 'sell') {
+      const s = g.sale;
+      $$('[data-gs]', root).forEach(el => { const k = el.dataset.gs; const set = () => { s[k] = el.value; if (k === 'clientName') s.clientId = s.clientId && s._pickName === el.value ? s.clientId : ''; }; el.addEventListener('input', set); el.addEventListener('change', set); });
+      $$('[data-gsv]', root).forEach(b => b.onclick = () => { s.value = +b.dataset.gsv; UI.render(); });
+      const ci = $('[data-gs=clientName]', root), sg = $('[data-gssug]', root); if (ci && sg) GC.picker(root, ci, sg, (id, nm) => { s.clientId = id; s._pickName = nm; s.clientName = nm; }, () => {});
+      const sb = $('[data-gssell]', root); if (sb) sb.onclick = () => GC.sell();
+      const cc = $('[data-gs=code]', root); if (cc && !g.loading.sellfocus) { g.loading.sellfocus = true; setTimeout(() => { g.loading.sellfocus = false; }, 0); if (!s.value && !s.clientName) cc.focus(); }
+    }
+    /* ---- Consultar, canjear, cambiar clienta, ajustar, bloquear ---- */
+    const fm = $('[data-gcform]', root); if (fm) { fm.onsubmit = e => { e.preventDefault(); g.qtext = $('[data-gccode]', root).value; GC.find(g.qtext); }; const ci = $('[data-gccode]', root); if (ci) { ci.oninput = () => { g.qtext = ci.value; }; if (!g.found && !g.results && !g.finding) ci.focus(); } }
     const er = () => $('[data-gcerr]', root);
-    const act = $('[data-gcact]', root); if (act) act.onclick = async () => {
-      const c = g.found.card, method = $('[data-gcm]', root).value, ref = $('[data-gcr]', root).value.trim(); if (!method) return (er().textContent = 'Elige el método de pago.');
-      if (!await UI.confirm('Activar tarjeta', `Confirma que ya se recibió <b>${money(c.initial_value, 0)}</b> por <b>${esc(method)}</b>. La tarjeta <b>${esc(c.code)}</b> quedará disponible.`, 'Sí, activar')) return;
-      act.disabled = true; act.textContent = 'Activando…';
-      try { await GC.rpc('fm_gc_activate', { p_code: c.code, p_method: method, p_ref: ref, p_request_id: GC.rid('act|' + c.code + '|' + method + '|' + ref) }); g.pend = null; UI.toast(`Tarjeta activada: ${money(c.initial_value, 0)}`); await GC.refresh(); }
-      catch (e) { act.disabled = false; act.textContent = 'Confirmar pago y activar'; er().textContent = e.message; await GC.refresh(); }
-    };
     const redeem = async all => {
       const c = g.found.card, amt = all ? +c.balance : Math.round(+$('[data-gca]', root).value * 100) / 100, cat = $('[data-gcc]', root).value, ref = $('[data-gcr]', root).value.trim();
       if (!(amt > 0)) return (er().textContent = 'Escribe un monto mayor a $0.'); if (amt > +c.balance + 0.0001) return (er().textContent = `El canje (${money(amt, 1)}) es mayor al saldo disponible (${money(c.balance, 1)}).`);
-      if (!await UI.confirm('Confirmar canje', `Se descontarán <b>${money(amt, 1)}</b> (${esc(GC.catName(cat))}) de <b>${esc(c.code)}</b>. Saldo después: <b>${money(+c.balance - amt, 1)}</b>.`, 'Canjear')) return;
+      if (!await UI.confirm('Confirmar canje', `Se descontarán <b>${money(amt, 1)}</b> (${esc(GC.catName(cat))}) de <b>${esc(GC.fmt(c.code))}</b>. Saldo después: <b>${money(+c.balance - amt, 1)}</b>.`, 'Canjear')) return;
       const b1 = $('[data-gcred]', root), b2 = $('[data-gcall]', root); b1.disabled = b2.disabled = true;
       try { await GC.rpc('fm_gc_redeem', { p_code: c.code, p_amount: amt, p_category: cat, p_ref: ref, p_note: '', p_request_id: GC.rid('red|' + c.code + '|' + amt + '|' + cat + '|' + ref) }); g.pend = null; UI.toast(`Canje de ${money(amt, 1)} registrado`); await GC.refresh(); }
       catch (e) { b1.disabled = b2.disabled = false; er().textContent = e.message; await GC.refresh(); }
     };
     const rd = $('[data-gcred]', root); if (rd) rd.onclick = () => redeem(false); const ra = $('[data-gcall]', root); if (ra) ra.onclick = () => redeem(true);
+    const asg = $('[data-gcasg]', root); if (asg) asg.onclick = () => { const c = g.found.card, st = { id: c.client_id || '', name: c.client_name || '', rec: c.recipient_name || '' };
+      UI.modal(`<h3>Cambiar clienta</h3><p class="formula">Úsalo cuando la tarjeta se la regalan a otra persona o quieres ligarla a su ficha de Clientas. Queda en el historial. Tarjeta <b>${esc(GC.fmt(c.code))}</b>.</p>
+        <label class="field gc-rel">Clienta<input class="inp" data-an maxlength="120" value="${esc(st.name)}" placeholder="Busca en Clientas o escribe el nombre" autocomplete="off"><div class="gc-sug" data-asug style="display:none"></div></label>
+        <label class="field">Para (si es un regalo, opcional)<input class="inp" data-ar maxlength="120" value="${esc(st.rec)}" autocomplete="off"></label><label class="field">Nota (opcional)<input class="inp" data-ano maxlength="120" placeholder="Ej. Se la regaló a su mamá"></label>
+        <p class="err" data-aerr></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar</button></div>`, m => {
+        const inp = $('[data-an]', m); GC.picker(m, inp, $('[data-asug]', m), (id, nm) => { st.id = id; st.name = nm; }, v => { st.id = ''; st.name = v; });
+        $('[data-x=no]', m).onclick = UI.close;
+        $('[data-x=ok]', m).onclick = async () => { const e2 = $('[data-aerr]', m); if (inp.value.trim().length < 2) return (e2.textContent = 'Escribe el nombre de la clienta.'); const b = $('[data-x=ok]', m); b.disabled = true;
+          try { await GC.rpc('fm_gc_assign', { p_code: c.code, p_client_id: st.id, p_client_name: inp.value.trim(), p_recipient: $('[data-ar]', m).value.trim(), p_note: $('[data-ano]', m).value.trim() }); UI.close(); UI.toast('Clienta actualizada'); await GC.refresh(); } catch (e) { b.disabled = false; e2.textContent = e.message; } };
+      }); };
     const adj = $('[data-gcadj]', root); if (adj) adj.onclick = () => { const c = g.found.card;
-      UI.modal(`<h3>Ajustar saldo</h3><p class="formula">Para corregir un error o devolver saldo. Siempre queda registrado con su motivo. Saldo actual <b>${money(c.balance, 1)}</b> (máximo ${money(c.initial_value, 0)}).</p>
-        <label class="field">Ajuste ($): positivo suma, negativo resta<input class="inp num" type="number" step="0.01" data-aj placeholder="Ej. 20 o -10"></label><label class="field">Motivo<input class="inp" data-an maxlength="200" placeholder="Ej. Devolución de un servicio"></label>
+      UI.modal(`<h3>Ajustar saldo</h3><p class="formula">Para corregir un error. Siempre queda registrado con su motivo. Saldo actual <b>${money(c.balance, 1)}</b> (máximo ${money(c.initial_value, 0)}).</p>
+        <label class="field">Ajuste ($): positivo suma, negativo resta<input class="inp num" type="number" step="0.01" data-aj placeholder="Ej. 20 o -10"></label><label class="field">Motivo<input class="inp" data-an2 maxlength="200" placeholder="Ej. Corrección de captura"></label>
         <p class="err" data-aerr></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Guardar ajuste</button></div>`, m => {
         $('[data-x=no]', m).onclick = UI.close;
-        $('[data-x=ok]', m).onclick = async () => { const d = Math.round(+$('[data-aj]', m).value * 100) / 100, n = $('[data-an]', m).value.trim(), e2 = $('[data-aerr]', m); if (!d) return (e2.textContent = 'Escribe un ajuste distinto de $0.'); if (n.length < 3) return (e2.textContent = 'Escribe el motivo del ajuste.');
+        $('[data-x=ok]', m).onclick = async () => { const d = Math.round(+$('[data-aj]', m).value * 100) / 100, n = $('[data-an2]', m).value.trim(), e2 = $('[data-aerr]', m); if (!d) return (e2.textContent = 'Escribe un ajuste distinto de $0.'); if (n.length < 3) return (e2.textContent = 'Escribe el motivo del ajuste.');
           const b = $('[data-x=ok]', m); b.disabled = true;
           try { await GC.rpc('fm_gc_adjust', { p_code: c.code, p_delta: d, p_note: n, p_request_id: GC.rid('adj|' + c.code + '|' + d + '|' + n) }); g.pend = null; UI.close(); UI.toast('Ajuste guardado'); await GC.refresh(); } catch (e) { b.disabled = false; e2.textContent = e.message; } };
       }); };
     const bl = $('[data-gcblk]', root); if (bl) bl.onclick = () => { const c = g.found.card, un = c.status === 'blocked';
-      UI.modal(`<h3>${un ? 'Desbloquear' : 'Bloquear'} tarjeta</h3><p class="formula">${un ? 'Regresará al estado en que estaba.' : 'Mientras esté bloqueada no se podrá activar ni canjear.'} <b>${esc(c.code)}</b></p>
+      UI.modal(`<h3>${un ? 'Desbloquear' : 'Bloquear'} tarjeta</h3><p class="formula">${un ? 'Regresará al estado en que estaba.' : 'Mientras esté bloqueada no se podrá canjear.'} <b>${esc(GC.fmt(c.code))}</b></p>
         <label class="field">Motivo${un ? ' (opcional)' : ''}<input class="inp" data-bn maxlength="200" placeholder="${un ? 'Ej. Apareció' : 'Ej. Reportada como perdida'}"></label><p class="err" data-berr></p>
         <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn ${un ? 'primary' : 'danger'}" data-x="ok">${un ? 'Desbloquear' : 'Bloquear'}</button></div>`, m => {
         $('[data-x=no]', m).onclick = UI.close;
         $('[data-x=ok]', m).onclick = async () => { const n = $('[data-bn]', m).value.trim(), e2 = $('[data-berr]', m); if (!un && n.length < 3) return (e2.textContent = 'Escribe el motivo del bloqueo.');
           const b = $('[data-x=ok]', m); b.disabled = true; try { await GC.rpc('fm_gc_set_blocked', { p_code: c.code, p_blocked: !un, p_note: n }); UI.close(); UI.toast(un ? 'Tarjeta desbloqueada' : 'Tarjeta bloqueada'); await GC.refresh(); } catch (e) { b.disabled = false; e2.textContent = e.message; } };
       }); };
-    /* ---- Historial ---- */
-    $$('[data-gctf]', root).forEach(el => el.onchange = () => { g.tf[el.dataset.gctf] = el.dataset.gctf === 'q' ? el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '') : el.value; g.txPage = 0; g.tx = null; setTimeout(() => UI.render(), 0); });
-    $$('[data-gctp]', root).forEach(b => b.onclick = () => { g.txPage = Math.max(0, g.txPage + (+b.dataset.gctp)); g.tx = null; UI.render(); });
-    const xh = $('[data-gcxlsh]', root); if (xh) xh.onclick = () => Exporter.run('xlsx', 'GiftCards_historial', [['Fecha', 'Código', 'Movimiento', 'Monto', 'Saldo antes', 'Saldo después', 'Método / categoría', 'Referencia', 'Nota', 'Usuario']].concat((g.tx || []).map(t => [t.at, t.code, GC.TXN[t.type] || t.type, t.amount, t.balance_before, t.balance_after, t.payment_method || GC.catName(t.category) || '', t.reference || '', t.note || '', t.by_name || t.by_email])));
   },
 };
+
+/* =========================================================
+   INTEGRACIÓN CON COBRAR (servicios): bloque «Pagar con Gift Card»
+   · Se guarda como UNA línea de pago más (método «Gift Card», monto y número en TXN), así la Hoja del día, el Corte de caja y los totales cuadran solos.
+   · Primero se descuenta el saldo (con un request_id que evita doble descuento) y luego se guarda la venta; si la venta no se guarda, el descuento se devuelve.
+   · Al eliminar una venta pagada con Gift Card, el saldo se devuelve solo.
+   ========================================================= */
+Object.assign(GC, {
+  due0(f) { const gc = f.gc, a = gc.amount; gc.amount = 0; let d = 0; try { d = cobroDue(f); } finally { gc.amount = a; } return d; },
+  paidSale() { const id = UI.params && UI.params.edit; const s = id ? (Store.appSales || []).find(x => x.id === id) : null; return s && (s.giftCards || []).length ? s : null; },
+  cobroBlock(f) {
+    const ps = GC.paidSale();
+    if (ps) return `<div class="full gcbox on" data-gcbox data-gcpaid><p class="formula" style="margin:0"><b>Pagada con Gift Card</b> (${ps.giftCards.map(g => esc(GC.fmt(g.code)) + ' · ' + money(g.amount, 1)).join(', ')}). Su pago y su total no se cambian aquí: si hay un error, <b>elimina la venta</b> (el saldo se devuelve solo) y vuelve a cobrarla.</p></div>`;
+    const gc = f.gc, bal = gc.info ? +gc.info.card.balance : 0, due = GC.due0(f), amt = GC_amt(f);
+    const hint = gc.err ? `<p class="err" role="alert">${esc(gc.err)}</p>` : gc.info ? `<p class="gc-ok">${GC.tag(gc.info.card.status)} <b>${esc(gc.info.card.client_name || 'Sin clienta')}</b> · saldo <b>${money(bal, 1)}</b> de ${money(gc.info.card.initial_value, 0)}</p>` : '';
+    return `<div class="full gcbox ${gc.on ? 'on' : ''}" data-gcbox><label class="gcsw"><input type="checkbox" data-gcon ${gc.on ? 'checked' : ''}> Pagar (todo o una parte) con <b>Gift Card</b></label>
+      <div data-gcbody style="${gc.on ? '' : 'display:none'}"><div class="filters"><label class="field" style="flex:1;min-width:210px">Número de la tarjeta<input class="inp gc-code" data-gcn value="${esc(gc.code)}" placeholder="Escanea o escribe el número" autocomplete="off" spellcheck="false"></label><button type="button" class="btn sm" data-gcfind2 style="align-self:flex-end">Buscar</button></div>
+        <div data-gcinfo>${hint}</div>
+        <div class="filters"><label class="field">Monto a cobrar con la tarjeta ($)<input class="inp num" type="number" min="0.01" step="0.01" data-gcamt value="${esc(gc.amount)}" placeholder="0.00" inputmode="decimal"></label><button type="button" class="btn sm" data-gcmax style="align-self:flex-end">Usar todo lo posible</button></div>
+        <p class="formula" data-gcrest>${amt > 0 ? (due - amt > 0.005 ? `Resto a pagar con otro método: <b>${money(r2(due - amt), 1)}</b> (elige el método arriba o usa «Dividir pago»).` : 'La tarjeta cubre todo el cobro.') : `Total a cobrar: <b>${money(due, 1)}</b>.`}</p></div></div>`;
+  },
+  async cobroLookup(f) {
+    const gc = f.gc; gc.err = ''; gc.info = null; const code = String(gc.code || '').trim(); if (!code) { gc.err = 'Escribe o escanea el número de la tarjeta.'; return; }
+    try { const d = await GC.rpc('fm_gc_lookup', { p_code: code }); gc.code = d.card.code; gc.info = d;
+      if (d.card.status !== 'active') gc.err = d.card.status === 'blocked' ? 'La tarjeta está bloqueada.' : d.card.status === 'redeemed' ? 'La tarjeta ya no tiene saldo.' : 'La tarjeta todavía no está vendida.';
+      else if (!(GC_amt(f) > 0)) gc.amount = String(Math.min(+d.card.balance, GC.due0(f))); }
+    catch (e) { gc.err = e.message; }
+  },
+  /* guarda la venta de Cobrar: si lleva Gift Card, primero descuenta el saldo (y lo devuelve si la venta no se guarda) */
+  async cobroSave(f, edit) {
+    const prev = edit ? (Store.appSales || []).find(x => x.id === edit) : null, gc = f.gc;
+    if (prev && (prev.giftCards || []).length) {   /* una venta ya pagada con Gift Card: no se cambia su pago ni su total (se elimina y se vuelve a cobrar) */
+      const tot = x => r2(num(x.price) - num(x.discount) + num(x.tip)), same = tot(f) === tot(prev) && String(f.method || '') === String(prev.method || '') && JSON.stringify((f.payments || []).map(p => [p.method, r2(p.amount)])) === JSON.stringify((prev.payments || []).map(p => [p.method, r2(p.amount)]));
+      if (!same || (gc && gc.on)) throw new Error('Esta venta se pagó con Gift Card. Para cambiar el pago o el total, elimina la venta (el saldo se devuelve solo) y vuelve a cobrarla.');
+      return Store.saveSale(f, edit);
+    }
+    if (!gc || !gc.on || !(GC_amt(f) > 0)) return Store.saveSale(f, edit);
+    const code = String(gc.code || '').trim(); if (!code) throw new Error('Escribe el número de la Gift Card.');
+    const amt = GC_amt(f), due = GC.due0(f); if (amt > due + 0.005) throw new Error(`El monto de la Gift Card (${money(amt, 1)}) es mayor al total a cobrar (${money(due, 1)}).`);
+    const info = await GC.rpc('fm_gc_lookup', { p_code: code }), c = info.card;
+    if (c.status !== 'active') throw new Error(c.status === 'blocked' ? 'La Gift Card está bloqueada.' : c.status === 'redeemed' ? 'La Gift Card ya no tiene saldo.' : 'La Gift Card todavía no está vendida.');
+    if (amt > +c.balance + 0.005) throw new Error(`La Gift Card solo tiene ${money(c.balance, 1)} de saldo.`);
+    const key = [c.code, amt, f.artistId, f.serviceId, f.date, f.first, f.last].join('|'); if (!f._gcRid || f._gcRid.key !== key) f._gcRid = { key, id: GC.uuid() };
+    const rid = f._gcRid.id, who = `${f.first || ''} ${f.last || ''}`.trim(), svc = (Store.config.services.find(s => s.id === f.serviceId) || {}).name || 'Servicio';
+    await GC.rpc('fm_gc_redeem', { p_code: c.code, p_amount: amt, p_category: 'servicios', p_ref: `Cobro ${f.date}`, p_note: `${who || 'Clienta'} · ${svc}`.slice(0, 190), p_request_id: rid });
+    const rest = r2(due - amt), gift = { method: 'Gift Card', amount: amt, txn: c.code }, f2 = { ...f, giftCards: [{ code: c.code, amount: amt, rid }] };
+    if (f.split && (f.payments || []).length) { f2.payments = [gift, ...f.payments.filter(p => p.method || num(p.amount))]; f2.method = (f.payments.find(p => p.method) || {}).method || 'Gift Card'; }
+    else if (rest > 0.005) { f2.payments = [gift, { method: f.method || '', amount: rest, txn: f.txn || '' }]; f2.method = f.method || 'Gift Card'; }
+    else { f2.payments = []; f2.method = 'Gift Card'; f2.txn = c.code; }
+    try { const id = await Store.saveSale(f2, edit); f.gc = { on: false, code: '', info: null, amount: '', err: '' }; f._gcRid = null; GC.invalidate(); return id; }
+    catch (e) { try { await GC.rpc('fm_gc_refund', { p_request_id: rid, p_note: 'La venta no se guardó' }); f._gcRid = null; } catch (e2) { throw new Error(`${e.message || e} · OJO: se descontaron ${money(amt, 1)} de la Gift Card ${GC.fmt(c.code)} y no pudieron devolverse; avisa a administración (Gift Cards › Ajustar saldo).`); } throw e; }
+  },
+});
+{ const H0 = Views.nueva.html, M0 = Views.nueva.mount;
+  Views.nueva.html = function () {
+    const h = H0.call(this), f = this.form;
+    if (S.cobro.tipo !== 'servicio' || !f || f.packageId || !GC.canOperate()) return h;
+    if (!f.gc) f.gc = { on: false, code: '', info: null, amount: '', err: '' };
+    return h.replace('<label class="field">Cliente nombre', GC.cobroBlock(f) + '<label class="field">Cliente nombre');
+  };
+  Views.nueva.mount = function (root) {
+    M0.call(this, root); const f = this.form, box = $('[data-gcbox]', root); if (!f || !box || !f.gc) return;
+    if (box.hasAttribute('data-gcpaid')) { const pm = $('.cob-pm .cob-b', root) || $('.cob-pm', root); if (pm) { box.classList.remove('cob-left'); pm.appendChild(box); } return; }
+    /* el diseño nuevo de Cobrar esconde lo que no reconoce (cob-left): el bloque se mueve dentro de la tarjeta «Método de pago» para que se vea */
+    { const pm = $('.cob-pm .cob-b', root) || $('.cob-pm', root); if (pm) { box.classList.remove('cob-left'); pm.appendChild(box); } }
+    const gc = f.gc, redraw = () => { const sc = $('#main') ? $('#main').scrollTop : 0; UI.render(); if ($('#main')) $('#main').scrollTop = sc; };
+    box.addEventListener('input', e => e.stopPropagation()); box.addEventListener('change', e => e.stopPropagation());   /* el formulario de Cobrar no debe leer estos campos */
+    $('[data-gcon]', box).onchange = e => { gc.on = e.target.checked; if (!gc.on) { gc.err = ''; } redraw(); };
+    const n = $('[data-gcn]', box); n.oninput = () => { gc.code = n.value; gc.info = null; gc.err = ''; };
+    const look = async () => { gc.code = n.value; await GC.cobroLookup(f); redraw(); };
+    $('[data-gcfind2]', box).onclick = look; n.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); look(); } };
+    const a = $('[data-gcamt]', box); a.oninput = () => { gc.amount = a.value; const due = GC.due0(f), amt = GC_amt(f); $('[data-gcrest]', box).innerHTML = amt > 0 ? (due - amt > 0.005 ? `Resto a pagar con otro método: <b>${money(r2(due - amt), 1)}</b> (elige el método arriba o usa «Dividir pago»).` : 'La tarjeta cubre todo el cobro.') : `Total a cobrar: <b>${money(due, 1)}</b>.`; };
+    a.onchange = () => redraw();
+    $('[data-gcmax]', box).onclick = () => { const due = GC.due0(f); gc.amount = String(gc.info ? Math.min(+gc.info.card.balance, due) : due); redraw(); };
+  };
+  /* recibo «Resumen de la venta»: línea de Gift Card y «Por cobrar» sin lo que paga la tarjeta */
+  const RC0 = Views.nueva.receipt; Views.nueva.receipt = function () {
+    let h = RC0.apply(this, arguments); const a = GC_amt(this.form); if (!a || typeof h !== 'string') return h;
+    return h.replace(/(<div class="rs-due" data-rsdue><span>Por cobrar<\/span><b>)([^<]*)(<\/b>)/, (m, p1, t, p3) => { const v = parseFloat(String(t).replace(/[^0-9.\-]/g, '')) || 0; return `<div class="rline"><span>Gift Card</span><span>− ${money(a, 1)}</span></div>${p1}${money(Math.max(0, r2(v - a)), 1)}${p3}`; });
+  };
+  /* el botón «Guardar venta» de Cobrar llama a GC.cobroSave (ver el parche en el guardado) */
+  /* Hoja del día y Corte de caja: el dinero de las tarjetas vendidas en efectivo entra al efectivo esperado */
+  if (typeof CashLog !== 'undefined') { const E0 = CashLog.entries; CashLog.entries = function (day) { const out = E0.call(this, day);
+    GC_rows(day).filter(r => isCash(r.method)).forEach(r => out.push({ ts: r.at, kind: 'Gift Card', who: r.client || 'Clienta', detail: `Tarjeta de regalo ····${r.last4}`, total: Number(r.amount), amount: Number(r.amount), note: 'venta de tarjeta de regalo', by: r.by || '' }));
+    return out.sort((a, b) => String(a.ts || '').localeCompare(String(b.ts || ''))); }; }
+  /* al eliminar una venta pagada con Gift Card, el saldo se devuelve (si no se puede devolver, la venta NO se elimina) */
+  const D0 = Store.deleteSale; Store.deleteSale = async function (id) {
+    const s = (this.appSales || []).find(x => x.id === id);
+    if (s && (s.giftCards || []).length) { for (const g of s.giftCards) { try { await GC.rpc('fm_gc_refund', { p_request_id: g.rid, p_note: 'Venta eliminada' }); } catch (e) { throw new Error(`No se pudo devolver el saldo a la Gift Card ${GC.fmt(g.code)}: ${e.message}. La venta no se eliminó.`); } } GC.invalidate(); }
+    return D0.apply(this, arguments); };
+}
 /* ---------- integración con el menú, las rutas y los permisos (lo estrictamente necesario) ---------- */
 { const i = NAV.findIndex(n => n.id === 'paquetes'); NAV.splice(i < 0 ? NAV.length : i + 1, 0, { id: 'giftcards', label: 'Gift Cards', icon: 'gift' });
   const ga = SB.ADMIN.find(x => x.id === 'operacion'); if (ga && !ga.ids.includes('giftcards')) ga.ids.splice(Math.max(0, ga.ids.indexOf('paquetes')) + 1, 0, 'giftcards');
@@ -12083,8 +12197,8 @@ Views.giftcards = {
   const T0 = SB.transform; SB.transform = function () {      /* Recepción: el enlace se agrega antes de que la barra se agrupe (igual que Lista de espera) */
     if (Mode.reception && !$('#side .nav [data-go=giftcards]')) { const c = $('#side .nav [data-go=paquetes]') || $('#side .nav [data-go=depositos]'); if (c) c.insertAdjacentHTML('afterend', `<a class="${UI.route === 'giftcards' ? 'on' : ''}" data-go="giftcards">${ic('gift')}Gift Cards</a>`); }
     return T0.apply(this, arguments); };
-  /* al cambiar de lashista/usuario o de modo, lo consultado se limpia (nada de saldos a la vista de otra persona) */
-  const go = UI.go; UI.go = function (route, params) { if (UI.route === 'giftcards' && route !== 'giftcards') { const g = S.gc; g.found = null; g.code = ''; g.findErr = ''; g.pend = null; } return go.apply(this, arguments); };
+  /* al cambiar de pantalla, lo consultado se limpia (nada de saldos a la vista de otra persona) */
+  const go = UI.go; UI.go = function (route, params) { if (UI.route === 'giftcards' && route !== 'giftcards') { const g = S.gc; g.found = null; g.results = null; g.code = ''; g.qtext = ''; g.findErr = ''; g.pend = null; } return go.apply(this, arguments); };
 }
 
 window.FM_BOOT = function () {
