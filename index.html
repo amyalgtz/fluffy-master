@@ -927,6 +927,9 @@ tr.rd-sel td{background:var(--blush)}
 @media print{#chat-drawer,#chat-fab{display:none!important}}
 .chx-n{position:absolute;top:-6px;right:-6px;box-sizing:border-box;min-width:20px;height:20px;padding:0 5px;border-radius:99px;background:#C62F4B;color:#fff;font-size:11.5px;font-weight:700;line-height:1;display:grid;place-items:center;border:2px solid var(--bg)}
 /* ===== CHAT INTERNO FIN ===== */
+/* ===== AJUSTES RECEPCIÓN ===== */
+.mcp{margin:6px 0 0;max-width:460px;line-height:1.45;font-size:12.5px;color:var(--muted)}.mcp b{color:var(--ink)}
+/* ===== AJUSTES RECEPCIÓN FIN ===== */
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -989,7 +992,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-15 09:00';
+window.FM_VERSION = '2026-11-16 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4651,24 +4654,9 @@ Views.ventas.html = function () {
 };
 Views.ventas.mount = function (root) { _vMount.call(this, root); const b = $('[data-simport]', root); if (b) b.onclick = () => SaleImport.open(); };
 
-/* Gastos: también por rango de fechas, para subir solo lo nuevo de tu hoja GASTOS. */
+/* Gastos: filtro de fechas del «Subir Excel» (ahora con avisos claros: ver módulo AJUSTES). */
 ExpenseImport._analyze = ExpenseImport.analyze;
-ExpenseImport.analyze = function (wb, createCats) {
-  const r = ExpenseImport._analyze(wb, createCats), m = $('.modal');
-  const f = m && $('[data-efrom]', m) ? Dates.fromISO($('[data-efrom]', m).value) : null, t = m && $('[data-eto]', m) ? Dates.fromISO($('[data-eto]', m).value) : null;
-  if (r.error || f == null || t == null) return r;
-  const keep = r.rows.filter(x => x.day == null || (x.day >= f && x.day <= t));
-  r.outside = r.rows.length - keep.length; r.rows = keep;
-  return r;
-};
 ExpenseImport._open = ExpenseImport.open;
-ExpenseImport.open = function () {
-  ExpenseImport._open();
-  const m = $('.modal'); if (!m) return;
-  const t = Dates.today();
-  $('[data-newcats]', m).closest('label').insertAdjacentHTML('beforebegin', `<div class="chips" style="margin-bottom:10px"><label class="field">Desde<input type="date" data-efrom value="${Dates.toISO(Dates.monthStart(Dates.parts(t).y, Dates.parts(t).m))}"></label><label class="field">Hasta<input type="date" data-eto value="${Dates.toISO(t)}"></label></div>`);
-  ['[data-efrom]', '[data-eto]'].forEach(s => $(s, m).addEventListener('change', () => $('[data-newcats]', m).dispatchEvent(new Event('change'))));
-};
 
 /* =========================================================
    VARIOS SERVICIOS EN UN MISMO COBRO — cuando a la clienta se le hizo algo extra
@@ -6005,7 +5993,7 @@ function productFicha(p, tab) {
         else { const q = num(v('qty')); if (!(q > 0) || !Number.isInteger(q)) return err('La cantidad debe ser un número entero mayor a 0.');
           if (act === 'add') move = { type: 'Compra', code: p.code, name: p.name, date: today, qty: q, from: null, to: v('to'), unitCost: v('unitCost') === '' ? null : r2(v('unitCost')), notes: v('notes') };
           else { const [from, to] = v('dir') === 'bs' ? ['bodega', 'salon'] : ['salon', 'bodega']; if (q > st[from] && !m._ok) { m._ok = true; return err(`En ${from === 'bodega' ? 'bodega' : 'salón'} solo hay ${st[from]}. Toca Guardar otra vez si de todos modos quieres moverlo.`); } move = { type: 'Transferencia', code: p.code, name: p.name, date: today, qty: q, from, to, notes: v('notes') }; } }
-        const e = await admin(act === 'add' ? 'Vas a agregar stock.' : act === 'move' ? 'Vas a mover stock.' : 'Vas a ajustar la existencia.'); if (!e) return;
+        const e = act === 'count' ? await admin('Vas a ajustar la existencia.') : await Claves.ask('Confirmar movimiento de inventario', { hint: (act === 'add' ? 'Vas a agregar stock.' : 'Vas a mover stock.') + ' Escribe tu clave personal; el movimiento queda a tu nombre.' }); if (!e) return;
         try { await Store.saveMove({ ...move, byName: e.name }); UI.toast('Inventario actualizado'); UI.close(); productFicha(Store.config.products.find(x => x.id === p.id) || p, 'stock'); }
         catch (er) { err('No se pudo guardar: ' + (er.message || er.code)); }
       };
@@ -12941,6 +12929,86 @@ S.chat = { me: '', open: false, ready: false, err: '', msgs: [], reads: {}, myLa
   UI.render = function () { const r = R0.apply(this, arguments); try { hook(); } catch (e) { /* el chat nunca debe romper una pantalla */ } return r; };
   UI.renderNav = function () { const r = N0.apply(this, arguments); try { hook(); } catch (e) { } return r; }; }
 /* @@CHAT-END */
+
+/* @@FIX-BEGIN */
+/* =========================================================
+   AJUSTES PEDIDOS POR RECEPCIÓN / ADMINISTRACIÓN
+   1) COBRAR · propuesta automática de la comisión manual: al marcar «Ajuste manual de comisión», el campo se llena con lo que el
+      sistema calcularía (% de la lashista × (precio − descuento)) y se mantiene al día mientras cambian precio, descuento, lashista o servicio.
+      En cuanto la persona escribe su propio monto, se respeta ese monto (no se vuelve a pisar). «Usar la propuesta» regresa al cálculo.
+   2) GASTOS · «Subir Excel»: el filtro de fechas (por defecto, este mes) dejaba el resultado en 0 sin explicar. Ahora avisa cuántos
+      gastos trae el archivo y cuántos quedan fuera, ofrece incluirlos y, si el archivo es chico y no cae nada en las fechas, las ajusta solo.
+   (El cambio de clave para agregar/mover stock está en la ficha del producto, donde ya vivía esa pantalla.)
+   ========================================================= */
+{ const _m = Views.nueva.mount;
+  Views.nueva.mount = function (root) {
+    _m.call(this, root);
+    const form = $('[data-form]', root), f = this.form; if (!form || !form.manualCommission || !f) return;
+    const inp = form.manualCommission, box = inp.closest('[data-manual]'); if (!box || $('[data-mcp]', root)) return;
+    box.insertAdjacentHTML('afterend', '<p class="mcp" data-mcp style="display:none" aria-live="polite"></p>');
+    let prog = false;
+    const prop = () => {
+      const a = Store.config.artists.find(x => x.id === f.artistId); if (!a) return null;
+      const pk = f.packageId ? Store.packages.find(x => x.id === f.packageId) : null; if (pk && pk.commissionBase === 'normal') return { pkg: true };
+      const e = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null, rate = e && e.artistKey === f.artistId ? e.rate : a.rate;
+      return { rate, price: num(f.price), discount: num(f.discount), value: Logic.calculateCommission(num(f.price), num(f.discount), rate) };
+    };
+    const setVal = v => { prog = true; inp.value = r2(v).toFixed(2); inp.dispatchEvent(new Event('input', { bubbles: true })); prog = false; };
+    const refresh = sync => {
+      const h = $('[data-mcp]', root); if (!h) return; if (!f.manualOn) { h.style.display = 'none'; return; } h.style.display = '';
+      const p = prop();
+      if (!p) { h.textContent = 'Elige la lashista para ver la comisión que propone el sistema.'; return; }
+      if (p.pkg) { h.textContent = 'Este paquete calcula la comisión sobre el precio normal.'; return; }
+      if (sync && !f._mcTouched) setVal(p.value);
+      const cur = inp.value === '' ? null : num(inp.value), diff = cur != null && Math.abs(cur - p.value) > 0.004;
+      const rec = typeof Mode !== 'undefined' && Mode.reception;   // Recepción no ve el % de la lashista: solo el monto propuesto
+      h.innerHTML = `<b>Propuesta del sistema:</b> ${rec ? `<b>${esc(money(p.value, 1))}</b> (según el precio y el descuento)` : `${esc(pct(p.rate))} × (${esc(money(p.price, 1))} − ${esc(money(p.discount, 1))}) = <b>${esc(money(p.value, 1))}</b>`}. ${diff ? `Tú pusiste ${esc(money(cur, 1))}. <button type="button" class="linkbtn" data-mcuse>Usar la propuesta</button>` : 'Puedes cambiarla si hace falta.'}`;
+      const u = $('[data-mcuse]', h); if (u) u.onclick = () => { f._mcTouched = false; setVal(p.value); refresh(false); };
+    };
+    if (f.manualOn && f.manualCommission !== '' && f._mcTouched === undefined) f._mcTouched = true;   // una venta ya guardada con comisión manual conserva su monto
+    form.addEventListener('input', e => {
+      const n = e.target && e.target.name; if (!n) return;
+      if (n === 'manualCommission') { if (!prog) f._mcTouched = e.target.value !== ''; refresh(false); return; }
+      if (['price', 'discount', 'artistId', 'serviceId', 'manualOn', 'packageId'].includes(n)) { if (n === 'manualOn' && e.target.checked && inp.value === '') f._mcTouched = false; refresh(true); }
+    });
+    refresh(f.manualOn && !f._mcTouched && inp.value === '');
+  };
+}
+/* ---------- Gastos · Subir Excel: fechas claras ---------- */
+ExpenseImport._analyze = ExpenseImport._analyze || ExpenseImport.analyze;
+ExpenseImport.analyze = function (wb, createCats) {
+  const r = ExpenseImport._analyze(wb, createCats), m = $('.modal'); ExpenseImport._last = r; if (r.error) return r;
+  const days = r.rows.map(x => x.day).filter(d => d != null); r.total = r.rows.length; r.spanMin = days.length ? Math.min(...days) : null; r.spanMax = days.length ? Math.max(...days) : null; r.outside = 0; r.autoRange = false;
+  const fe = m && $('[data-efrom]', m), te = m && $('[data-eto]', m); if (!fe || !te) return r;
+  let f = Dates.fromISO(fe.value), t = Dates.fromISO(te.value); if (f == null || t == null) return r;
+  const inside = () => r.rows.filter(x => x.day == null || (x.day >= f && x.day <= t));
+  let keep = inside();
+  if (!keep.some(x => x.day != null) && r.spanMin != null && r.total <= 400 && r.spanMax - r.spanMin <= 92 && !m._userRange) {   // archivo chico y nada cae en las fechas: se ajustan solas
+    f = r.spanMin; t = r.spanMax; fe.value = Dates.toISO(f); te.value = Dates.toISO(t); r.autoRange = true; keep = inside(); }
+  r.outside = r.rows.length - keep.length; r.rows = keep; return r;
+};
+ExpenseImport.open = function () {
+  ExpenseImport._open && ExpenseImport._open !== ExpenseImport.open ? ExpenseImport._open() : null;
+  const m = $('.modal'); if (!m || $('[data-efrom]', m)) return; const t = Dates.today(), prev = $('[data-preview]', m);
+  $('[data-newcats]', m).closest('label').insertAdjacentHTML('beforebegin', `<div class="chips" style="margin-bottom:6px"><label class="field">Desde<input type="date" data-efrom value="${Dates.toISO(Dates.monthStart(Dates.parts(t).y, Dates.parts(t).m))}"></label><label class="field">Hasta<input type="date" data-eto value="${Dates.toISO(t)}"></label></div>
+    <p class="formula" style="margin:0 0 10px">Se suben solo los gastos que caen entre <b>Desde</b> y <b>Hasta</b> (por defecto, este mes). Si tu archivo trae otras fechas, cámbialas aquí.</p>`);
+  ['[data-efrom]', '[data-eto]'].forEach(s => $(s, m).addEventListener('change', () => { m._userRange = true; $('[data-newcats]', m).dispatchEvent(new Event('change')); }));
+  const obs = new MutationObserver(() => {
+    const r = ExpenseImport._last; obs.disconnect(); $$('[data-enote]', prev).forEach(x => x.remove());
+    if (r && !r.error && r.total != null) {
+      const rng = r.spanMin != null ? `${Dates.fmt(r.spanMin)} – ${Dates.fmt(r.spanMax)}` : '';
+      let h = '';
+      if (r.total === 0) h = `<div class="banner" data-enote>La hoja «${esc(r.sheet)}» no tiene filas con datos debajo de los encabezados.</div>`;
+      else if (r.autoRange) h = `<div class="banner" data-enote style="border-color:var(--ok)">Tu archivo no tenía gastos en las fechas de arriba, así que las ajusté a <b>${esc(rng)}</b> para que los veas. Puedes cambiarlas.</div>`;
+      else if (r.outside > 0) h = `<div class="banner" data-enote>Tu archivo trae <b>${intf(r.total)}</b> gastos (${esc(rng)}), pero <b>${intf(r.outside)}</b> quedan fuera de las fechas Desde–Hasta y no se muestran. <button type="button" class="btn sm" data-eall style="margin-left:6px">Incluir todo el archivo</button></div>`;
+      if (h) prev.insertAdjacentHTML('afterbegin', h);
+      const a = $('[data-eall]', prev); if (a) a.onclick = () => { $('[data-efrom]', m).value = Dates.toISO(r.spanMin); $('[data-eto]', m).value = Dates.toISO(r.spanMax); m._userRange = true; $('[data-newcats]', m).dispatchEvent(new Event('change')); };
+    }
+    obs.observe(prev, { childList: true });
+  });
+  obs.observe(prev, { childList: true });
+};
+/* @@FIX-END */
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
