@@ -992,7 +992,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-16 12:00';
+window.FM_VERSION = '2026-11-16 15:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3205,8 +3205,10 @@ const ExpenseImport = {
     }
     if (hr < 0) return { error: `No encontré las columnas Fecha y Monto (o VALOR) en la hoja "${name}". Descarga la plantilla para ver el formato.` };
     const cats = new Map(Store.config.categories.map(c => [c.toLowerCase(), c]));
-    const existing = new Set(Store.expenses.map(e => `${e.day}|${r2(e.amount)}|${String(e.description).trim().toLowerCase()}`));
-    const seen = new Set(), rows = [], newCats = new Set();
+    /* Duplicado = ya existe en la app. Se CUENTAN las copias: si el archivo trae 8 «facebook $300» el mismo día y en la app ya hay 3, se saltan 3 y entran 5.
+       (Antes, dos filas iguales dentro del archivo se tomaban por repetidas y se perdían compras reales; subir el mismo archivo dos veces sigue sin duplicar nada.) */
+    const existing = new Map(); Store.expenses.forEach(e => { const k = `${e.day}|${r2(e.amount)}|${String(e.description).trim().toLowerCase()}`; existing.set(k, (existing.get(k) || 0) + 1); });
+    const seen = new Map(), rows = [], newCats = new Set();
     aoa.slice(hr + 1).forEach((r, k) => {
       const get = key => map[key] == null ? null : r[map[key]];
       if (!r || r.every(v => v == null || String(v).trim() === '')) return;
@@ -3227,8 +3229,8 @@ const ExpenseImport = {
       else out.errors.push(`Categoría "${rc}" no existe`);
       if (!out.errors.length) {
         const key = `${out.day}|${r2(out.amount)}|${out.description.toLowerCase()}`;
-        if (existing.has(key)) out.dup = 'Ya existe en Gastos'; else if (seen.has(key)) out.dup = 'Repetido en el archivo';
-        seen.add(key);
+        const nth = (seen.get(key) || 0) + 1; seen.set(key, nth);
+        if ((existing.get(key) || 0) >= nth) out.dup = 'Ya existe en Gastos';
       }
       out.status = out.errors.length ? 'error' : out.dup ? 'dup' : 'ok';
       rows.push(out);
@@ -13024,6 +13026,9 @@ ExpenseImport.open = function () {
       if (r.total === 0) h = `<div class="banner" data-enote>La hoja «${esc(r.sheet)}» no tiene filas con datos debajo de los encabezados.</div>`;
       else if (r.autoRange) h = `<div class="banner" data-enote style="border-color:var(--ok)">Tu archivo no tenía gastos en las fechas de arriba, así que las ajusté a <b>${esc(rng)}</b> para que los veas. Puedes cambiarlas.</div>`;
       else if (r.outside > 0) h = `<div class="banner" data-enote>Tu archivo trae <b>${intf(r.total)}</b> gastos (${esc(rng)}), pero <b>${intf(r.outside)}</b> quedan fuera de las fechas Desde–Hasta y no se muestran. <button type="button" class="btn sm" data-eall style="margin-left:6px">Incluir todo el archivo</button></div>`;
+      const grp = new Map(); (r.rows || []).filter(x => x.status === 'ok').forEach(x => { const k = `${x.day}|${r2(x.amount)}|${x.description.toLowerCase()}`, g = grp.get(k) || { n: 0, x }; g.n++; grp.set(k, g); });
+      const reps = [...grp.values()].filter(g => g.n > 1).sort((a, b2) => b2.n - a.n);
+      if (reps.length) h += `<div class="banner" data-enote>Tu archivo tiene <b>${reps.length}</b> ${reps.length === 1 ? 'gasto repetido' : 'gastos repetidos'} (mismo día, detalle y monto), por ejemplo «${esc(reps[0].x.description)}» ${esc(money(reps[0].x.amount, 1))} ×${reps[0].n}. Se importan todos porque pueden ser compras distintas. Si alguno está repetido por error, quítalo del Excel.</div>`;
       if (h) prev.insertAdjacentHTML('afterbegin', h);
       const a = $('[data-eall]', prev); if (a) a.onclick = () => { $('[data-efrom]', m).value = Dates.toISO(r.spanMin); $('[data-eto]', m).value = Dates.toISO(r.spanMax); m._userRange = true; $('[data-newcats]', m).dispatchEvent(new Event('change')); };
     }
