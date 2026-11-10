@@ -992,7 +992,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-16 09:00';
+window.FM_VERSION = '2026-11-16 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -3263,9 +3263,9 @@ const ExpenseImport = {
         const c = k => res.rows.filter(r => r.status === k).length, valid = c('ok'), total = res.rows.length;
         prev.innerHTML = `<div class="kpis imp"><div class="kpi"><div class="lab">Filas</div><div class="val">${intf(total)}</div></div><div class="kpi lead"><div class="lab">Válidas</div><div class="val">${intf(valid)}</div></div><div class="kpi"><div class="lab">Con error</div><div class="val ${c('error') ? 'neg' : ''}">${intf(c('error'))}</div></div><div class="kpi"><div class="lab">Duplicadas</div><div class="val">${intf(c('dup'))}</div></div></div>
           <p class="formula" style="margin-top:-20px">Archivo: ${esc(fileName)} · hoja "${esc(res.sheet)}" · total válido ${money(r2(res.rows.filter(r => r.status === 'ok').reduce((t, r) => t + r.amount, 0)), 1)}${res.newCats.length ? ` · categorías nuevas: ${esc(res.newCats.join(', '))}` : ''}. Las duplicadas y las que tienen error no se importan.</p>
-          ${table([{ label: 'Fila', r: 1 }, { label: 'Fecha' }, { label: 'Detalle' }, { label: 'Monto', r: 1 }, { label: 'Categoría' }, { label: 'Estado', html: 1 }],
-            res.rows.slice(0, 150).map(r => [r.rowNo, r.day != null ? Dates.fmt(r.day) : '—', r.description || '—', r.amount == null || isNaN(r.amount) ? '—' : money(r.amount, 1), r.category || '—',
-              r.status === 'ok' ? '<span class="tag app">Lista</span>' : r.status === 'dup' ? `<span class="tag warn">${esc(r.dup)}</span>` : `<span class="tag" style="color:var(--bad);border-color:var(--bad);white-space:normal">${esc(r.errors.join(' · '))}</span>`]))}
+          ${table([{ label: 'Fila', r: 1 }, { label: 'Fecha (como la leí)', html: 1 }, { label: 'Detalle' }, { label: 'Monto', r: 1 }, { label: 'Categoría' }, { label: 'Estado', html: 1 }],
+            res.rows.slice(0, 150).map(r => { const rw = r.raw && res.map && res.map.date != null ? r.raw[res.map.date] : null; return [r.rowNo, (r.day != null ? esc(Dates.fmt(r.day)) : '—') + (typeof rw === 'string' && rw.trim() ? `<br><span class="mutedc" style="font-size:11.5px">en tu Excel: ${esc(rw.trim())}</span>` : ''), r.description || '—', r.amount == null || isNaN(r.amount) ? '—' : money(r.amount, 1), r.category || '—',
+              r.status === 'ok' ? '<span class="tag app">Lista</span>' : r.status === 'dup' ? `<span class="tag warn">${esc(r.dup)}</span>` : `<span class="tag" style="color:var(--bad);border-color:var(--bad);white-space:normal">${esc(r.errors.join(' · '))}</span>`]; }))}
           ${total > 150 ? `<p class="formula">Mostrando 150 de ${intf(total)} filas.</p>` : ''}
           ${c('error') + c('dup') ? '<button class="btn sm" data-errs style="margin-top:10px">Descargar filas no importadas (CSV)</button>' : ''}`;
         ok.disabled = !valid || !Store.writable(); ok.textContent = valid ? `Importar ${intf(valid)} gastos` : 'Importar';
@@ -12974,6 +12974,28 @@ S.chat = { me: '', open: false, ready: false, err: '', msgs: [], reads: {}, myLa
     refresh(f.manualOn && !f._mcTouched && inp.value === '');
   };
 }
+
+/* ---------- Gastos · fechas: siempre MES/DÍA/AÑO, con más formatos y sin adivinar ---------- */
+{ const _pd = ExpenseImport.parseDate.bind(ExpenseImport);
+  const MES = { ene: 1, enero: 1, jan: 1, january: 1, feb: 2, febrero: 2, february: 2, mar: 3, marzo: 3, march: 3, abr: 4, abril: 4, apr: 4, april: 4, may: 5, mayo: 5, jun: 6, junio: 6, june: 6, jul: 7, julio: 7, july: 7, ago: 8, agosto: 8, aug: 8, august: 8, sep: 9, sept: 9, septiembre: 9, setiembre: 9, september: 9, oct: 10, octubre: 10, october: 10, nov: 11, noviembre: 11, november: 11, dic: 12, diciembre: 12, dec: 12, december: 12 };
+  const ok = (y, m, d) => { y = +y; m = +m; d = +d; if (y < 100) y += 2000; if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 2000 && y <= 2100)) return null; const t = new Date(Date.UTC(y, m - 1, d)); if (t.getUTCMonth() !== m - 1) return null; return Dates.fromISO(`${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`); };
+  ExpenseImport.parseDate = function (v) {
+    const base = _pd(v);
+    if (typeof v === 'string' && base != null) {   // el lector original «corría» fechas imposibles (11/31/2026 → 1 dic): ahora se rechazan
+      let m = v.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/), y, mo, d;
+      if (m) { y = m[1]; mo = m[2]; d = m[3]; } else if ((m = v.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))) { y = m[3].length === 2 ? '20' + m[3] : m[3]; mo = m[1]; d = m[2]; }
+      if (m && new Date(Date.UTC(+y, +mo - 1, +d)).getUTCMonth() !== +mo - 1) return null;
+      return base;
+    }
+    if (base != null || typeof v !== 'string') return base;
+    let s = v.trim().replace(/\s+/g, ' ').replace(/[ T]\d{1,2}:\d{2}(:\d{2})?\s*([ap]\.?\s?m\.?)?$/i, '').trim(), m;
+    if ((m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/))) return ok(m[3], m[1], m[2]);                                   // mes-día-año con - o . (o con / y hora)
+    if ((m = s.match(/^(\d{1,2})[ \-\/]*(?:de )?([a-záéíóúñ]+)\.?[ \-\/,]*(?:de )?(\d{2,4})$/i)) && MES[m[2].toLowerCase()]) return ok(m[3], MES[m[2].toLowerCase()], m[1]);   // 9-nov-26 · 9 de noviembre de 2026
+    if ((m = s.match(/^([a-záéíóúñ]+)\.?\s+(\d{1,2}),?\s+(\d{2,4})$/i)) && MES[m[1].toLowerCase()]) return ok(m[3], MES[m[1].toLowerCase()], m[2]);   // Nov 9, 2026
+    return null;
+  };
+}
+
 /* ---------- Gastos · Subir Excel: fechas claras ---------- */
 ExpenseImport._analyze = ExpenseImport._analyze || ExpenseImport.analyze;
 ExpenseImport.analyze = function (wb, createCats) {
@@ -12991,10 +13013,11 @@ ExpenseImport.open = function () {
   ExpenseImport._open && ExpenseImport._open !== ExpenseImport.open ? ExpenseImport._open() : null;
   const m = $('.modal'); if (!m || $('[data-efrom]', m)) return; const t = Dates.today(), prev = $('[data-preview]', m);
   $('[data-newcats]', m).closest('label').insertAdjacentHTML('beforebegin', `<div class="chips" style="margin-bottom:6px"><label class="field">Desde<input type="date" data-efrom value="${Dates.toISO(Dates.monthStart(Dates.parts(t).y, Dates.parts(t).m))}"></label><label class="field">Hasta<input type="date" data-eto value="${Dates.toISO(t)}"></label></div>
-    <p class="formula" style="margin:0 0 10px">Se suben solo los gastos que caen entre <b>Desde</b> y <b>Hasta</b> (por defecto, este mes). Si tu archivo trae otras fechas, cámbialas aquí.</p>`);
-  ['[data-efrom]', '[data-eto]'].forEach(s => $(s, m).addEventListener('change', () => { m._userRange = true; $('[data-newcats]', m).dispatchEvent(new Event('change')); }));
+    <p class="formula" style="margin:0 0 4px">Se suben solo los gastos que caen entre <b>Desde</b> y <b>Hasta</b> (por defecto, este mes). Si tu archivo trae otras fechas, cámbialas aquí. Las fechas de tu Excel se leen como <b>mes/día/año</b>.</p><p class="formula" style="margin:0 0 10px" data-erange></p>`);
+  const rl = () => { const f = Dates.fromISO($('[data-efrom]', m).value), t2 = Dates.fromISO($('[data-eto]', m).value); $('[data-erange]', m).innerHTML = f != null && t2 != null ? `Rango elegido: <b>${esc(Dates.fmt(f))}</b> al <b>${esc(Dates.fmt(t2))}</b>` : ''; }; rl();
+  ['[data-efrom]', '[data-eto]'].forEach(s => $(s, m).addEventListener('change', () => { m._userRange = true; rl(); $('[data-newcats]', m).dispatchEvent(new Event('change')); }));
   const obs = new MutationObserver(() => {
-    const r = ExpenseImport._last; obs.disconnect(); $$('[data-enote]', prev).forEach(x => x.remove());
+    const r = ExpenseImport._last; obs.disconnect(); rl(); $$('[data-enote]', prev).forEach(x => x.remove());
     if (r && !r.error && r.total != null) {
       const rng = r.spanMin != null ? `${Dates.fmt(r.spanMin)} – ${Dates.fmt(r.spanMax)}` : '';
       let h = '';
