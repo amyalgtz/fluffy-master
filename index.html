@@ -930,6 +930,15 @@ tr.rd-sel td{background:var(--blush)}
 /* ===== AJUSTES RECEPCIÓN ===== */
 .mcp{margin:6px 0 0;max-width:460px;line-height:1.45;font-size:12.5px;color:var(--muted)}.mcp b{color:var(--ink)}
 /* ===== AJUSTES RECEPCIÓN FIN ===== */
+/* ===== DEPÓSITOS BANCARIOS ===== */
+.bd-head{display:flex;gap:14px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}.bd-head h2{margin:0 0 3px}
+.bd-last{display:flex;flex-direction:column;gap:4px;padding:14px 18px;margin:0 0 14px;border:1px solid var(--line);border-left:4px solid #C9A24D;border-radius:14px;background:var(--blush)}
+.bd-last.empty{border-left-color:var(--line)}.bd-k{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.bd-date{font-family:'Fraunces',Georgia,serif;font-size:28px;line-height:1.15;color:var(--ink)}.bd-sub{font-size:14px;color:var(--ink)}.bd-sub b{color:var(--ink)}
+.bd-next{font-size:13.5px;color:var(--muted);margin-top:4px}.bd-next b{color:var(--ink)}.bd-next .btn{margin-left:6px}
+.bd-help{margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.45}.bd-acts{display:inline-flex;gap:6px;white-space:nowrap}
+@media print{.bd-panel{display:none!important}}
+/* ===== DEPÓSITOS BANCARIOS FIN ===== */
 @media (prefers-reduced-motion:reduce){.cta2,.btn,.chip{transition:none}}
 /* ---- refinamiento: espacio, legibilidad y móvil ---- */
 .panel{padding:24px 26px}
@@ -992,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-16 15:00';
+window.FM_VERSION = '2026-11-17 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -13037,6 +13046,128 @@ ExpenseImport.open = function () {
   obs.observe(prev, { childList: true });
 };
 /* @@FIX-END */
+
+/* @@BANK-BEGIN */
+/* =========================================================
+   DEPÓSITOS BANCARIOS EN EFECTIVO · bitácora simple dentro del Resumen de ventas
+   · Sirve para saber cuándo se llevó el efectivo del salón al banco, cuánto quedó en caja chica y desde qué fecha empieza el siguiente conteo.
+   · NO es el depósito de una clienta para reservar cita (eso es otra cosa, en la pantalla Depósitos).
+   · NO modifica ventas, ingresos, gastos ni balances, y NO descuenta nada de los ingresos: solo guarda y muestra este registro.
+   · Los datos viven en su propia tabla de Supabase (fm_bank_deposits, con RLS: ver = admin/editor/recepcion/lectura · registrar = admin/editor/recepcion ·
+     editar y borrar = admin/editor). Quién registró lo pone el servidor.
+   · El panel se agrega al Resumen después de pintarlo y, si algo falla, nunca rompe la pantalla.
+   ========================================================= */
+const BD = {
+  PAGE: 30,
+  role() { return FM.member && FM.member.role; },
+  canView() { return ['admin', 'editor', 'recepcion', 'lectura'].includes(BD.role()); },
+  canAdd() { return ['admin', 'editor', 'recepcion'].includes(BD.role()); },
+  canEdit() { return ['admin', 'editor'].includes(BD.role()); },
+  today() { return Dates.toISO(Dates.today()); },
+  dl(iso) { return iso ? Dates.fmt(Dates.fromISO(iso)) : '—'; },
+  ago(iso) { const n = Dates.today() - Dates.fromISO(iso); return n <= 0 ? 'hoy' : n === 1 ? 'ayer' : `hace ${n} días`; },
+  friendly(msg) {
+    msg = String(msg || '');
+    if (/relation .*does not exist|schema cache|Could not find the table/i.test(msg)) return 'Falta correr el archivo actualizacion-depositos-bancarios.sql en Supabase.';
+    if (/row-level security|permission denied/i.test(msg)) return 'Tu usuario no tiene permiso para esta acción.';
+    if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Sin conexión. Revisa tu internet e inténtalo de nuevo.';
+    return msg;
+  },
+  async q(build) { const r = await build(FM.sb.from('fm_bank_deposits')); if (r.error) throw new Error(BD.friendly(r.error.message)); return r.data || []; },
+  sort(rows) { return rows.slice().sort((a, b) => String(b.deposit_date).localeCompare(String(a.deposit_date)) || String(b.created_at).localeCompare(String(a.created_at))); },
+  last() { return S.bd.rows[0] || null; },
+  async load() {
+    const b = S.bd; if (b.loading) return; b.loading = true;
+    try { b.rows = BD.sort(await BD.q(q => q.select('*').order('deposit_date', { ascending: false }).order('created_at', { ascending: false }).range(0, 999))); b.err = ''; b.loaded = true; b.at = Date.now(); }
+    catch (e) { b.err = e.message || String(e); }
+    b.loading = false; BD.paint();
+  },
+  /* ---------- pantalla ---------- */
+  panel() {
+    const b = S.bd, l = BD.last(), more = b.rows.length > BD.PAGE && !b.all, list = more ? b.rows.slice(0, BD.PAGE) : b.rows;
+    let body = '';
+    if (b.err && !b.loaded) body = `<div class="banner" role="alert">${esc(b.err)}</div>`;
+    else if (!b.loaded) body = '<p class="loading">Cargando…</p>';
+    else {
+      body = l ? `<div class="bd-last"><div class="bd-k">Último depósito bancario</div><div class="bd-date">${esc(BD.dl(l.deposit_date))}</div>
+          <div class="bd-sub">${esc(BD.ago(l.deposit_date))} · Depositaste <b>${esc(money(+l.amount, 1))}</b> · Quedó en caja chica <b>${esc(money(+l.petty_cash_left, 1))}</b></div>
+          <div class="bd-next">El siguiente conteo de efectivo empieza desde el <b>${esc(BD.dl(l.deposit_date))}</b>. <button type="button" class="btn sm" data-bd-since>Ver el Resumen desde esa fecha</button></div></div>`
+        : `<div class="bd-last empty"><div class="bd-k">Último depósito bancario</div><div class="bd-sub">Todavía no hay depósitos registrados.${BD.canAdd() ? ' Registra el primero para tener una fecha de referencia del siguiente conteo.' : ''}</div></div>`;
+      if (l) body += table([{ label: 'Fecha del depósito' }, { label: 'Depositado', r: 1 }, { label: 'Quedó en caja chica', r: 1 }, { label: 'Nota', html: 1 }, { label: 'Registró' }].concat(BD.canEdit() ? [{ label: '', html: 1 }] : []),
+        list.map(r => [BD.dl(r.deposit_date), money(+r.amount, 1), money(+r.petty_cash_left, 1), r.note ? `<span style="white-space:pre-wrap">${esc(r.note)}</span>` : '<span class="mutedc">—</span>', r.created_by_name || r.created_by || '—']
+          .concat(BD.canEdit() ? [`<span class="bd-acts"><button type="button" class="btn sm" data-bd-edit="${esc(r.id)}">Editar</button><button type="button" class="btn sm danger" data-bd-del="${esc(r.id)}">Eliminar</button></span>`] : [])), null);
+      if (more) body += `<p style="text-align:center;margin:10px 0 0"><button type="button" class="btn sm" data-bd-all>Mostrar todos (${b.rows.length})</button></p>`;
+    }
+    return `<section class="panel bd-panel no-print" data-bd><div class="bd-head"><div><h2>Depósitos bancarios en efectivo</h2>
+      <p class="hint" style="margin:0">Bitácora de cuándo llevas el efectivo del salón al banco. No son los depósitos de clientas para reservar citas y no cambia ventas, ingresos ni balances.</p></div>
+      ${BD.canAdd() ? `<button type="button" class="btn primary" data-bd-new>${ic('plus')}Registrar depósito</button>` : ''}</div>${body}</section>`;
+  },
+  wire(root) {
+    const p = $('[data-bd]', root); if (!p) return;
+    const n = $('[data-bd-new]', p); if (n) n.onclick = () => BD.form(null);
+    const s = $('[data-bd-since]', p); if (s) s.onclick = () => { const l = BD.last(); if (!l) return; S.res.kind = 'rango'; S.res.from = Dates.fromISO(l.deposit_date); S.res.to = Dates.today(); UI.render(); };
+    const a = $('[data-bd-all]', p); if (a) a.onclick = () => { S.bd.all = true; BD.paint(); };
+    $$('[data-bd-edit]', p).forEach(x => x.onclick = () => BD.form(S.bd.rows.find(r => r.id === x.dataset.bdEdit)));
+    $$('[data-bd-del]', p).forEach(x => x.onclick = () => BD.del(S.bd.rows.find(r => r.id === x.dataset.bdDel)));
+  },
+  paint() { const p = $('[data-bd]'); if (!p) return; p.outerHTML = BD.panel(); BD.wire(document); },
+  attach(root) {
+    if (!BD.canView() || $('[data-bd]', root)) return;
+    const anchor = $('.caja', root) || $('.kpis', root); if (!anchor) return;
+    anchor.insertAdjacentHTML('afterend', BD.panel()); BD.wire(root);
+    if (!S.bd.loading && (!S.bd.loaded || Date.now() - S.bd.at > 60000)) BD.load();
+  },
+  /* ---------- registrar / editar / eliminar ---------- */
+  form(row) {
+    const isNew = !row, t = BD.today(), v = row || { deposit_date: t, amount: '', petty_cash_left: 0, note: '' };
+    UI.modal(`<h3>${isNew ? 'Registrar depósito bancario' : 'Editar depósito bancario'}</h3>
+      <p class="bd-help">Es el efectivo del salón que llevas al banco. No es el depósito de una clienta para reservar su cita.</p>
+      <div class="formgrid">
+        <label class="field">Fecha del depósito<input class="inp" type="date" data-k="deposit_date" value="${esc(v.deposit_date)}" max="${esc(t)}"></label>
+        <label class="field">Monto de efectivo depositado ($)<input class="inp num" type="number" min="0" step="0.01" data-k="amount" value="${esc(v.amount === '' ? '' : (+v.amount).toFixed(2))}" placeholder="0.00" inputmode="decimal"></label>
+        <label class="field">Efectivo restante en caja chica ($)<input class="inp num" type="number" min="0" step="0.01" data-k="petty_cash_left" value="${esc((+v.petty_cash_left || 0).toFixed(2))}" inputmode="decimal"></label>
+        <label class="field full">Nota (opcional)<textarea class="inp" rows="2" data-k="note" maxlength="500" placeholder="Ej. Depósito en Bank of America, sucursal Doral">${esc(v.note || '')}</textarea></label></div>
+      <p class="err" data-err></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">${isNew ? 'Guardar depósito' : 'Guardar cambios'}</button></div>`, m => {
+      $('[data-x=no]', m).onclick = UI.close; const g = k => $(`[data-k=${k}]`, m).value.trim(), er = $('[data-err]', m); let dup = false; const okB = $('[data-x=ok]', m), okTxt = okB.textContent;
+      m.addEventListener('input', () => { if (dup) { dup = false; okB.textContent = okTxt; er.textContent = ''; } });   // si cambia algo, el aviso de duplicado se quita
+      $('[data-x=ok]', m).onclick = async () => {
+        const date = g('deposit_date'), amt = g('amount') === '' ? NaN : parseFloat(g('amount')), left = g('petty_cash_left') === '' ? 0 : parseFloat(g('petty_cash_left')), note = $('[data-k=note]', m).value.trim();
+        if (!date || Dates.fromISO(date) == null) return (er.textContent = 'Elige la fecha del depósito.');
+        if (date > BD.today()) return (er.textContent = 'La fecha del depósito no puede ser futura.');
+        if (!Number.isFinite(amt) || amt <= 0) return (er.textContent = 'Escribe el monto depositado (mayor a $0).');
+        if (amt > 10000000) return (er.textContent = 'Ese monto es demasiado grande. Revísalo.');
+        if (!Number.isFinite(left) || left < 0) return (er.textContent = 'El efectivo restante en caja chica debe ser $0 o más.');
+        if (left > 10000000) return (er.textContent = 'El efectivo restante es demasiado grande. Revísalo.');
+        if (note.length > 500) return (er.textContent = 'La nota puede tener máximo 500 caracteres.');
+        er.textContent = '';
+        const rowOut = { deposit_date: date, amount: r2(amt), petty_cash_left: r2(left), note: note || null };
+        if (isNew && !dup && S.bd.rows.some(r => r.deposit_date === date && +r.amount === rowOut.amount && +r.petty_cash_left === rowOut.petty_cash_left)) {   // posible doble captura: se avisa en el mismo formulario
+          dup = true; okB.textContent = 'Guardar de todos modos'; return (er.textContent = `Ya hay un depósito del ${BD.dl(date)} por ${money(rowOut.amount, 1)} con el mismo efectivo restante. Si es otro depósito distinto, pulsa «Guardar de todos modos».`); }
+        const b = okB; b.disabled = true;
+        try { await BD.save(isNew ? 'insert' : 'update', rowOut, row && row.id); UI.close(); UI.toast(isNew ? 'Depósito registrado.' : 'Depósito actualizado.'); }
+        catch (e) { er.textContent = e.message || String(e); b.disabled = false; }
+      };
+    });
+  },
+  async save(op, row, id) {
+    if (!(op === 'insert' ? BD.canAdd() : BD.canEdit())) throw new Error('Tu usuario no tiene permiso para esta acción.');
+    const out = await BD.q(q => op === 'insert' ? q.insert(row).select() : q.update(row).eq('id', id).select());
+    if (!out.length) throw new Error('No se pudo guardar. Revisa tu permiso e inténtalo de nuevo.');
+    const i = S.bd.rows.findIndex(r => r.id === out[0].id); if (i >= 0) S.bd.rows[i] = out[0]; else S.bd.rows.push(out[0]);
+    S.bd.rows = BD.sort(S.bd.rows); BD.paint();
+  },
+  async del(row) {
+    if (!row || !BD.canEdit()) return;
+    if (!await UI.confirm('Eliminar depósito', `Se borrará el depósito del <b>${esc(BD.dl(row.deposit_date))}</b> por <b>${esc(money(+row.amount, 1))}</b>. Esto no cambia ventas, ingresos ni balances.`, 'Eliminar')) return;
+    try { await BD.q(q => q.delete().eq('id', row.id).select()); S.bd.rows = S.bd.rows.filter(r => r.id !== row.id); BD.paint(); UI.toast('Depósito eliminado.'); }
+    catch (e) { UI.toast(e.message || String(e), true); }
+  },
+};
+S.bd = { rows: [], loaded: false, loading: false, err: '', all: false, at: 0 };
+{ const M = Views.resumen.mount;
+  Views.resumen.mount = function (root) { const r = M.apply(this, arguments); try { BD.attach(root); } catch (e) { /* esta bitácora nunca debe romper el Resumen */ } return r; };
+}
+/* @@BANK-END */
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
