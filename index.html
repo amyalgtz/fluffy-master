@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-17 09:00';
+window.FM_VERSION = '2026-11-18 09:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4380,7 +4380,7 @@ function packageForm(p) {
       if (!v('commissionBase')) { err.textContent = 'Elige sobre qué monto se paga la comisión de cada sesión.'; return; }
       if (!Dates.fromISO(v('date'))) { err.textContent = 'Escribe la fecha de pago.'; return; }
       b.disabled = true;
-      try { await Store.savePackage({ first: v('first'), last: v('last'), phone: v('phone'), serviceId: svc.id, serviceName: svc.name, regularPrice: svc.price, sessions: n, total, tipTotal: r2(v('tipTotal') || 0), method: v('method'), txn: v('txn'), date: v('date'), commissionBase: v('commissionBase'), notes: v('notes') }); UI.close(); UI.toast('Paquete cobrado'); }
+      try { const nid = await Store.savePackage({ first: v('first'), last: v('last'), phone: v('phone'), serviceId: svc.id, serviceName: svc.name, regularPrice: svc.price, sessions: n, total, tipTotal: r2(v('tipTotal') || 0), method: v('method'), txn: v('txn'), date: v('date'), commissionBase: v('commissionBase'), notes: v('notes') }); UI.close(); UI.toast('Paquete cobrado'); if (typeof PkgLink !== 'undefined') setTimeout(() => PkgLink.afterSell(nid), 300); }
       catch (e) { b.disabled = false; err.textContent = 'No se pudo guardar: ' + (e.message || e.code); }
     };
   });
@@ -13168,6 +13168,104 @@ S.bd = { rows: [], loaded: false, loading: false, err: '', all: false, at: 0 };
   Views.resumen.mount = function (root) { const r = M.apply(this, arguments); try { BD.attach(root); } catch (e) { /* esta bitácora nunca debe romper el Resumen */ } return r; };
 }
 /* @@BANK-END */
+
+/* @@PKG-BEGIN */
+/* =========================================================
+   PAQUETES · cobrar una sesión SIEMPRE ligada a su cita, sin duplicar
+   Problema que corrige: «Usar sesión» (pantalla Paquetes) abría el cobro sin saber de qué cita era. La app solo ligaba sola si el nombre de la clienta
+   era IDÉNTICO y había UNA sola cita ese día; si no, el aviso «¿De qué cita es este cobro?» llevaba a «Llegó sin cita», que creaba una cita NUEVA ya pagada
+   y dejaba la cita real «Agendada» sin cobrar (después se cobraba otra vez desde la Agenda → venta duplicada).
+   · «Usar sesión» ahora pregunta de qué cita es (primero las que se parecen al nombre de la clienta) y conserva el paquete aplicado.
+   · «Llegó sin cita» avisa si la clienta ya tiene una cita pendiente.
+   · Después de «Cobrar paquete» se ofrece usar la primera sesión hoy (ligada a su cita).
+   · Candados al guardar: un paquete no se usa más veces de las que tiene; el número de sesión se calcula al guardar (no se repite si dos personas cobran a la vez);
+     si la cita ya fue cobrada por otra persona no se vuelve a cobrar; y se pregunta si ya se usó una sesión de ese paquete hoy.
+   No cambia cómo se cobra una cita desde la Agenda ni los cobros sin paquete.
+   ========================================================= */
+const PkgLink = {
+  norm(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim(); },
+  toks(s) { return PkgLink.norm(s).split(' ').filter(t => t.length > 1); },
+  /* parecido entre una cita y el nombre de una clienta: 100 igual · 70 nombre y apellido parecidos · 50 nombre parecido y sin apellido · 40 solo el nombre · 30 solo el apellido · 0 nada */
+  score(a, first, last) {
+    const af = PkgLink.toks(a.first), al = PkgLink.toks(a.last), pf = PkgLink.toks(first), pl = PkgLink.toks(last), j = x => x.join(' ');
+    if (pf.length && j(af) === j(pf) && j(al) === j(pl)) return 100;
+    const ov = (x, y) => x.some(t => y.some(u => t === u || (t.length >= 4 && u.length >= 4 && (t.startsWith(u) || u.startsWith(t)))));
+    const f = ov(af, pf), l = pl.length ? ov(al, pl) : false;
+    if (f && l) return 70; if (f && !pl.length) return 50; if (f) return 40; if (l) return 30; return 0;
+  },
+  ranked(first, last) { return openAppts().map(a => ({ a, s: PkgLink.score(a, first, last) })).sort((x, y) => y.s - x.s || y.a.day - x.a.day || (x.a.time || '').localeCompare(y.a.time || '')); },
+  /* ---------- «Usar sesión»: elegir la cita ---------- */
+  choose(p, artistId, ranked) {
+    const t = Dates.today(), likely = ranked.filter(x => x.s >= 40), other = ranked.filter(x => x.s < 40);
+    const li = x => `<li><div><b>${esc(x.a.time || '—')} · ${esc(apptClient(x.a))}</b>${x.s >= 70 ? ' <span class="tag ok">Coincide</span>' : ''}${x.a.day !== t ? ` <span class="tag warn">${esc(Dates.fmt(x.a.day, { weekday: 'short', day: 'numeric' }))}</span>` : ''}<br><span class="mutedc">${esc(x.a.artistName)} · ${esc(x.a.serviceName)}</span></div><div class="ra"><button type="button" class="btn sm primary" data-pl-pick="${esc(x.a.id)}">Es esta cita</button></div></li>`;
+    UI.modal(`<h3>¿Para cuál cita es esta sesión?</h3><p class="bd-help">Paquete de <b>${esc(Pkg.client(p))}</b> · ${esc(p.serviceName)} · quedan ${Pkg.left(p)} de ${p.sessions}. Elige su cita para que el cobro quede ligado a ella y no se duplique.</p>
+      ${likely.length ? `<ul class="rlist">${likely.map(li).join('')}</ul>` : '<p class="mutedc">No encontré una cita con su nombre. Revisa la lista de abajo o cobra sin cita.</p>'}
+      ${other.length ? `<details style="margin-top:8px"${likely.length ? '' : ' open'}><summary class="linkbtn">Otras citas pendientes (${other.length})</summary><ul class="rlist">${other.map(li).join('')}</ul></details>` : ''}
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn" data-pl-walk>No tiene cita (llegó sin cita)</button></div>`, m => {
+      m.classList.add('wide'); $('[data-x=no]', m).onclick = UI.close;
+      $$('[data-pl-pick]', m).forEach(b => b.onclick = () => { const a = Store.appointments.find(x => x.id === b.dataset.plPick); UI.close(); if (a) PkgLink.start(p, artistId, a); });
+      $('[data-pl-walk]', m).onclick = () => { UI.close(); PkgLink._use(p, artistId); Views.nueva.form._walkin = true; UI.render(); };
+    });
+  },
+  start(p, artistId, a) {
+    chargeAppt(a); const nv = Views.nueva; if (!nv.form || nv.form._appt !== a.id) return;   // si la cita ya estaba cobrada, chargeAppt lo avisa y no abre nada
+    applyPackage(nv.form, p); nv.form._plAppt = true; if (artistId && !nv.form.artistId) nv.form.artistId = artistId; UI.formDirty = false; UI.render();
+    if (p.serviceId !== a.serviceId) UI.toast(`La cita es de «${a.serviceName}» y el paquete es de «${p.serviceName}». Al guardar, la cita quedará con el servicio del paquete.`);
+  },
+  /* ---------- después de «Cobrar paquete» ---------- */
+  afterSell(id) {
+    const p = Store.packages.find(x => x.id === id); if (!p || Pkg.left(p) <= 0) return;
+    UI.confirm('¿Usar la primera sesión hoy?', `Si <b>${esc(Pkg.client(p))}</b> se atiende hoy, regístrala ahora: el cobro se liga a su cita y la sesión queda descontada. Si no, puedes hacerlo después con «Usar sesión».`, 'Usar sesión ahora').then(ok => { if (ok) usePackage(p); });
+  },
+  /* ---------- en la pantalla de cobro ---------- */
+  wire(view, root) {
+    const w = $('[data-walkin]', root);
+    if (w && !w._pl) { w._pl = true; const orig = w.onclick;
+      w.onclick = async function (ev) {   // «Llegó sin cita»: si ya tiene una cita pendiente, avisar para no duplicarla
+        const f = view.form;
+        if (!f._walkin && (f.first || f.last)) { const lk = PkgLink.ranked(f.first, f.last).filter(x => x.s >= 70);
+          if (lk.length && !await UI.confirm('¿Ya tiene una cita pendiente?', `Hay una cita pendiente de <b>${esc(apptClient(lk[0].a))}</b>${lk[0].a.time ? ' a las ' + esc(lk[0].a.time) : ''}. Si es la misma visita, cóbrala desde esa cita (arriba, «Cobrar esta cita») para no duplicarla. ¿Es otra visita distinta?`, 'Es otra visita')) return; }
+        return orig && orig.call(this, ev); }; }
+    const fm = view.form;   // aviso de la cita elegida (solo cuando se llegó desde «Usar sesión» de Paquetes)
+    if (fm && fm._plAppt && fm._appt && !$('[data-pl-appt]', root)) { const a = Store.appointments.find(x => x.id === fm._appt), lay = $('.sale-layout', root);
+      if (a && lay) { lay.insertAdjacentHTML('beforebegin', `<div class="banner" data-pl-appt>Cobrando la cita de <b>${esc(apptClient(a))}</b>${a.time ? ' · ' + esc(a.time) : ''} con ${esc(a.artistName)}. <button type="button" class="linkbtn" data-pl-unappt>Cobrar sin la cita</button></div>`);
+        $('[data-pl-unappt]', root).onclick = () => { delete fm._appt; delete fm._plAppt; UI.render(); }; } }
+    const form = $('[data-form]', root);
+    if (form && !UI.params.edit && !form._pl) { form._pl = true; const orig = form.onsubmit;
+      form.onsubmit = async e => {   // si ya se usó una sesión de este paquete el mismo día, confirmar antes de registrar otra
+        if (e && e.preventDefault) e.preventDefault(); const f = view.form, p = f.packageId ? Store.packages.find(x => x.id === f.packageId) : null;
+        const same = p && (p.uses || []).find(u => u.date === f.date);
+        if (same && !await UI.confirm('Ya usó una sesión hoy', `${esc(Pkg.client(p))} ya tiene registrada la sesión ${same.n} de este paquete ese día${same.artistName ? ' (con ' + esc(same.artistName) + ')' : ''}. ¿Registrar otra sesión el mismo día?`, 'Registrar otra')) return;
+        return orig(e); }; }
+  },
+};
+PkgLink._use = usePackage;
+usePackage = function (p, artistId) {
+  try {
+    if (typeof openAppts === 'function') {
+      const open = openAppts(), auto = typeof apptMatch === 'function' ? apptMatch({ first: p.first || '', last: p.last || '', date: Views.nueva.blank().date }) : null;
+      if (open.length && !auto) return PkgLink.choose(p, artistId, PkgLink.ranked(p.first, p.last));   // si la app ya puede ligar sola (misma regla de siempre), se deja como estaba
+    }
+  } catch (e) { /* si algo falla, se usa el camino de siempre */ }
+  return PkgLink._use(p, artistId);
+};
+/* Candados al guardar una sesión de paquete */
+{ const SS = Store.saveSale;
+  Store.saveSale = async function (form, id) {
+    if (form && form.packageId && !id) {
+      const p = this.packages.find(x => x.id === form.packageId);
+      if (p) {
+        if (Pkg.left(p) <= 0) throw new Error('Este paquete ya no tiene sesiones disponibles.');
+        const ap = form._appt ? this.appointments.find(a => a.id === form._appt) : null;
+        if (ap && ap.status === 'Pagada' && ap.saleId) throw new Error('Esa cita ya fue cobrada. Revisa Ventas para no duplicar el cobro.');
+        form = { ...form, packageSession: Pkg.used(p) + 1 };
+      }
+    }
+    return SS.call(this, form, id);
+  }; }
+{ const M = Views.nueva.mount;
+  Views.nueva.mount = function (root) { const r = M.apply(this, arguments); try { PkgLink.wire(this, root); } catch (e) { /* los candados extra nunca deben impedir cobrar */ } return r; }; }
+/* @@PKG-END */
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
