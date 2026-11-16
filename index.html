@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-18 09:00';
+window.FM_VERSION = '2026-11-18 11:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -13266,6 +13266,92 @@ usePackage = function (p, artistId) {
 { const M = Views.nueva.mount;
   Views.nueva.mount = function (root) { const r = M.apply(this, arguments); try { PkgLink.wire(this, root); } catch (e) { /* los candados extra nunca deben impedir cobrar */ } return r; }; }
 /* @@PKG-END */
+/* @@DISC-BEGIN */
+/* =========================================================
+   COBRAR · COMISIÓN CON DESCUENTO
+   Regla: la comisión se calcula sobre lo que realmente paga la clienta → % de la lashista × (precio − descuento).
+   Si el servicio queda en $0 (descuento del 100 %), no hay comisión.
+   Cuando el cobro lleva descuento (en el servicio principal o en un complemento), antes de guardar se abre una pantalla que muestra
+   la comisión calculada sobre el neto y pide confirmarla. Sin descuento no aparece nada.
+   - Si alguien había escrito una comisión manual distinta al cálculo, se avisa y se elige: usar el cálculo, o mantener el monto
+     manual (con un motivo, que queda en los comentarios de la venta).
+   - Los paquetes cuya comisión va sobre el precio normal conservan su propia regla y no pasan por esta pantalla.
+   No cambia ningún cálculo guardado ni ventas anteriores.
+   ========================================================= */
+const DiscCheck = {
+  lines(f) {
+    const cfg = Store.config, art = id => cfg.artists.find(a => a.id === id), svc = id => cfg.services.find(s => s.id === id);
+    const edit = UI.params && UI.params.edit ? (Store.appSales || []).find(s => s.id === UI.params.edit) : null;
+    const pk = f.packageId ? (Store.packages || []).find(x => x.id === f.packageId) : null;
+    const out = [];
+    const mk = (extra, id, sid, price, disc, manual) => {
+      const a = art(id); if (!a) return;
+      const rate = !extra && edit && edit.artistKey === id ? edit.rate : a.rate;
+      price = r2(num(price)); disc = r2(num(disc));
+      const net = r2(price - disc), prop = Logic.calculateCommission(price, disc, rate);
+      out.push({ extra, name: (svc(sid) || {}).name || 'Servicio', who: a.name, rate, price, disc, net, prop, manual,
+        diff: manual != null && Math.abs(manual - prop) > 0.004 });
+    };
+    if (num(f.discount) > 0 && !(pk && pk.commissionBase === 'normal'))
+      mk(false, f.artistId, f.serviceId, f.price, f.discount, f.manualOn && f.manualCommission !== '' ? r2(num(f.manualCommission)) : null);
+    (f.extras || []).forEach(x => { if (x && x.serviceId && num(x.discount) > 0) mk(true, x.artistId || f.artistId, x.serviceId, x.price, x.discount, null); });
+    return out;
+  },
+  /* Resuelve: false (volver a corregir) · { keep:true, why } (se mantiene el monto manual) · { keep:false } (listo) */
+  ask(L) {
+    const rec = typeof Mode !== 'undefined' && Mode.reception;   // Recepción no ve el % de la lashista, solo montos
+    const bad = L.some(x => x.diff), total = r2(L.reduce((t, x) => t + (x.diff ? x.manual : x.prop), 0));
+    const row = (a, b, cls) => `<div class="rline ${cls || ''}"><span>${a}</span><span>${b}</span></div>`;
+    const blk = x => `<div style="margin:10px 0 0;padding:10px 12px;border:1px solid ${x.diff ? 'var(--bad,#c0392b)' : 'var(--line,#ddd)'};border-radius:10px">
+      <b>${esc(x.name)}</b> <span style="color:var(--muted)">· ${esc(x.who)}${x.extra ? ' · complemento' : ''}</span>
+      ${row('Precio', esc(money(x.price, 1)))}${row('Descuento', '− ' + esc(money(x.disc, 1)))}${row('Paga la clienta (neto)', esc(money(x.net, 1)))}
+      ${x.net <= 0 ? row('Comisión', '<b>$0.00</b> · servicio sin costo, no genera comisión', 'total')
+        : x.diff ? row('Comisión escrita a mano', `<b>${esc(money(x.manual, 1))}</b>`, 'total')
+        : row(rec ? 'Comisión que se paga' : `Comisión (${esc(pct(x.rate))} × ${esc(money(x.net, 1))})`, `<b>${esc(money(x.prop, 1))}</b>`, 'total')}
+      ${x.diff ? `<p style="margin:8px 0 0;color:var(--bad,#c0392b)"><b>Ojo:</b> escribiste una comisión manual de ${esc(money(x.manual, 1))}, pero sobre el neto corresponde ${esc(money(x.prop, 1))} (diferencia de ${esc(money(Math.abs(x.manual - x.prop), 1))}).</p>` : ''}
+    </div>`;
+    return new Promise(res => {
+      UI.modal(`<h3>${bad ? 'La comisión no coincide con el descuento' : 'Confirma la comisión'}</h3>
+        <p style="color:var(--muted)">Este cobro lleva descuento. La comisión se calcula sobre lo que realmente paga la clienta (precio − descuento).${rec ? '' : ' Revísala antes de terminar el cobro.'}</p>
+        ${L.map(blk).join('')}
+        ${bad ? `<label class="field" style="margin-top:10px">Si mantienes tu monto, escribe el motivo<input data-why placeholder="Ej. autorizado por administración"><span class="err" data-whyerr></span></label>` : ''}
+        <div class="acts" style="margin-top:12px"><button class="btn" data-x="back">Corregir</button>
+          ${bad ? '<button class="btn" data-x="keep">Mantener mi monto</button><button class="btn primary" data-x="sys">Usar el cálculo</button>'
+            : '<button class="btn primary" data-x="ok">Sí, la comisión es correcta</button>'}</div>`, m => {
+        const end = v => { UI.close(); res(v); };
+        $('[data-x=back]', m).onclick = () => end(false);
+        const ok = $('[data-x=ok]', m); if (ok) ok.onclick = () => end({ keep: false });
+        const sys = $('[data-x=sys]', m); if (sys) sys.onclick = () => end({ keep: false, useSystem: true });
+        const keep = $('[data-x=keep]', m);
+        if (keep) keep.onclick = () => { const w = ($('[data-why]', m).value || '').trim(); if (w.length < 3) { $('[data-whyerr]', m).textContent = 'Escribe el motivo.'; $('[data-why]', m).focus(); return; } end({ keep: true, why: w }); };
+        const f0 = $('[data-x=sys],[data-x=ok]', m); if (f0) f0.focus();
+      });
+    });
+  },
+};
+{ const M = Views.nueva.mount;
+  Views.nueva.mount = function (root) {
+    const r = M.apply(this, arguments);
+    try {
+      const form = $('[data-form]', root), f = this.form, orig = form && form.onsubmit; if (!form || !f || !orig) return r;
+      form.onsubmit = async e => {
+        e.preventDefault();
+        let L = []; try {
+          const valid = f.artistId && f.serviceId && num(f.price) >= 0 && num(f.discount) <= num(f.price) && !(f.manualOn && f.manualCommission === '');
+          if (valid) L = DiscCheck.lines(f);
+        } catch (err) { L = []; }   // este candado nunca debe impedir cobrar
+        if (L.length) {
+          const a = await DiscCheck.ask(L); if (!a) return;
+          if (a.useSystem && f.manualOn) { f.manualOn = false; f.manualCommission = ''; const cb = form.manualOn; if (cb) { cb.checked = false; cb.dispatchEvent(new Event('input', { bubbles: true })); } if (form.manualCommission) form.manualCommission.value = ''; }
+          if (a.keep) { f.comments = [f.comments, `Comisión manual con descuento: ${a.why}`].filter(Boolean).join(' · '); if (form.comments) form.comments.value = f.comments; }
+        }
+        return orig.call(form, e);
+      };
+    } catch (err) { /* sin candado, el cobro sigue como antes */ }
+    return r;
+  }; }
+/* @@DISC-END */
+
 
 window.FM_BOOT = function () {
 /* ---------- boot ---------- */
