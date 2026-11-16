@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-18 14:00';
+window.FM_VERSION = '2026-11-18 20:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -5104,7 +5104,7 @@ UI.renderNav = function () {
    Público y Estudiantes (venta en salón) y Salón (notas de insumos a lashistas).
    PRODUCTOS → CONTEO DE INVENTARIO para cargar o corregir existencias de todos los productos a la vez.
    ========================================================= */
-const BUYER_TYPES = ['Público', 'Estudiante', 'Salón (lashistas)'];
+const BUYER_TYPES = ['Público', 'Estudiante', 'Salón (lashistas)', 'En línea'];
 S.pv = { kind: 'mes', day: Dates.today(), ws: Dates.fluffyWeekStart(Dates.today()), ym: Dates.ym(Dates.today()), from: Dates.today() - 29, to: Dates.today(), type: '' };
 const ProdSales = {
   range() { const r = S.pv; if (r.kind === 'dia') return [r.day, r.day]; if (r.kind === 'semana') return [r.ws, r.ws + 6]; if (r.kind === 'rango') return [r.from, r.to]; const [y, m] = r.ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; },
@@ -5114,6 +5114,12 @@ const ProdSales = {
     Store.notes.filter(n => n.source === 'app' && (n.status === 'Enviada' || n.status === 'Pagada') && inR(Dates.fromISO(n.date || (n.month + '-01')))).forEach(n => {
       const f = n.subtotal ? n.taxable / n.subtotal : 1; // reparte los descuentos de la nota entre sus artículos
       n.items.forEach(i => out.push({ day: Dates.fromISO(n.date || (n.month + '-01')), type: 'Salón (lashistas)', code: i.code || '—', name: i.desc, qty: num(i.qty), amount: r2(num(i.amount) * f), gross: r2(num(i.amount)), buyer: n.artistName, who: `${n.artistName} · #${n.invoice}`, method: n.status === 'Pagada' ? 'Pagada' : 'Por cobrar', txn: '' }));
+    });
+    /* Tienda web: pedidos enviados o entregados (igual que el Resumen), por la fecha en que se enviaron; producto sin tax ni envío */
+    if (typeof Orders !== 'undefined') (Store.orders || []).filter(o => o.status !== 'Cancelado' && Orders.isIncome(o) && inR(Orders.incomeDay(o))).forEach(o => {
+      const it = (o.items || []).filter(i => num(i.qty) > 0), sub = num(o.subtotal), A = r2(it.reduce((t, i) => t + num(i.qty) * num(i.price), 0)), B = r2(it.reduce((t, i) => t + num(i.price), 0));
+      const line = i => (sub && Math.abs(B - sub) < 0.02 && Math.abs(A - sub) >= 0.02) ? num(i.price) : num(i.qty) * num(i.price), L = r2(it.reduce((t, i) => t + line(i), 0)), f = sub && L ? sub / L : 1;
+      it.forEach(i => out.push({ day: Orders.incomeDay(o), type: 'En línea', code: i.code || '—', name: i.name || i.label || i.code || 'Producto', qty: num(i.qty), amount: r2(line(i) * f), gross: r2(line(i)), buyer: (o.customer || {}).name || 'Sin nombre', who: `${(o.customer || {}).name || 'Sin nombre'} · pedido #${o.number}`, method: o.payMethod || 'PayPal', txn: '' }));
     });
     out.forEach(x => { x.disc = Math.max(0, r2((x.gross || x.amount) - x.amount)); x.gross = r2(x.amount + x.disc); });
     return out.sort((a, b) => a.day - b.day);
@@ -5133,15 +5139,16 @@ const ProdSales = {
         <div class="chips">${[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes'], ['rango', 'Rango']].map(([k, l]) => `<button class="chip ${r.kind === k ? 'on' : ''}" data-pvk="${k}">${l}</button>`).join('')}<div class="weeknav">${nav}</div></div>
         <div class="chips"><button class="btn sm" data-pvdl="xlsx">${ic('dl')}Excel</button><button class="btn sm pink" data-pvdl="pdf">${ic('dl')}PDF</button></div></div>
       <div class="chips no-print" style="margin:-6px 0 16px">${[['', 'Todos']].concat(BUYER_TYPES.map(t => [t, t])).map(([k, l]) => `<button class="chip ${r.type === k ? 'on' : ''}" data-pvt="${esc(k)}">${esc(l)}</button>`).join('')}</div>
-      <section class="kpis">${kpi('Público', money(tot('Público')), 'clientas del salón')}${kpi('Estudiantes', money(tot('Estudiante')), 'academia')}${kpi('Salón (lashistas)', money(tot('Salón (lashistas)')), 'notas de insumos, sin tax')}
-        ${kpi('Total', money(r2(tot('Público') + tot('Estudiante') + tot('Salón (lashistas)'))), esc(this._label), 1)}${kpi('Unidades', intf(units), r.type ? esc(r.type) : 'todos los tipos')}${kpi('Productos distintos', intf(this._by.length), '')}</section>
-      <section class="panel"><h2>Por producto</h2>
-        ${table([{ label: 'Código' }, { label: 'Producto' }, ...types.flatMap(t => [{ label: `${t} · cant.`, r: 1 }, { label: `${t} · $`, r: 1 }]), { label: 'Total', r: 1 }],
-          this._by.map(o => [o.code, o.name, ...types.flatMap(t => [o.q[t] ? intf(o.q[t]) : '—', o.a[t] ? money(o.a[t], 1) : '—']), money(o.amount, 1)]), null, { emptyTitle: 'Sin ventas de producto', empty: 'Cambia el periodo o el tipo.' })}</section>
+      <section class="kpis kpis-pv">${kpi('Público', money(tot('Público')), 'clientas del salón')}${kpi('Estudiantes', money(tot('Estudiante')), 'academia')}${kpi('Lashistas', money(tot('Salón (lashistas)')), 'notas de insumos, sin tax')}${kpi('En línea', money(tot('En línea')), 'tienda web, sin tax ni envío')}
+        ${kpi('Total', money(r2(BUYER_TYPES.reduce((a, t) => a + tot(t), 0))), `${intf(units)} unidades · ${intf(this._by.length)} productos<br>${esc(this._label)}`, 1)}</section>
+      <section class="panel"><h2>Por producto</h2><p class="hint">Unidades por tipo de cliente; el dinero por tipo está en «Por tipo de cliente».</p>
+        ${(() => { const sh = { 'Público': 'Público', 'Estudiante': 'Estudiante', 'Salón (lashistas)': 'Lashistas', 'En línea': 'En línea' }, tc = r.type ? [] : types;
+          return table([{ label: 'Código' }, { label: 'Producto' }, ...tc.map(t => ({ label: sh[t] || t, r: 1 })), { label: 'Unid.', r: 1 }, { label: 'Total', r: 1 }],
+            this._by.map(o => [o.code, o.name, ...tc.map(t => o.q[t] ? intf(o.q[t]) : '—'), intf(o.qty), money(o.amount, 1)]), null, { emptyTitle: 'Sin ventas de producto', empty: 'Cambia el periodo o el tipo.' }); })()}</section>
       <section class="panel"><h2>Detalle</h2>
         ${table([{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Producto' }, { label: 'Cant.', r: 1 }, { label: 'Monto', r: 1 }, { label: 'Cliente / lashista' }, { label: 'Método' }, { label: 'TXN' }],
           rows.slice(-300).reverse().map(x => [Dates.fmt(x.day, { day: '2-digit', month: 'short' }), x.type, x.name, intf(x.qty), money(x.amount, 1), x.who || '—', x.method || '—', x.txn || '—']), null, { emptyTitle: 'Sin movimientos', empty: '' })}</section>
-      <p class="formula">Público y Estudiantes salen de “Cobrar → Producto” (y “Venta en salón”). Salón (lashistas) son las notas de insumos enviadas o pagadas, por la fecha de la nota y ya con descuentos, sin tax. Todas descuentan del inventario del salón.</p>`;
+      <p class="formula">Público y Estudiantes salen de “Cobrar → Producto” (y “Venta en salón”). Salón (lashistas) son las notas de insumos enviadas o pagadas, por la fecha de la nota y ya con descuentos, sin tax. En línea son los pedidos de la tienda web ya enviados o entregados, por la fecha de envío, solo el producto (sin tax ni envío). Todas descuentan del inventario.</p>`;
   },
   mount(root) {
     const r = S.pv;
@@ -13372,10 +13379,20 @@ const DiscCheck = {
    No cambia ventas, inventario, notas ni cálculos existentes: solo lee.
    ========================================================= */
 S.salesMode = S.salesMode || { ventas: 'serv', resumen: 'serv' };
+{ const st = document.createElement('style'); st.id = 'pv-css'; st.textContent = `
+.kpis.kpis-pv{grid-template-columns:repeat(5,minmax(0,1fr))}.kpis.kpis-pv .kpi.lead .sub{line-height:1.45}
+.kpis.pv3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.kpis .kpi .val.txt{white-space:normal;overflow-wrap:anywhere;word-break:break-word;font-size:clamp(15px,1.5vw,19px);line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.kpis.pv3 .kpi{border-left:1px solid var(--line)}.kpis.pv3 .kpi:first-child{border-left:0}
+@media (max-width:1100px){.kpis.kpis-pv,.kpis.pv3{grid-template-columns:repeat(3,minmax(0,1fr))}.kpis.pv3 .kpi:nth-child(n+4){border-top:0}.kpis.pv3 .kpi:nth-child(4){border-left:1px solid var(--line);padding-left:18px}}
+@media (max-width:760px){.kpis.pv3{grid-template-columns:1fr}.kpis.pv3 .kpi,.kpis.pv3 .kpi:nth-child(4){border-left:0!important;padding-left:0!important}.kpis.pv3 .kpi:nth-child(n+2){border-top:1px solid var(--line)}}
+@media (max-width:1100px){.kpis.kpis-pv .kpi.lead{grid-column:span 2}}
+@media (max-width:560px){.kpis.kpis-pv{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis.kpis-pv .kpi{border-left:0!important;padding:14px 12px 14px 0!important;border-top:0}.kpis.kpis-pv .kpi:nth-child(even){padding-left:14px!important;border-left:1px solid var(--line)!important}.kpis.kpis-pv .kpi:nth-child(n+3){border-top:1px solid var(--line)}.kpis.kpis-pv .kpi.lead{grid-column:1/-1;border-left:0!important;padding-left:0!important}}
+`; document.head.appendChild(st); }
 const PV = {
   toggle(view) {
     const m = S.salesMode[view];
-    return `<div class="chips no-print" data-pvmode style="margin:2px 0 12px"><button class="chip ${m === 'serv' ? 'on' : ''}" data-pvmode="serv">Servicios</button><button class="chip ${m === 'prod' ? 'on' : ''}" data-pvmode="prod">Productos</button></div>`;
+    return `<div class="segmented small no-print" style="margin:2px 0 14px"><button type="button" class="${m === 'serv' ? 'on' : ''}" data-pvmode="serv">Servicios</button><button type="button" class="${m === 'prod' ? 'on' : ''}" data-pvmode="prod">Productos</button></div>`;
   },
   bind(root, view) {
     $$('button[data-pvmode]', root).forEach(b => b.onclick = () => {
@@ -13395,12 +13412,13 @@ const PV = {
     const prods = grp(rows, x => x.code + '|' + x.name, x => ({ name: x.name, code: x.code })).sort((a, b) => b.qty - a.qty || b.amount - a.amount);
     const buyers = grp(rows, x => x.type + '|' + (x.buyer || x.who || 'Sin nombre'), x => ({ type: x.type, name: x.buyer || x.who || 'Sin nombre' })).sort((a, b) => b.amount - a.amount);
     const types = grp(all, x => x.type).sort((a, b) => BUYER_TYPES.indexOf(a.key) - BUYER_TYPES.indexOf(b.key)), totAll = sum(all, 'amount');
-    const kpi = (l, v, s) => `<div class="kpi"><div class="lab">${l}</div><div class="val" style="font-size:1.25em">${v}</div><div class="sub">${s}</div></div>`;
+    const kpi = (l, v, s, txt) => `<div class="kpi"><div class="lab">${l}</div><div class="val${txt ? ' txt' : ''}">${v}</div><div class="sub">${s}</div></div>`;
     const topP = prods[0], topB = buyers[0];
-    return `<section class="kpis">${kpi('Descuentos', money(disc), gross ? `${pc(disc, gross)} del precio de lista (${money(gross)})` : 'sin ventas')}
-        ${kpi('Producto más vendido', topP ? esc(topP.name) : '—', topP ? `${intf(topP.qty)} unidades · ${money(topP.amount)}` : 'sin ventas')}
-        ${kpi('Quién compra más', topB ? esc(topB.name) : '—', topB ? `${esc(topB.type)} · ${money(topB.amount)}` : 'sin ventas')}
-        ${kpi('Ventas netas', money(net), `${intf(rows.length)} líneas vendidas`)}</section>
+    const pend = typeof Orders !== 'undefined' ? (Store.orders || []).filter(o => o.status === 'Por surtir' || o.status === 'Surtido') : [];
+    return `<section class="kpis pv3">${kpi('Descuentos', money(disc), gross ? `${pc(disc, gross)} del precio de lista (${money(gross)})` : 'sin ventas')}
+        ${kpi('Producto más vendido', topP ? esc(topP.name) : '—', topP ? `${intf(topP.qty)} unidades · ${money(topP.amount)}` : 'sin ventas', 1)}
+        ${kpi('Quién compra más', topB ? esc(topB.name) : '—', topB ? `${esc(topB.type)} · ${money(topB.amount)}` : 'sin ventas', 1)}</section>
+        ${pend.length && (!S.pv.type || S.pv.type === 'En línea') ? `<p class="hint" style="margin:-18px 0 22px">Pedidos en línea aún sin enviar: ${intf(pend.length)} (${money(r2(pend.reduce((t, o) => t + num(o.subtotal), 0)))}). Se cuentan cuando se marcan como enviados o entregados.</p>` : ''}
         <section class="panel"><h2>Por tipo de cliente</h2><p class="hint">Compara los tipos, sin importar el filtro de arriba.</p>
           ${table([{ label: 'Tipo' }, { label: 'Unid.', r: 1 }, { label: 'Precio lista', r: 1 }, { label: 'Descuento', r: 1 }, { label: 'Neto', r: 1 }, { label: '% de ventas', r: 1 }],
             types.map(t => [t.key, intf(t.qty), money(t.gross, 1), t.disc ? money(t.disc, 1) : '—', money(t.amount, 1), pc(t.amount, totAll)]),
@@ -13434,6 +13452,130 @@ for (const [view, title] of [['ventas', 'Ventas'], ['resumen', 'Resumen de venta
   };
 }
 /* @@PV-END */
+/* @@UX-BEGIN */
+/* =========================================================
+   CAPA DE EXPERIENCIA (UX) — menos botones, menos ruido, mismos datos y mismas acciones
+   Reglas que se aplican solas a TODAS las pantallas después de dibujarlas (escritorio, tablet y celular):
+   1) Encabezado: una acción principal a la vista; las secundarias van a un menú («Más» / «Registrar»). Los botones se MUEVEN
+      (no se copian), así conservan exactamente su acción.
+   2) Celular y tablet: los filtros se reducen a «Buscar + Filtros (n)»; los menús se abren como hoja inferior; las filas de
+      chips se deslizan en una sola línea en lugar de ocupar media pantalla.
+   3) Cobrar: primero se elige la cita (o «Llegó sin cita»); el formulario aparece después. Menos pantalla, un paso claro.
+   4) Reportes a la medida: la lista de servicios se abre solo cuando se necesita.
+   5) Una sola acción principal por pantalla: los botones repetidos en cada fila usan contorno, no relleno.
+   No cambia datos, cálculos, permisos ni guardado. Si algo fallara, la pantalla queda como estaba.
+   ========================================================= */
+const UX = {
+  rxOpen: false,
+  mobile() { return window.matchMedia('(max-width:900px)').matches; },
+  txt(b) { return (b.textContent || '').replace(/\s+/g, ' ').trim(); },
+  css: `
+/* ---- base: movimiento, foco, cifras ---- */
+.page h1,.page h2,.page h3{text-wrap:balance}
+.page table td,.page .kpi .val{font-variant-numeric:tabular-nums}
+.btn,.chip,.mnu .menu2 .btn,tr.click{transition:background-color .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,transform .08s ease}
+.btn:active:not(:disabled),.chip:active{transform:translateY(1px)}
+.btn:focus-visible,.chip:focus-visible,.page input:focus-visible,.page select:focus-visible,.page textarea:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#view>.page{animation:uxIn .18s ease}
+@keyframes uxIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){#view>.page{animation:none}.btn,.chip,tr.click{transition:none}}
+/* ---- una sola acción principal por pantalla: las repetidas en filas van en contorno ---- */
+.page table .btn.primary,.page .rlist .btn.primary,.page .pickappt .btn.primary{background:transparent;color:var(--ink);border-color:var(--ink)}
+.page table .btn.primary:hover,.page .rlist .btn.primary:hover,.page .pickappt .btn.primary:hover{background:var(--ink);color:var(--bg)}
+/* ---- enlaces repetidos en cada fila: discretos hasta pasar por la fila ---- */
+.page table td .linkbtn{font-weight:500;color:var(--muted);text-decoration-color:var(--line)}
+.page table tr:hover td .linkbtn,.page table td .linkbtn:focus-visible{color:var(--ink);text-decoration-color:var(--gold)}
+/* ---- tabla dentro de una tarjeta: un solo marco ---- */
+.page .panel .tablewrap{border-color:transparent;border-radius:0}
+.page .panel .tablewrap thead th{border-bottom:1px solid var(--line)}
+/* ---- menú de acciones del encabezado ---- */
+.ux-acts{display:flex;gap:8px;align-items:center;flex-wrap:nowrap}
+.mnu.ux-f .c2more{height:44px}
+/* ---- Cobrar por pasos ---- */
+.page.ux-pick .sale-layout,.page.ux-pick .cob-foot{display:none!important}
+.ux-step{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:13px;color:var(--muted);font-weight:600}
+.ux-step b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:12px}
+.ux-step i{font-style:normal;opacity:.55}
+/* ---- Reportes: lista de servicios plegable ---- */
+.page.ux-rxc .rxsvcs{display:none}
+/* ---- celular y tablet ---- */
+@media (max-width:900px){
+  .page .head{margin-bottom:16px;gap:12px}
+  .page .head .ux-acts{flex-wrap:wrap}
+  .page .segmented{max-width:100%;overflow-x:auto;scrollbar-width:none}.page .segmented::-webkit-scrollbar{display:none}.page .segmented > button{white-space:nowrap;flex:none}
+  .page .chips:has(> .chip):not(.rxsvcs):not(:has(> input:not([type=date]))){flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px;margin-right:-16px;padding-right:16px;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+  .page .chips:has(> .chip):not(.rxsvcs):not(:has(> input:not([type=date])))::-webkit-scrollbar{display:none}
+  .page .chips:has(> .chip):not(.rxsvcs):not(:has(> input:not([type=date]))) > *{flex:none}
+  .mnu{position:static}
+  .mnu .menu2{position:fixed;left:10px!important;right:10px!important;top:auto;bottom:calc(86px + env(safe-area-inset-bottom,0px));min-width:0;max-height:62vh;overflow:auto;z-index:90;border-radius:20px;padding:10px;box-shadow:0 0 0 100vmax rgba(30,18,22,.38),0 -10px 40px rgba(46,27,32,.25)}
+  .mnu .menu2.open{animation:uxUp .2s cubic-bezier(.2,.8,.2,1)}
+  .mnu .menu2 .btn{height:48px;font-size:15px}
+  .mnu .menu2.pad{padding:16px}.mnu .menu2.pad .field{margin-bottom:12px}
+  .mnu .menu2 .t{padding:6px 12px 8px}
+  .page .filters.ux-fl{gap:10px}
+  .page .filters.ux-fl > .ux-frow{display:flex;gap:8px;align-items:flex-end;flex:1 0 100%;min-width:0}
+  .page .filters.ux-fl > .ux-frow > label.field{flex:1 1 0;min-width:0;margin:0;max-width:none!important}
+  .page .filters.ux-fl > .chips,.page .filters.ux-fl > div:not(.ux-frow):not(.mnu){flex:1 0 100%;min-width:0}
+  .page .filters.ux-fl > div:empty{display:none}
+  .page .btn,.page .chip{min-height:40px}
+  .page .btn.sm{min-height:36px}
+}
+@keyframes uxUp{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.mnu .menu2.open{animation:none}}
+`,
+  init() { if (UX._i) return; UX._i = true; const st = document.createElement('style'); st.id = 'ux-css'; st.textContent = UX.css; document.head.appendChild(st); },
+  /* 1) Encabezado: principal a la vista, el resto a un menú */
+  head(pg) {
+    const head = $('.head', pg); if (!head || $('.mnu', head)) return;
+    const acts = $$('button, a.btn', head).filter(b => b.offsetParent !== null && UX.txt(b) && !b.classList.contains('chip') && !b.closest('.segmented, .weeknav, [role=tablist]'));
+    if (acts.length < (UX.mobile() ? 3 : 4)) return;
+    const main = acts.find(b => b.classList.contains('primary')) || acts.find(b => b.classList.contains('pink')) || acts[0], rest = acts.filter(b => b !== main), host = main.parentElement;
+    const reg = UI.route === 'recepcion', m = C2.menu(host, rest, reg ? 'Registrar' : 'Más', reg ? 'Registrar' : 'Más acciones'); if (!m) return;
+    rest.forEach(b => b.classList.remove('sm'));
+    host.appendChild(main); host.classList.add('ux-acts');
+  },
+  /* 2) Filtros en celular/tablet: Buscar + «Filtros (n)» */
+  filters(pg) {
+    if (!UX.mobile()) return;
+    $$('.filters', pg).forEach(f => {
+      if (f.closest('.mnu, .modal') || $('.mnu', f)) return;
+      const fields = $$('label.field', f); if (fields.length < 3) return;
+      const keep = fields.find(l => $('input[type=search]', l)) || fields[0], rest = fields.filter(l => l !== keep);
+      const m = C2.menu(f, rest, 'Filtros', 'Filtros', { pad: true }); if (!m) return;
+      m.classList.add('ux-f'); f.classList.add('ux-fl'); const row = document.createElement('div'); row.className = 'ux-frow'; f.appendChild(row); row.appendChild(keep); row.appendChild(m);
+      const used = l => { const s = $('select', l), i = $('input', l); return (s && s.selectedIndex > 0) || (i && i.type !== 'checkbox' && i.value !== ''); };
+      const upd = () => { const n = rest.filter(used).length, nb = $('.nb', m); nb.textContent = n ? String(n) : ''; nb.hidden = !n; };
+      upd(); rest.forEach(l => l.addEventListener('change', upd));
+    });
+  },
+  /* la opción elegida de una fila deslizable queda a la vista */
+  chips(pg) { if (!UX.mobile()) return; $$('.chips', pg).forEach(r => { const on = $(':scope > .chip.on', r); if (on && r.scrollWidth > r.clientWidth) { const d = on.getBoundingClientRect().left - r.getBoundingClientRect().left; if (d < 0 || d > r.clientWidth - on.offsetWidth - 28) r.scrollLeft += d - 16; } }); },
+  /* 3) Cobrar por pasos */
+  cobro(pg) {
+    if (UI.route !== 'nueva') return; const pick = $('.pickappt', pg), f = Views.nueva.form; if (!pick || !f || !$('.sale-layout', pg)) return;
+    const blank = !f.first && !f.last && !f.serviceId && !f.packageId && !f.depositId && !num(f.price);
+    const need = typeof requireAppt === 'function' && requireAppt() && !f._appt && !f._walkin && !UI.params.edit && !(typeof apptMatch === 'function' && apptMatch(f));
+    if (need && blank) { pg.classList.add('ux-pick'); pick.insertAdjacentHTML('beforebegin', '<div class="ux-step"><b>1</b>Elige la cita <i>→</i> <span><i>2 · Cobra y guarda</i></span></div>'); }
+  },
+  /* 4) Reportes a la medida: los servicios se abren al buscar o al pedirlo */
+  reportes(pg) {
+    const box = $('.rxsvcs', pg), all = $('[data-rxsall]', pg); if (!box || !all) return;
+    const q = $('[data-rxq]', pg), busy = (q && q.value !== '') || !!$('.chip.on', box), n = box.children.length;
+    const show = UX.rxOpen || busy; pg.classList.toggle('ux-rxc', !show);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = show ? 'Ocultar lista' : `Elegir entre ${n} servicios`; b.setAttribute('aria-expanded', String(show));
+    b.onclick = () => { UX.rxOpen = !show; pg.classList.toggle('ux-rxc', show && !busy ? true : !UX.rxOpen && !busy); b.textContent = pg.classList.contains('ux-rxc') ? `Elegir entre ${n} servicios` : 'Ocultar lista'; b.setAttribute('aria-expanded', String(!pg.classList.contains('ux-rxc'))); };
+    all.after(b);
+  },
+  pass() {
+    const pg = $('#view .page'); if (!pg || pg.dataset.ux) return; pg.dataset.ux = '1';
+    if (typeof Mode !== 'undefined' && Mode.accountant) return;   // la interfaz de Contabilidad no se toca
+    for (const k of ['head', 'filters', 'cobro', 'reportes', 'chips']) { try { UX[k](pg); } catch (e) { /* la pantalla queda como estaba */ } }
+    try { C2.bindOnce(); } catch (e) {}
+  },
+};
+{ const R = UI.render; UI.render = function () { const r = R.apply(this, arguments); try { UX.init(); UX.pass(); } catch (e) { /* nunca debe romper una pantalla */ } return r; }; }
+/* @@UX-END */
+
 
 
 
