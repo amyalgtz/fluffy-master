@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-18 11:00';
+window.FM_VERSION = '2026-11-18 14:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -5110,11 +5110,12 @@ const ProdSales = {
   range() { const r = S.pv; if (r.kind === 'dia') return [r.day, r.day]; if (r.kind === 'semana') return [r.ws, r.ws + 6]; if (r.kind === 'rango') return [r.from, r.to]; const [y, m] = r.ym.split('-').map(Number); return [Dates.monthStart(y, m - 1), Dates.monthEnd(y, m - 1)]; },
   rows(from, to) {
     const inR = d => d != null && d >= from && d <= to, out = [];
-    (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).forEach(m => out.push({ day: Dates.fromISO(m.date), type: m.buyerType === 'Estudiante' ? 'Estudiante' : 'Público', code: m.code, name: m.name || m.code, qty: num(m.qty), amount: r2(num(m.qty) * num(m.unitPrice)), who: m.client || '', method: m.method || '', txn: m.txn || '' }));
+    (Store.moves || []).filter(m => m.type === 'Venta en salón' && inR(Dates.fromISO(m.date))).forEach(m => out.push({ day: Dates.fromISO(m.date), type: m.buyerType === 'Estudiante' ? 'Estudiante' : 'Público', code: m.code, name: m.name || m.code, qty: num(m.qty), amount: r2(num(m.qty) * num(m.unitPrice)), gross: Math.max(r2(num(m.qty) * num(m.unitPrice)), (pr => pr && pr.priceSalon != null && pr.priceSalon !== '' ? r2(num(m.qty) * num(pr.priceSalon)) : 0)(Store.product(m.code))), who: m.client || '', method: m.method || '', txn: m.txn || '' }));
     Store.notes.filter(n => n.source === 'app' && (n.status === 'Enviada' || n.status === 'Pagada') && inR(Dates.fromISO(n.date || (n.month + '-01')))).forEach(n => {
       const f = n.subtotal ? n.taxable / n.subtotal : 1; // reparte los descuentos de la nota entre sus artículos
-      n.items.forEach(i => out.push({ day: Dates.fromISO(n.date || (n.month + '-01')), type: 'Salón (lashistas)', code: i.code || '—', name: i.desc, qty: num(i.qty), amount: r2(num(i.amount) * f), who: `${n.artistName} · #${n.invoice}`, method: n.status === 'Pagada' ? 'Pagada' : 'Por cobrar', txn: '' }));
+      n.items.forEach(i => out.push({ day: Dates.fromISO(n.date || (n.month + '-01')), type: 'Salón (lashistas)', code: i.code || '—', name: i.desc, qty: num(i.qty), amount: r2(num(i.amount) * f), gross: r2(num(i.amount)), buyer: n.artistName, who: `${n.artistName} · #${n.invoice}`, method: n.status === 'Pagada' ? 'Pagada' : 'Por cobrar', txn: '' }));
     });
+    out.forEach(x => { x.disc = Math.max(0, r2((x.gross || x.amount) - x.amount)); x.gross = r2(x.amount + x.disc); });
     return out.sort((a, b) => a.day - b.day);
   },
   html() {
@@ -10302,12 +10303,22 @@ const C2 = {
     m.innerHTML = `<button type="button" class="btn${sm} c2more" aria-haspopup="${o.pad ? 'true' : 'menu'}" aria-expanded="false">${o.pad ? '' : C2.DOTS}<span>${esc(label)}</span><span class="nb" hidden></span>${C2.CHEV}</button><div class="menu2${o.pad ? ' pad' : ''}"${o.pad ? '' : ' role="menu"'}><div class="t">${esc(title)}</div></div>`;
     const box = $('.menu2', m); els.forEach(e => { if (!o.pad) e.setAttribute('role', 'menuitem'); box.appendChild(e); }); host.appendChild(m); return m;
   },
+  /* El menú se ancla al borde derecho de su botón; si el botón está a la izquierda se abría debajo de la barra lateral y se cortaba.
+     Al abrir, se mide y se ancla al lado que sí cabe en la pantalla. */
+  place(m) {
+    try {
+      m.style.left = ''; m.style.right = '';
+      const side = $('#side'), min = (side ? side.getBoundingClientRect().right : 0) + 8, max = window.innerWidth - 8;
+      let r = m.getBoundingClientRect();
+      if (r.left < min) { m.style.left = '0'; m.style.right = 'auto'; r = m.getBoundingClientRect(); if (r.right > max) m.style.left = (max - r.right) + 'px'; }
+    } catch (e) { /* si algo falla, el menú queda como estaba */ }
+  },
   closeMenus(except) { $$('.mnu .menu2.open').forEach(x => { if (x === except) return; x.classList.remove('open'); const b = x.previousElementSibling; if (b) b.setAttribute('aria-expanded', 'false'); }); },
   bindOnce() {
     if (C2._b) return; C2._b = true;
     document.addEventListener('click', e => {
       const t = e.target.closest && e.target.closest('.c2more');
-      if (t) { const m = t.nextElementSibling, open = !m.classList.contains('open'); C2.closeMenus(m); m.classList.toggle('open', open); t.setAttribute('aria-expanded', String(open)); return; }
+      if (t) { const m = t.nextElementSibling, open = !m.classList.contains('open'); C2.closeMenus(m); m.classList.toggle('open', open); t.setAttribute('aria-expanded', String(open)); if (open) C2.place(m); return; }
       const inside = e.target.closest && e.target.closest('.mnu .menu2');
       if (inside) { if (!inside.classList.contains('pad') && e.target.closest('button,a')) setTimeout(() => C2.closeMenus(), 0); return; }
       C2.closeMenus();
@@ -13351,6 +13362,79 @@ const DiscCheck = {
     return r;
   }; }
 /* @@DISC-END */
+/* @@PV-BEGIN */
+/* =========================================================
+   VENTAS DE PRODUCTOS en «Ventas» y en «Resumen de ventas»
+   En las dos pantallas hay un selector «Servicios | Productos». Productos usa la misma información que ya existía en
+   Productos → Ventas (Público, Estudiantes y notas de insumos a lashistas), con día / semana / mes / rango de fechas, y agrega:
+   · descuentos (en las notas de insumos: los descuentos de la nota; en Público/Estudiante: lo que se cobró por debajo del precio salón del catálogo)
+   · producto más vendido, quién compra más, comparación por tipo de cliente y ranking de productos.
+   No cambia ventas, inventario, notas ni cálculos existentes: solo lee.
+   ========================================================= */
+S.salesMode = S.salesMode || { ventas: 'serv', resumen: 'serv' };
+const PV = {
+  toggle(view) {
+    const m = S.salesMode[view];
+    return `<div class="chips no-print" data-pvmode style="margin:2px 0 12px"><button class="chip ${m === 'serv' ? 'on' : ''}" data-pvmode="serv">Servicios</button><button class="chip ${m === 'prod' ? 'on' : ''}" data-pvmode="prod">Productos</button></div>`;
+  },
+  bind(root, view) {
+    $$('button[data-pvmode]', root).forEach(b => b.onclick = () => {
+      const to = b.dataset.pvmode; if (S.salesMode[view] === to) return;
+      if (to === 'prod') {   // el periodo que estabas viendo pasa a Productos
+        if (view === 'resumen') Object.assign(S.pv, { kind: S.res.kind, day: S.res.day, ws: S.res.ws, ym: S.res.ym, from: S.res.from, to: S.res.to });
+        else if (S.ventas.from != null || S.ventas.to != null) Object.assign(S.pv, { kind: 'rango', from: S.ventas.from != null ? S.ventas.from : S.ventas.to, to: S.ventas.to != null ? S.ventas.to : S.ventas.from });
+      } else if (view === 'resumen') Object.assign(S.res, { kind: S.pv.kind, day: S.pv.day, ws: S.pv.ws, ym: S.pv.ym, from: S.pv.from, to: S.pv.to });
+      S.salesMode[view] = to; UI.render();
+    });
+  },
+  /* Panel de análisis: se inserta justo debajo de las tarjetas de ProdSales */
+  analysis(rows, all) {
+    const sum = (l, k) => r2(l.reduce((t, x) => t + (x[k] || 0), 0)), pc = (a, b) => b ? Math.round(a / b * 1000) / 10 + '%' : '—';
+    const net = sum(rows, 'amount'), disc = sum(rows, 'disc'), gross = sum(rows, 'gross');
+    const grp = (l, keyFn, init) => { const m = new Map(); l.forEach(x => { const k = keyFn(x), o = m.get(k) || Object.assign({ key: k, qty: 0, amount: 0, disc: 0, gross: 0, n: 0 }, init ? init(x) : {}); o.qty += x.qty; o.amount = r2(o.amount + x.amount); o.disc = r2(o.disc + x.disc); o.gross = r2(o.gross + x.gross); o.n++; m.set(k, o); }); return [...m.values()]; };
+    const prods = grp(rows, x => x.code + '|' + x.name, x => ({ name: x.name, code: x.code })).sort((a, b) => b.qty - a.qty || b.amount - a.amount);
+    const buyers = grp(rows, x => x.type + '|' + (x.buyer || x.who || 'Sin nombre'), x => ({ type: x.type, name: x.buyer || x.who || 'Sin nombre' })).sort((a, b) => b.amount - a.amount);
+    const types = grp(all, x => x.type).sort((a, b) => BUYER_TYPES.indexOf(a.key) - BUYER_TYPES.indexOf(b.key)), totAll = sum(all, 'amount');
+    const kpi = (l, v, s) => `<div class="kpi"><div class="lab">${l}</div><div class="val" style="font-size:1.25em">${v}</div><div class="sub">${s}</div></div>`;
+    const topP = prods[0], topB = buyers[0];
+    return `<section class="kpis">${kpi('Descuentos', money(disc), gross ? `${pc(disc, gross)} del precio de lista (${money(gross)})` : 'sin ventas')}
+        ${kpi('Producto más vendido', topP ? esc(topP.name) : '—', topP ? `${intf(topP.qty)} unidades · ${money(topP.amount)}` : 'sin ventas')}
+        ${kpi('Quién compra más', topB ? esc(topB.name) : '—', topB ? `${esc(topB.type)} · ${money(topB.amount)}` : 'sin ventas')}
+        ${kpi('Ventas netas', money(net), `${intf(rows.length)} líneas vendidas`)}</section>
+        <section class="panel"><h2>Por tipo de cliente</h2><p class="hint">Compara los tipos, sin importar el filtro de arriba.</p>
+          ${table([{ label: 'Tipo' }, { label: 'Unid.', r: 1 }, { label: 'Precio lista', r: 1 }, { label: 'Descuento', r: 1 }, { label: 'Neto', r: 1 }, { label: '% de ventas', r: 1 }],
+            types.map(t => [t.key, intf(t.qty), money(t.gross, 1), t.disc ? money(t.disc, 1) : '—', money(t.amount, 1), pc(t.amount, totAll)]),
+            types.length ? ['Total', intf(sum(types, 'qty')), money(sum(types, 'gross'), 1), money(sum(types, 'disc'), 1), money(totAll, 1), '100%'] : null, { emptyTitle: 'Sin ventas de producto', empty: 'Cambia el periodo.' })}</section>
+        <section class="panel"><h2>Quién compra más</h2><p class="hint">Clientas, estudiantes y lashistas; las 10 con más compras en el periodo.</p>
+          ${table([{ label: 'Comprador' }, { label: 'Tipo' }, { label: 'Unid.', r: 1 }, { label: 'Descuento', r: 1 }, { label: 'Neto', r: 1 }],
+            buyers.slice(0, 10).map(b => [b.name, b.type, intf(b.qty), b.disc ? money(b.disc, 1) : '—', money(b.amount, 1)]), null, { emptyTitle: 'Sin compradores', empty: '' })}</section>
+      <section class="panel"><h2>Productos más vendidos</h2><p class="hint">Ordenados por unidades vendidas.</p>
+        ${table([{ label: '#', r: 1 }, { label: 'Producto' }, { label: 'Unid.', r: 1 }, { label: 'Precio lista', r: 1 }, { label: 'Descuento', r: 1 }, { label: 'Neto', r: 1 }, { label: '% de ventas', r: 1 }],
+          prods.slice(0, 15).map((o, i) => [String(i + 1), o.name, intf(o.qty), money(o.gross, 1), o.disc ? money(o.disc, 1) : '—', money(o.amount, 1), pc(o.amount, net)]), null, { emptyTitle: 'Sin ventas de producto', empty: 'Cambia el periodo o el tipo.' })}</section>`;
+  },
+};
+{ const H = ProdSales.html;
+  ProdSales.html = function () {
+    let h = H.apply(this, arguments);
+    try {
+      const r = S.pv, [from, to] = this.range(), all = this.rows(from, to), rows = all.filter(x => !r.type || x.type === r.type), k = h.indexOf('</section>');
+      if (k > 0) h = h.slice(0, k + 10) + PV.analysis(rows, all) + h.slice(k + 10);
+    } catch (e) { /* si el análisis falla, queda la pantalla de antes */ }
+    return h;
+  }; }
+for (const [view, title] of [['ventas', 'Ventas'], ['resumen', 'Resumen de ventas']]) {
+  const V = Views[view], H = V.html, M = V.mount;
+  V.html = function () {
+    if (S.salesMode[view] === 'prod') return `<div class="head"><div><h1>${title}</h1><p>Ventas de productos · Público, estudiantes y lashistas (insumos)</p></div></div>${PV.toggle(view)}${ProdSales.html()}`;
+    const h = H.apply(this, arguments), k = h.indexOf('<div class="filters'); return k < 0 ? h : h.slice(0, k) + PV.toggle(view) + h.slice(k);
+  };
+  V.mount = function (root) {
+    if (S.salesMode[view] === 'prod') ProdSales.mount(root); else M.apply(this, arguments);
+    PV.bind(root, view);
+  };
+}
+/* @@PV-END */
+
 
 
 window.FM_BOOT = function () {
