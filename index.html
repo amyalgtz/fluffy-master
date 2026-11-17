@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-19 10:00';
+window.FM_VERSION = '2026-11-19 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -14021,6 +14021,346 @@ try { if (typeof UI2 !== 'undefined') { UI2.NAVIC.mensajes = ICON.rmsg; ['admin'
   document.head.appendChild(st);
 })();
 /* @@RM-END */
+
+/* @@BI-BEGIN */
+/* =========================================================
+   CITAS DE BOOKSY · bandeja → Agenda
+   · El agente deja cada reserva de Booksy en la bandeja fm_booksy_inbox (/api/booksy-bookings, llave de solo escritura). NUNCA escribe en la agenda.
+   · Esta pantalla, con la sesión de una persona (admin, editor o recepción), aplica lo seguro con las mismas reglas del importador de Booksy
+     (BK.matchSvc/matchArt, ligar a las capturadas a mano, no duplicar por ID de reserva) y manda lo dudoso a «Citas por revisar».
+   · Nunca toca lo que se anota al cobrar (venta, método de pago, productos, precio final, propina cobrada). Una cita con cobro o «Pagada» no se cancela
+     ni se mueve sola: va a Revisar.
+   · Depósito de Booksy: se cuenta como $40 aunque Booksy cobre $41 (el $1 es comisión); lo que pase de $41 es propina y queda SUGERIDA al cobrar.
+   · Apartar / resolver / reintentar pasan por fm_bi_claim, fm_bi_resolve, fm_bi_release y fm_bi_requeue (la base lo exige; nada se escribe directo).
+   ========================================================= */
+ICON.bi = ICON.rwarn || '<path d="M12 4l9 16H3z"/><path d="M12 10v4.500M12 17.500v.01"/>';
+const BI = {
+  STD: 40, LINE: 41,
+  st: { loaded: false, loading: false, err: '', rows: [], running: false, sum: null, ranAt: 0, started: false, edit: {}, busy: new Set(), flash: '' },
+  role() { return FM && FM.member && FM.member.role; },
+  seeRole() { return !!(FM && FM.sb && FM.member && ['admin', 'editor', 'recepcion'].includes(BI.role())); },
+  allowed() { return BI.seeRole() && Store.dbState === 'on' && Store.writable(); },
+  ready() { return BI.allowed() && !!(Store.config && Store.config.services && Store.config.services.length && Store.config.artists && Store.config.artists.length); },
+  today() { return Dates.toISO(Dates.today()); },
+  who() { return Mode.who() + ' (agente de Booksy)'; },
+  t12(t) { const m = /^(\d{2}):(\d{2})$/.exec(t || ''); if (!m) return t || ''; const h = +m[1]; return `${h % 12 || 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`; },
+  dlab(iso) { try { return Dates.fmt(Dates.fromISO(iso), { weekday: 'short', day: 'numeric', month: 'short' }); } catch (e) { return iso; } },
+  nm(b) { if (b.first_name) { const f = title(String(b.first_name).trim()), l = title(String(b.last_name || '').trim()); return { first: f, last: l, notes: [], changed: false, raw: b.client_name || `${f} ${l}`.trim() }; } return BK.clean(b.client_name); },
+  hist(a, what, who) { return (a.history || []).concat({ at: new Date().toISOString(), by: who, what }); },
+  cobro(a) { return !!(a && (a.status === 'Pagada' || a.saleId || (a.extraSaleIds || []).length)); },
+  find(b) { const id = String(b.booking_id); const a = Store.appointments.find(x => x.booksy && String(x.booksy.id) === id); if (a) return a; const raw = [...colMap('appointments').entries()].find(([k, v]) => v && v.booksy && String(v.booksy.id) === id); return raw ? Store.appointments.find(x => x.id === raw[0]) || null : null; },
+  svcRaw(b) { return String(b.service || b.technique || '').trim(); },
+  svc(b, ov) {
+    if (ov && ov.svcId) return { id: ov.svcId, lvl: 'auto' };
+    const L = BK.learned('service'), raws = [b.service, b.technique, [b.service, b.technique].filter(Boolean).join(' ')].map(x => String(x || '').trim()).filter(Boolean); let best = { id: '', lvl: 'none' };
+    for (const r of raws) { const m = BK.matchSvc(r, L); if (m.lvl === 'auto') return m; if (m.id && !best.id) best = m; }
+    return best;
+  },
+  art(b, ov) { if (ov && ov.artId) return { id: ov.artId, lvl: 'auto' }; const e = String(b.artist || '').trim(); return e ? BK.matchArt(e, BK.learned('employee')) : { id: '', lvl: 'none' }; },
+  diff(ex, b) {   // qué cambió en Booksy desde la última vez que la app lo vio (misma idea que el importador)
+    const sn = ex.booksy || {}, ch = [], emp = String(b.artist || '').trim(), sr = BI.svcRaw(b);
+    if (sn.date && sn.date !== b.date) ch.push(`fecha ${sn.date} → ${b.date}`);
+    if (sn.time != null && sn.time !== b.time) ch.push(`hora ${sn.time || '—'} → ${b.time}`);
+    if (sn.employee && emp && BK.norm(sn.employee) !== BK.norm(emp)) ch.push(`lashista ${sn.employee} → ${emp}`);
+    if (sn.service && sr && BK.norm(sn.service) !== BK.norm(sr)) ch.push(`servicio ${sn.service} → ${sr}`);
+    if (sn.duration != null && b.duration_min != null && sn.duration !== b.duration_min) ch.push(`duración ${sn.duration} → ${b.duration_min} min`);
+    return ch;
+  },
+  similar(b, cl) {   // fichas con nombre igual o parecido
+    const key = CL.key(cl.first, cl.last); if (!key || CL.fake(key)) return []; const out = [];
+    CL.idx().act.forEach(c => { if (CL.keys(c).some(k => CL.sim(key, k) !== 'distinto')) out.push(c); }); return out;
+  },
+  /* ---------- clienta: teléfono conocido → se liga; nada parecido → ficha nueva; nombre parecido → Revisar ---------- */
+  async client(b, cl, ov) {
+    const ph = CL.phone(b.phone), key = CL.key(cl.first, cl.last), I = CL.idx();
+    if (ov && ov.clientMode === 'same' && ov.clientId) {
+      const c = Store.clients.find(x => x.id === ov.clientId); if (!c) throw new Error('La ficha ya no existe.');
+      if (ph.ok && !(c.phones || []).some(p => p.n === ph.n)) await BI.saveClient({ ...c, phones: (c.phones || []).concat({ n: ph.n, raw: b.phone }) }); return { made: false };
+    }
+    if (ph.ok && (I.ph.get(ph.n) || []).length) return { made: false };
+    if (!ph.ok || !key || CL.fake(key)) return { made: false };   // sin teléfono utilizable no se crea ficha (la clienta aparece igual por sus citas)
+    if (!(ov && ov.clientMode === 'new')) { const sim = BI.similar(b, cl); if (sim.length) return { review: true, ids: sim.map(c => c.id).slice(0, 5), reason: `Ya hay una ficha con nombre ${sim.length > 1 ? 'parecido' : 'parecido'}: ${sim.slice(0, 3).map(c => CL.name(c)).join(', ')}. Confirma si es la misma persona.` }; }
+    const c = CL.blank(); c.first = cl.first; c.last = cl.last; c.source = 'booksy'; c.phones = [{ n: ph.n, raw: b.phone }]; const em = CL.email(b.email); if (em) c.emails = [{ e: em }];
+    await BI.saveClient(c); return { made: true };
+  },
+  async saveClient(c) { const doc = await CL.save(c); if (!Store.clients.some(x => x.id === doc.id)) Store.clients = Store.clients.concat(doc); else Store.clients = Store.clients.map(x => x.id === doc.id ? { ...x, ...doc } : x); CL._c = null; CL._d = null; return doc; },
+  /* ---------- depósito de Booksy: $40 + propina (lo que pase de $41) ---------- */
+  async deposit(b, apId, ov, who) {
+    const d = b.deposit; if (!d || !d.paid) return {};
+    const ap = Store.appointments.find(a => a.id === apId); if (!ap || ap.depositId) return {};
+    const rc = String(d.receipt || '').trim(), paid = d.paid_amount == null ? null : +d.paid_amount;
+    const found = Store.deposits.find(x => (rc && String(x.booksyReceipt || '') === rc) || x.booksyBooking === b.booking_id);
+    const now = new Date().toISOString();
+    if (found) { if (!found.appointmentId && !found.outcome) { await Store.saveAppointment({ depositId: found.id }, ap.id); await Store.saveDeposit({ appointmentId: ap.id, _event: 'Vinculado a la cita (agente de Booksy)' }, found.id); return { linked: true }; } return {}; }
+    if (paid != null && paid < BI.STD && !(ov && ov.depositOk)) return { review: { code: 'deposito', reason: `Booksy dice que pagó ${money(paid, 1)}, menos de los $${BI.STD} del depósito. Confirma si lo registras como $${BI.STD}.` } };
+    const tip = paid != null && paid > BI.LINE ? r2(paid - BI.LINE) : 0, fee = paid != null && paid >= BI.LINE ? r2(BI.LINE - BI.STD) : 0;
+    const did = await Store.saveDeposit({ first: ap.first, last: ap.last, phone: ap.phone || '', date: ap.date, time: ap.time, artistId: ap.artistId, artistName: ap.artistName, service: ap.serviceName, amount: BI.STD, method: 'Booksy', txn: rc ? `Booksy #${rc}` : `Booksy ${b.booking_id}`, status: 'Verificado', note: `Depósito pagado en Booksy${rc ? ' (recibo #' + rc + ')' : ''}`, booksyReceipt: rc, booksyBooking: b.booking_id, booksyPaid: paid == null ? 0 : paid, booksyFee: fee, booksyTip: tip, receivedAt: d.paid_at || '', verifiedAt: now, verifiedByName: who, _event: 'Registrado desde la carga de Booksy' });
+    await Store.saveAppointment({ depositId: did }, ap.id); await Store.saveDeposit({ appointmentId: ap.id, _event: 'Vinculado a la cita' }, did);
+    return { made: true, tip };
+  },
+  /* ---------- decide y aplica UNA reserva. Devuelve { status: applied|review, code, reason, apptId, kind } ---------- */
+  async process(b, ov, who) {
+    ov = ov || {}; who = who || BI.who(); const now = new Date().toISOString(), today = BI.today();
+    const ok = (kind, note, apptId) => ({ status: 'applied', kind, note: note || '', apptId: apptId || null });
+    const rev = (code, reason, apptId) => ({ status: 'review', code, reason, apptId: apptId || null });
+    const ex = BI.find(b), cl = BI.nm(b), sr = BI.svcRaw(b), emp = String(b.artist || '').trim();
+    const price = b.price != null && b.price > 0 ? +b.price : null;
+    const snap = () => ({ id: String(b.booking_id), status: b.status, service: sr, employee: emp, client: b.client_name || `${cl.first} ${cl.last}`.trim(), date: b.date, time: b.time, duration: b.duration_min, price: price == null ? 0 : price, addonsAmount: b.addons_amount || 0, importedAt: now, importedBy: who, via: 'agente' });
+
+    if (b.status === 'cancelled') {
+      if (!ex) return ok('skip', 'Cancelada en Booksy; no estaba en la agenda.');
+      if (BI.cobro(ex)) return rev('cobro', `Booksy la canceló, pero la cita ya tiene cobro (${ex.status}). No la toqué.`, ex.id);
+      if (ex.status !== 'Agendada') return ok('same', `Ya estaba ${String(ex.status).toLowerCase()}.`, ex.id);
+      await Store.saveAppointment({ status: 'Cancelada', depositId: '', booksy: { ...(ex.booksy || {}), status: 'cancelled', cancelledAt: now }, history: BI.hist(ex, 'Cancelada en Booksy', who) }, ex.id);
+      if (ex.depositId) await Store.saveDeposit({ appointmentId: '', _event: 'Se desvinculó de la cita (cancelada en Booksy)' }, ex.depositId);
+      return ok('cancel', '', ex.id);
+    }
+    if (b.status === 'no_show') {
+      if (!ex) return ok('skip', 'No-show en Booksy; no estaba en la agenda.');
+      if (BI.cobro(ex)) return rev('cobro', `Booksy la marcó no-show, pero la cita ya tiene cobro (${ex.status}). No la toqué.`, ex.id);
+      if (ex.status !== 'Agendada') return ok('same', `Ya estaba ${String(ex.status).toLowerCase()}.`, ex.id);
+      const d = apptDeposit(ex);
+      if (d && !d.outcome && d.status !== 'Rechazado') return rev('noshow-deposito', `No llegó y tiene depósito de ${money(d.amount, 1)}. Al registrar el no-show el depósito pasa a venta: hazlo desde la cita.`, ex.id);
+      await Store.saveAppointment({ status: 'No-show', booksy: { ...(ex.booksy || {}), status: 'no_show' }, history: BI.hist(ex, 'No-show según Booksy', who) }, ex.id);
+      return ok('noshow', '', ex.id);
+    }
+
+    // booked / rescheduled
+    if (ex && (BI.cobro(ex) || ex.status !== 'Agendada')) {
+      const ch = BI.diff(ex, b); if (ch.length) return rev('cobro', `Booksy cambió la cita (${ch.join('; ')}), pero ya está ${String(ex.status).toLowerCase()}${BI.cobro(ex) ? ' con cobro' : ''}. No la toqué.`, ex.id);
+      return ok('same', 'Sin cambios.', ex.id);
+    }
+    const ch = ex ? BI.diff(ex, b) : [], needCat = !ex || ch.some(c => /^lashista|^servicio/.test(c));
+    let svc = null, art = null;
+    if (needCat || !ex) {
+      svc = BI.svc(b, ov); art = BI.art(b, ov); const why = [];
+      if (svc.lvl !== 'auto') why.push(`el servicio «${sr || 'sin nombre'}» no coincide con el catálogo`); if (art.lvl !== 'auto') why.push(`la lashista «${emp || 'sin nombre'}» no coincide`);
+      if (why.length) return rev('catalogo', `En Booksy ${why.join(' y ')}. Elige cuál es y confirma.`, ex && ex.id);
+    }
+    const svcCat = svc && Store.config.services.find(s => s.id === svc.id), artCat = art && Store.config.artists.find(a => a.id === art.id);
+    if (needCat && (!svcCat || !artCat)) return rev('catalogo', 'Falta servicio o lashista en el catálogo.', ex && ex.id);
+    let apId = ex ? ex.id : null, kind = 'same';
+
+    if (ex) {
+      if (ch.length) {
+        const p = { booksy: snap(), history: BI.hist(ex, `Booksy cambió: ${ch.join('; ')}`, who) };
+        if (ch.some(c => /^fecha|^hora/.test(c))) { p.date = b.date; p.time = b.time; }
+        if (ch.some(c => /^lashista/.test(c))) { p.artistId = artCat.id; p.artistName = artCat.name; }
+        if (ch.some(c => /^servicio/.test(c))) { p.serviceId = svcCat.id; p.serviceName = svcCat.name; p.price = price == null ? num(svcCat.price) : price; }
+        if (ch.some(c => /^duración/.test(c))) p.duration = b.duration_min || null;
+        await Store.saveAppointment(p, ex.id); kind = 'update';
+      }
+    } else {
+      if (b.date < today && !ov.allowPast) {
+        if (Store.sales.some(s => s.day === Dates.fromISO(b.date) && BK.norm(s.first) === BK.norm(cl.first) && BK.norm(s.last || '').slice(0, 3) === BK.norm(cl.last || '').slice(0, 3))) return ok('skip', 'Día anterior, ya cobrada.');
+        return rev('pasada', 'Es de un día anterior y no estaba en la agenda. Si ya se atendió, cóbrala desde Cobros.');
+      }
+      const man = Store.appointments.find(a => !a.booksy && a.status !== 'Cancelada' && a.date === b.date && art && art.id && a.artistId === art.id && (a.time === b.time || BK.norm(a.first) === BK.norm(cl.first)));
+      if (man) { await Store.saveAppointment({ booksy: snap(), history: BI.hist(man, 'Ligada a Booksy (ya estaba capturada)', who) }, man.id); apId = man.id; kind = 'link'; }
+      else {
+        const c = await BI.client(b, cl, ov); if (c.review) return { status: 'review', code: 'clienta', reason: c.reason, apptId: null, ids: c.ids };
+        const note = [cl.changed || (cl.notes && cl.notes.length) ? `Booksy: "${cl.raw}"` : '', b.addons_amount ? `Booksy: complementos ${money(b.addons_amount, 1)} sin detalle (elige el complemento al cobrar)` : '', price == null ? 'Booksy no trae precio: se usó el del catálogo' : '', b.notes || ''].filter(Boolean).join(' · ');
+        const ph = CL.phone(b.phone), data = { date: b.date, time: b.time, first: cl.first, last: cl.last, phone: ph.ok ? ph.n : BK.phoneFor(cl.first, cl.last), email: CL.email(b.email) || '', artistId: artCat.id, artistName: artCat.name, serviceId: svcCat.id, serviceName: svcCat.name, price: price == null ? num(svcCat.price) : price, duration: b.duration_min || null, addons: [], notes: note, booksy: snap(), source: 'booksy', depositId: '', history: [{ at: now, by: who, what: 'Creada desde Booksy (agente)' }] };
+        apId = await Store.saveAppointment(data); kind = 'new';
+      }
+    }
+    const dp = await BI.deposit(b, apId, ov, who);
+    if (dp.review) return { status: 'review', code: dp.review.code, reason: dp.review.reason, apptId: apId };
+    return { status: 'applied', kind, apptId: apId, dep: !!(dp.made || dp.linked), tip: dp.tip || 0, note: '' };
+  },
+
+  /* ---------- sincronizar: aparta lo pendiente, lo aplica y deja cada reserva resuelta ---------- */
+  async sync(manual) {
+    const s = BI.st; if (s.running || !BI.ready()) return; s.running = true; s.flash = '';
+    const sum = { nuevas: 0, actualizadas: 0, ligadas: 0, canceladas: 0, noshow: 0, depositos: 0, revisar: 0, errores: 0, sin: 0 }; let tot = 0;
+    try {
+      for (let pass = 0; pass < 6; pass++) {
+        const r = await FM.sb.rpc('fm_bi_claim', { p_limit: 50 }); if (r.error) { s.err = r.error.message || 'No se pudo leer la bandeja'; break; } const items = r.data || []; if (!items.length) break;
+        for (const it of items) { tot++; await BI.one(it, sum); }
+        if (items.length < 50) break;
+      }
+    } catch (e) { s.err = String(e && e.message || e); }
+    s.running = false; s.ranAt = Date.now(); if (tot) s.sum = sum;
+    if (tot && (sum.nuevas || sum.actualizadas || sum.ligadas || sum.canceladas || sum.noshow || sum.depositos)) { try { await Audit.log({ action: 'IMPORT', entity: 'APPT', entityId: '', byName: Mode.who(), detail: `Citas de Booksy (agente): ${sum.nuevas} nuevas, ${sum.actualizadas} actualizadas, ${sum.ligadas} ya capturadas, ${sum.canceladas} canceladas, ${sum.noshow} no-show, ${sum.depositos} depósitos, ${sum.revisar} a revisar` }); } catch (e) { /* la bitácora nunca frena */ } }
+    await BI.loadReview(true);
+    if (manual) s.flash = tot ? `Se revisaron ${tot} reserva${tot === 1 ? '' : 's'} de Booksy.` : 'No hay reservas nuevas de Booksy.';
+    BI.paint();
+  },
+  async one(it, sum) {
+    try {
+      const res = await BI.process(it.payload, {}, BI.who());
+      const r = await FM.sb.rpc('fm_bi_resolve', { p_booking: it.booking_id, p_hash: it.hash, p_status: res.status, p_appt: res.apptId || null, p_code: res.code || null, p_reason: res.reason || null });
+      if (r.error) throw r.error;
+      if (res.status === 'review') sum.revisar++; else if (res.kind === 'new') sum.nuevas++; else if (res.kind === 'update') sum.actualizadas++; else if (res.kind === 'link') sum.ligadas++; else if (res.kind === 'cancel') sum.canceladas++; else if (res.kind === 'noshow') sum.noshow++; else sum.sin++;
+      if (res.dep) sum.depositos++;
+    } catch (e) {
+      sum.errores++; const msg = String(e && (e.message || e.code) || e).slice(0, 120);
+      try { await FM.sb.rpc('fm_bi_release', { p_booking: it.booking_id, p_hash: it.hash, p_reason: 'No se pudo aplicar: ' + msg }); } catch (e2) { /* se reintenta en el siguiente chequeo */ }
+    }
+  },
+  async loadReview(quiet) {
+    const s = BI.st; if (!BI.seeRole() || s.loading) return; s.loading = true; if (!quiet && !s.loaded) s.err = '';
+    try {
+      const { data, error } = await FM.sb.from('fm_booksy_inbox').select('booking_id,payload,payload_hash,status,review_code,review_reason,appointment_id,received_at').eq('status', 'review').order('received_at', { ascending: true }).limit(200);
+      if (error) throw error; s.rows = data || []; s.loaded = true; s.err = '';
+    } catch (e) { if (!s.loaded) s.err = String(e && e.message || e).slice(0, 200); }
+    s.loading = false; BI.paint();
+  },
+  paint() {
+    BI.pill(); try { UI.renderNav(); } catch (e) { /* la barra no debe romper */ }
+    if (UI.route === 'revisar' && !$('#overlay').innerHTML && !(document.activeElement && document.activeElement.matches && document.activeElement.matches('select,input'))) UI.render();
+  },
+  pill() {
+    let p = document.getElementById('bi-pill'); const n = BI.st.rows.length, show = BI.seeRole() && n > 0 && UI.route !== 'revisar';
+    if (!p) { if (!show) return; p = document.createElement('button'); p.id = 'bi-pill'; p.type = 'button'; p.className = 'bi-pill'; p.addEventListener('click', () => UI.go('revisar')); document.body.appendChild(p); }
+    p.hidden = !show; p.innerHTML = `${ic('bi')}<span>${n} cita${n === 1 ? '' : 's'} de Booksy por revisar</span>`;
+  },
+  start() {
+    if (BI.st.started || !BI.seeRole()) return; BI.st.started = true;
+    const t = setInterval(() => { if (BI.ready()) { clearInterval(t); setTimeout(() => BI.sync(false), 2500); } }, 1500);
+    BI.loadReview(true);
+    const back = () => { if (document.visibilityState === 'visible' && Date.now() - BI.st.ranAt > 60000) BI.sync(false); };
+    document.addEventListener('visibilitychange', back); window.addEventListener('focus', back);
+    setInterval(() => { if (document.visibilityState === 'visible') BI.sync(false); }, 300000);
+  },
+
+  /* ---------- acciones de la lista Revisar ---------- */
+  row(id) { return BI.st.rows.find(r => r.booking_id === id); },
+  ed(id) { const r = BI.row(id), s = BI.st.edit; if (!s[id]) { const b = r.payload, cl = BI.nm(b), sv = BI.svc(b, {}), ar = BI.art(b, {}), sim = BI.similar(b, cl); s[id] = { svc: sv.id || '', art: ar.id || '', mode: sim.length ? 'same' : 'new', cid: sim[0] ? sim[0].id : '' }; } return s[id]; },
+  async finish(r, res, okMsg) {
+    const x = await FM.sb.rpc('fm_bi_resolve', { p_booking: r.booking_id, p_hash: r.payload_hash, p_status: res.status, p_appt: res.apptId || null, p_code: res.code || null, p_reason: res.reason || null });
+    if (x.error) throw x.error; UI.toast(x.data && x.data.stale ? 'Booksy mandó un cambio mientras tanto: se revisará de nuevo.' : (res.status === 'review' ? 'Todavía hay algo por revisar en esta cita.' : okMsg)); BI.st.edit[r.booking_id] = null; await BI.loadReview(true);
+  },
+  async confirm(id, ovExtra) {
+    const r = BI.row(id); if (!r || BI.st.busy.has(id)) return; BI.st.busy.add(id); BI.paint();
+    try { const e = BI.ed(id), ov = { ...(r.review_code === 'catalogo' ? { svcId: e.svc, artId: e.art } : {}), ...(r.review_code === 'clienta' ? { clientMode: e.mode, clientId: e.mode === 'same' ? e.cid : '' } : {}), ...(ovExtra || {}) };
+      if (r.review_code === 'catalogo' && (!e.svc || !e.art)) throw new Error('Elige el servicio y la lashista.');
+      if (r.review_code === 'clienta' && e.mode === 'same' && !e.cid) throw new Error('Elige la ficha.');
+      const res = await BI.process(r.payload, ov, Mode.who()); await BI.finish(r, res, 'Listo: cita aplicada');
+    } catch (er) { UI.toast(String(er && er.message || 'No se pudo aplicar'), true); }
+    BI.st.busy.delete(id); BI.paint();
+  },
+  async dismiss(id, msg) {
+    const r = BI.row(id); if (!r) return; if (msg && !await UI.confirm('Descartar', msg, 'Descartar')) return;
+    BI.st.busy.add(id); BI.paint();
+    try { await BI.finish(r, { status: 'dismissed' }, 'Listo'); } catch (er) { UI.toast('No se pudo guardar', true); }
+    BI.st.busy.delete(id); BI.paint();
+  },
+  async retry(id) { BI.st.busy.add(id); BI.paint(); try { const x = await FM.sb.rpc('fm_bi_requeue', { p_booking: id }); if (x.error) throw x.error; await BI.loadReview(true); await BI.sync(false); } catch (er) { UI.toast('No se pudo reintentar', true); } BI.st.busy.delete(id); BI.paint(); },
+};
+
+const BI_WHY = { cobro: 'Ya tiene cobro', 'noshow-deposito': 'No-show con depósito', catalogo: 'No coincide con el catálogo', clienta: 'Clienta parecida', deposito: 'Depósito menor a $40', pasada: 'Día anterior', error: 'No se pudo aplicar' };
+Views.revisar = {
+  html() {
+    const s = BI.st, head = sub => `<div class="head"><div><h1>Citas por revisar</h1><p>${sub}</p></div><div class="actions"><button class="btn" data-bi-sync ${s.running ? 'disabled' : ''}>${s.running ? 'Revisando…' : 'Buscar reservas nuevas'}</button></div></div>`;
+    if (!BI.seeRole()) return head('Reservas de Booksy que necesitan una decisión.') + `<div class="banner">Tu usuario no tiene permiso para ver esta sección.</div>`;
+    if (!s.loaded && s.loading) return head('Reservas de Booksy que necesitan una decisión.') + `<div class="loading">Cargando…</div>`;
+    if (s.err && !s.loaded) return head('Reservas de Booksy que necesitan una decisión.') + `<div class="rm"><div class="rm-state err"><b>No se pudo leer la bandeja</b><p>${esc(s.err)}</p><button class="btn primary" data-bi-reload>Reintentar</button></div></div>`;
+    const flash = s.flash ? `<div class="banner" style="border-color:var(--ok)">${esc(s.flash)}</div>` : '', sum = s.sum ? `<div class="banner" style="border-color:var(--ok)">Última revisión: ${[s.sum.nuevas && `${s.sum.nuevas} nueva${s.sum.nuevas === 1 ? '' : 's'}`, s.sum.actualizadas && `${s.sum.actualizadas} actualizada${s.sum.actualizadas === 1 ? '' : 's'}`, s.sum.ligadas && `${s.sum.ligadas} ya capturada${s.sum.ligadas === 1 ? '' : 's'}`, s.sum.canceladas && `${s.sum.canceladas} cancelada${s.sum.canceladas === 1 ? '' : 's'}`, s.sum.noshow && `${s.sum.noshow} no-show`, s.sum.depositos && `${s.sum.depositos} depósito${s.sum.depositos === 1 ? '' : 's'}`, s.sum.revisar && `${s.sum.revisar} por revisar`, s.sum.errores && `${s.sum.errores} con error (se reintenta)`].filter(Boolean).join(' · ') || 'sin cambios'}.</div>` : '';
+    if (!s.rows.length) return head('Reservas de Booksy que necesitan una decisión.') + flash + sum + `<div class="rm"><div class="rm-state"><b>Nada por revisar</b><p>Las reservas que llegan de Booksy se aplican solas. Si algo no coincide con el catálogo, si hay una clienta parecida o si una cita ya tiene cobro, aparece aquí.</p></div></div>`;
+    return head(`${s.rows.length} cita${s.rows.length === 1 ? '' : 's'} de Booksy esperan una decisión. Lo demás ya se aplicó solo.`) + flash + sum + `<div class="bi-list">${s.rows.map(r => BI.card(r)).join('')}</div>`;
+  },
+  mount() { BI.start(); if (BI.seeRole() && !BI.st.loaded && !BI.st.loading && !BI.st.err) BI.loadReview(false); },
+};
+BI.card = function (r) {
+  const b = r.payload || {}, cl = BI.nm(b), name = CL.name({ first: cl.first, last: cl.last }), busy = BI.st.busy.has(r.booking_id), code = r.review_code || 'error', e = BI.ed(r.booking_id), ex = BI.find(b);
+  const dis = busy ? 'disabled' : '', stat = { booked: 'Reserva', rescheduled: 'Reagendada', cancelled: 'Cancelada', no_show: 'No-show' }[b.status] || b.status;
+  const sel = (arr, cur, k) => `<select data-bi-sel="${k}|${esc(r.booking_id)}" ${dis}><option value="">Elige…</option>${arr.map(x => `<option value="${esc(x.id)}" ${x.id === cur ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`;
+  let body = '', acts = '';
+  if (code === 'catalogo') {
+    body = `<div class="formgrid"><label class="field">Servicio en la app${sel(Store.config.services.filter(x => x.active !== false), e.svc, 'svc')}</label><label class="field">Lashista${sel(Store.config.artists.filter(x => x.active !== false), e.art, 'art')}</label></div>`;
+    acts = `<button class="btn primary" data-bi-ok="${esc(r.booking_id)}" ${dis}>Confirmar y aplicar</button>`;
+  } else if (code === 'clienta') {
+    const sim = BI.similar(b, cl);
+    body = `<div class="bi-radios">${sim.slice(0, 5).map(c => `<label class="bi-rad"><input type="radio" name="bm-${esc(r.booking_id)}" data-bi-mode="same|${esc(r.booking_id)}|${esc(c.id)}" ${e.mode === 'same' && e.cid === c.id ? 'checked' : ''} ${dis}> Es la misma: <b>${esc(CL.name(c))}</b>${(c.phones || [])[0] ? ' · ' + esc(CL.show(c.phones[0].n)) : ' · sin teléfono'} <span class="mutedc">(se le agrega este teléfono)</span></label>`).join('')}<label class="bi-rad"><input type="radio" name="bm-${esc(r.booking_id)}" data-bi-mode="new|${esc(r.booking_id)}|" ${e.mode === 'new' ? 'checked' : ''} ${dis}> Es otra persona (crear ficha nueva)</label></div>`;
+    acts = `<button class="btn primary" data-bi-ok="${esc(r.booking_id)}" ${dis}>Confirmar y aplicar</button>`;
+  } else if (code === 'deposito') {
+    acts = `<button class="btn primary" data-bi-ok="${esc(r.booking_id)}" data-bi-dep="1" ${dis}>Registrar depósito de ${money(BI.STD, 1)}</button>`;
+  } else if (code === 'pasada') {
+    acts = `<button class="btn primary" data-bi-ok="${esc(r.booking_id)}" data-bi-past="1" ${dis}>Crear la cita de todos modos</button>`;
+  } else if (code === 'error') {
+    acts = `<button class="btn primary" data-bi-retry="${esc(r.booking_id)}" ${dis}>Reintentar</button>`;
+  } else if (ex) {
+    acts = `<button class="btn primary" data-bi-open="${esc(ex.id)}" ${dis}>Abrir la cita</button>`;
+  }
+  const dep = b.deposit && b.deposit.paid ? `Depósito pagado${b.deposit.paid_amount != null ? ' ' + money(b.deposit.paid_amount, 1) : ''}` : 'Sin depósito pagado';
+  return `<div class="bi-card ${busy ? 'busy' : ''}" data-bi-card="${esc(r.booking_id)}"><div class="bi-top"><b class="bi-name">${esc(name || 'Sin nombre')}</b><span class="bi-tag">${esc(BI_WHY[code] || 'Revisar')}</span></div>
+    <div class="bi-meta">${esc(BI.dlab(b.date))} · ${esc(BI.t12(b.time))} · ${esc(stat)}${b.phone ? ' · ' + esc(CL.show(b.phone)) : ''}</div>
+    <div class="bi-meta">Booksy: ${esc(BI.svcRaw(b) || 'sin servicio')}${b.technique && b.service ? ' · ' + esc(b.technique) : ''} · ${esc(b.artist || 'sin lashista')}${b.price != null ? ' · ' + money(b.price, 1) : ''} · ${esc(dep)}</div>
+    <p class="bi-why">${esc(r.review_reason || '')}</p>${body}
+    <div class="bi-acts">${acts}<button class="btn" data-bi-no="${esc(r.booking_id)}" ${dis}>${code === 'cobro' || code === 'noshow-deposito' ? 'Ya lo resolví' : 'Descartar'}</button></div></div>`;
+};
+
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('[data-bi-sync],[data-bi-reload],[data-bi-ok],[data-bi-no],[data-bi-retry],[data-bi-open]'); if (!t || UI.route !== 'revisar') return;
+  if (t.matches('[data-bi-sync]')) BI.sync(true); else if (t.matches('[data-bi-reload]')) { BI.st.err = ''; BI.loadReview(false); }
+  else if (t.matches('[data-bi-ok]')) BI.confirm(t.dataset.biOk, { ...(t.dataset.biDep ? { depositOk: true } : {}), ...(t.dataset.biPast ? { allowPast: true } : {}) });
+  else if (t.matches('[data-bi-no]')) { const r = BI.row(t.dataset.biNo); BI.dismiss(t.dataset.biNo, r && ['cobro', 'noshow-deposito'].includes(r.review_code) ? null : 'Esta reserva de Booksy no se aplicará en la agenda.'); }
+  else if (t.matches('[data-bi-retry]')) BI.retry(t.dataset.biRetry);
+  else if (t.matches('[data-bi-open]')) { const a = Store.appointments.find(x => x.id === t.dataset.biOpen); if (a) apptDetail(a); else UI.toast('No encontré la cita', true); }
+});
+document.addEventListener('change', e => {
+  if (UI.route !== 'revisar') return; const t = e.target;
+  if (t.matches && t.matches('[data-bi-sel]')) { const [k, id] = t.dataset.biSel.split('|'); const ed = BI.ed(id); ed[k] = t.value; }
+  else if (t.matches && t.matches('[data-bi-mode]')) { const [m, id, cid] = t.dataset.biMode.split('|'); const ed = BI.ed(id); ed.mode = m; ed.cid = cid; }
+});
+
+/* ---------- propina de Booksy: se SUGIERE al cobrar y se muestra junto al depósito (nunca se suma sola a la venta) ---------- */
+{ const C0 = chargeAppt; chargeAppt = function (a) { C0.apply(this, arguments);
+    try { const d = apptDeposit(a), tip = d ? num(d.booksyTip) : 0, nv = Views.nueva; if (tip > 0 && nv.form && nv.form._appt === a.id && !num(nv.form.tip)) { nv.form.tip = tip; nv.form._bkTip = tip; UI.render(); } } catch (e) { /* el cobro sigue normal */ } }; }
+{ const H0 = Views.nueva.html; Views.nueva.html = function () { const h = H0.apply(this, arguments); return this.form && this.form._bkTip && /<div class="sale-layout">/.test(h) ? h.replace('<div class="sale-layout">', `<div class="banner">Propina sugerida de <b>${money(this.form._bkTip, 1)}</b>: la clienta la dejó al pagar el depósito en Booksy. Confírmala o cámbiala en Tip antes de guardar.</div><div class="sale-layout">`) : h; }; }
+{ const D0 = depCell; depCell = function (a) { let h = D0.apply(this, arguments); try { const d = apptDeposit(a); if (d && num(d.booksyTip) > 0) h += `<br><span class="mutedc" style="font-size:12px">+ ${money(d.booksyTip, 1)} de propina (Booksy)</span>`; } catch (e) { /* solo adorno */ } return h; }; }
+{ const A0 = apptDetail; apptDetail = function (a) { A0.apply(this, arguments);
+    try { const d = apptDeposit(a); if (d && num(d.booksyTip) > 0) { const dt = [...$$('#overlay .modal dt')].find(x => x.textContent.trim() === 'Depósito'); if (dt && dt.nextElementSibling) dt.nextElementSibling.insertAdjacentHTML('beforeend', ` <span style="font-weight:400;font-size:12.5px;color:var(--muted)">· propina de Booksy ${esc(money(d.booksyTip, 1))} (sugerida al cobrar)</span>`); } } catch (e) { /* solo adorno */ } }; }
+
+/* ---------- menú y rutas ---------- */
+{ const i = NAV.findIndex(n => n.id === 'mensajes'), j = i >= 0 ? i : NAV.findIndex(n => n.id === 'dia'); NAV.splice(j + 1, 0, { id: 'revisar', label: 'Citas por revisar', icon: 'bi' }); }
+if (!RECEP_ROUTES.includes('revisar')) RECEP_ROUTES.push('revisar');
+if (typeof RECEP_MENU !== 'undefined' && !RECEP_MENU.some(x => x[0] === 'revisar')) { const k = RECEP_MENU.findIndex(x => x[0] === 'mensajes'), k2 = k >= 0 ? k : RECEP_MENU.findIndex(x => x[0] === 'dia'); RECEP_MENU.splice(Math.max(0, k2) + 1, 0, ['revisar', 'Citas por revisar', 'bi']); }
+{ const add = arr => { const g = (arr || []).find(x => x.id === 'jornada'); if (g && !g.ids.includes('revisar')) { const k = g.ids.indexOf('mensajes'); g.ids.splice((k >= 0 ? k : Math.max(0, g.ids.indexOf('dia'))) + 1, 0, 'revisar'); } }; try { add(SB.ADMIN); add(SB.RECEP); } catch (e) { /* la barra queda como estaba */ } }
+try { if (typeof UI2 !== 'undefined') { UI2.NAVIC.revisar = ICON.bi; ['admin', 'recep'].forEach(k => { const g = (UI2.GROUPS[k] || []).find(x => x[1].includes('dia')); if (g && !g[1].includes('revisar')) { const m = g[1].indexOf('mensajes'); g[1].splice((m >= 0 ? m : g[1].indexOf('dia')) + 1, 0, 'revisar'); } }); } } catch (e) { /* solo migas de pan */ }
+{ const T0 = SB.transform; SB.transform = function () {
+    if (Mode.reception && BI.seeRole() && !$('#side .nav [data-go=revisar]')) { const c = $('#side .nav [data-go=mensajes]') || $('#side .nav [data-go=dia]'); if (c) c.insertAdjacentHTML('afterend', `<a class="${UI.route === 'revisar' ? 'on' : ''}" data-go="revisar">${ic('bi')}Citas por revisar</a>`); }
+    return T0.apply(this, arguments); }; }
+{ const R = UI.renderNav; UI.renderNav = function () {
+    const r = R.apply(this, arguments);
+    try {
+      if (Mode.accountant) return r;
+      if (!BI.seeRole()) { $$('#side [data-go=revisar]').forEach(x => x.remove()); return r; }
+      BI.start(); const n = BI.st.rows.length;
+      $$('#side [data-go=revisar]').forEach(a => { $$('.soon', a).forEach(x => x.remove()); if (n) a.insertAdjacentHTML('beforeend', `<span class="soon">${n}</span>`); });
+      BI.pill();
+    } catch (e) { /* nunca debe romper la barra */ }
+    return r; }; }
+{ const G0 = UI.go; if (typeof G0 === 'function') UI.go = function () { const r = G0.apply(this, arguments); try { BI.pill(); } catch (e) { /* adorno */ } return r; }; }
+(function () {
+  if (document.getElementById('bi-css')) return;
+  const st = document.createElement('style'); st.id = 'bi-css';
+  st.textContent = `
+.bi-pill svg,.bi-card svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.bi-pill{position:fixed;right:18px;bottom:20px;z-index:60;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--warn);background:var(--bg);color:var(--warn);border-radius:999px;padding:10px 16px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(46,27,32,.22)}
+.bi-pill[hidden]{display:none}
+.bi-pill:hover{border-color:var(--bad);color:var(--bad)}
+.bi-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start;margin-top:12px}
+.bi-card{border:1px solid var(--line);border-left:4px solid var(--warn);background:var(--bg);border-radius:16px;padding:14px 16px;min-width:0;box-shadow:var(--shadow)}
+.bi-card.busy{opacity:.6}
+.bi-top{display:flex;gap:10px;justify-content:space-between;align-items:flex-start}
+.bi-name{font-size:16px;overflow-wrap:anywhere}
+.bi-tag{font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 10px;border:1px solid var(--warn);color:var(--warn);white-space:nowrap}
+.bi-meta{font-size:13px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.bi-why{margin:10px 0;font-size:14px;overflow-wrap:anywhere}
+.bi-radios{display:flex;flex-direction:column;gap:8px;margin:6px 0 10px}
+.bi-rad{display:flex;gap:8px;align-items:flex-start;font-size:14px;cursor:pointer;min-height:36px}
+.bi-rad input{width:20px;height:20px;accent-color:var(--pink-deep);flex:none;margin-top:1px}
+.bi-card .formgrid{margin:6px 0 10px}
+.bi-card select{font-size:16px}
+.bi-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.bi-acts .btn{min-height:42px}
+@media (max-width:900px){.bi-list{grid-template-columns:1fr}.bi-pill{right:12px;left:12px;justify-content:center;bottom:calc(92px + env(safe-area-inset-bottom,0px))}}
+`;
+  document.head.appendChild(st);
+})();
+/* @@BI-END */
 
 
 
