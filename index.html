@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-18 20:00';
+window.FM_VERSION = '2026-11-19 10:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -9472,6 +9472,11 @@ Views.cacc = {
    ========================================================= */
 const BK = {
   STD: 40,
+  /* Booksy no trae teléfono en "Lista de reservas": si la clienta ya está en el directorio (una sola ficha con ese nombre), se usa su teléfono */
+  phoneFor(first, last) {
+    try { const k = CL.key(first, last); if (!k || CL.fake(k)) return '';
+      const cs = (CL.idx().ky.get(k) || []).filter(c => c.status !== 'merged' && c.status !== 'archived'), ps = [...new Set(cs.flatMap(c => (c.phones || []).map(p => p.n)).filter(Boolean))];
+      return cs.length === 1 && ps.length ? ps[0] : ''; } catch (e) { return ''; } },
   st: { res: null, pre: null, files: [], incPast: false, basis: 'std', pick: {}, sel: {}, busy: false, done: null, m: null },
   norm(s) { return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\(\s*\+\s*complement\w*\s*\)/g, ' ').replace(/\brefil\b/g, 'refill').replace(/volumen/g, 'volume').replace(/minutes?/g, 'min').replace(/weeks/g, 'week').replace(/\bhena\b/g, 'henna').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim(); },
   toks(s) { return BK.norm(s).split(' ').filter(Boolean); },
@@ -9621,7 +9626,7 @@ const BK = {
         if (o.action === 'cancel') { await Store.saveAppointment({ status: 'Cancelada', depositId: '', booksy: { ...(o.ex.booksy || {}), status: o.status, cancelledAt: now } }, o.ex.id); if (o.ex.depositId) await Store.saveDeposit({ appointmentId: '', _event: 'Se desvinculó de la cita (cancelada en Booksy)' }, o.ex.depositId); res.canceladas++; continue; }
         const svc = Store.config.services.find(s => s.id === o.svc.id), art = Store.config.artists.find(a => a.id === o.art.id); if (!svc || !art) throw new Error('Falta servicio o lashista');
         const note = [o.cl.changed || o.cl.notes.length ? `Booksy: "${o.cl.raw}"` : '', o.compl ? `Booksy: complementos ${money(o.compl, 1)} sin detalle (elige el complemento al cobrar)` : '', o.fromCat ? 'Booksy no trae precio: se usó el del catálogo' : ''].filter(Boolean).join(' · ');
-        const data = { date: o.date, time: o.time, first: o.cl.first, last: o.cl.last, phone: '', email: '', artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: o.price, duration: o.dur || null, addons: [], notes: note, booksy: snap(o), source: 'booksy' };
+        const data = { date: o.date, time: o.time, first: o.cl.first, last: o.cl.last, phone: BK.phoneFor(o.cl.first, o.cl.last), email: '', artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: o.price, duration: o.dur || null, addons: [], notes: note, booksy: snap(o), source: 'booksy' };
         if (o.action === 'update') { const ch = { booksy: snap(o) }; if (o.changes.some(c => /^fecha|^hora/.test(c))) { ch.date = o.date; ch.time = o.time; } if (o.changes.some(c => /^lashista/.test(c))) { ch.artistId = art.id; ch.artistName = art.name; } if (o.changes.some(c => /^servicio/.test(c))) { ch.serviceId = svc.id; ch.serviceName = svc.name; ch.price = o.price; } if (o.changes.some(c => /^duración/.test(c))) ch.duration = o.dur || null;
           await Store.saveAppointment(ch, o.ex.id); res.actualizadas++; continue; }
         if (o.action === 'link') { const ch = { booksy: snap(o) }; await Store.saveAppointment(ch, o.ex.id); res.ligadas++; continue; }
@@ -13575,6 +13580,448 @@ const UX = {
 };
 { const R = UI.render; UI.render = function () { const r = R.apply(this, arguments); try { UX.init(); UX.pass(); } catch (e) { /* nunca debe romper una pantalla */ } return r; }; }
 /* @@UX-END */
+
+/* @@RM-BEGIN */
+/* =========================================================
+   MENSAJES A CLIENTAS · Recepción
+   · Muestra los textos del día que ya redactó el asistente de la agenda (recordatorio 24 h, llegada «hoy» y 2 h antes).
+     La app NO redacta ni reescribe plantillas y NUNCA envía nada sola: cada «Enviar» abre la app Mensajes del iPhone con el número y el texto listos.
+   · Solo admin y recepcion (la base de datos lo exige con RLS; la pantalla solo refleja ese permiso). Son nombres y teléfonos: sin páginas públicas.
+   · Lee de fm_reception_batches / fm_reception_messages. «Enviado» y las ediciones se guardan con fm_rm_set_sent y fm_rm_set_text (nunca directo en las tablas),
+     así se ven igual en otro dispositivo. Los lotes los carga solo el servidor (/api/reception-messages con llave de solo escritura).
+   · Antes de abrir Mensajes, lo marcado como enviado queda en una cola local y se sube en cuanto hay conexión (Safari puede pausar la página al cambiar de app).
+   · Este módulo se llama «Mensajes a clientas» para no confundirlo con el chat interno Recepción ↔ Administración.
+   ========================================================= */
+Object.assign(ICON, {
+  rmsg: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.500l1.200-4.100A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14.500h4"/>',
+  rsend: '<path d="M21 3L10 14"/><path d="M21 3l-6.500 18-3.500-7.500L3.500 10z"/>',
+  rcopy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/>',
+  rstar: '<path d="M12 3.500l2.600 5.400 5.900.8-4.300 4.100 1 5.900L12 16.900 6.800 19.700l1-5.900L3.500 9.700l5.900-.8z"/>',
+  rsearch: '<circle cx="11" cy="11" r="6.500"/><path d="M16 16l4.500 4.500"/>',
+  rcheck: '<path d="M5 12.500l4.500 4.500L19 7.500"/>',
+  rwarn: '<path d="M12 4l9 16H3z"/><path d="M12 10v4.500M12 17.500v.01"/>',
+  rdollar: '<path d="M12 3v18M16.500 7.500c0-1.700-2-2.800-4.500-2.800s-4.500 1.100-4.500 2.800 1.800 2.500 4.500 3 4.500 1.300 4.500 3.200-2 3.100-4.500 3.100-4.500-1.200-4.500-3"/>',
+  rclock: '<circle cx="12" cy="12" r="8.500"/><path d="M12 7.500V12l3 2"/>',
+  rplay: '<path d="M7 5l12 7-12 7z"/>',
+  rdots: '<circle cx="12" cy="5.500" r="1.300"/><circle cx="12" cy="12" r="1.300"/><circle cx="12" cy="18.500" r="1.300"/>',
+  redit: '<path d="M4 20h4L19 9a2.100 2.100 0 0 0-3-3L5 17z"/>',
+});
+
+const RM = {
+  TZ: 'America/New_York', QK: 'fm-rm-queue', SK: 'fm-rm-sel|',
+  KINDS: ['24h', 'hoy', '2h'], KLAB: { '24h': '24 h antes', hoy: 'Hoy', '2h': '2 h antes' },
+  st: { loaded: false, loading: false, err: '', batches: [], date: '', kind: '', msgs: [], batchId: null, filter: 'all', q: '', sel: new Set(), open: new Set(), gen: '' },
+  pendingText: new Map(), timers: new Map(), flushing: false, started: false,
+  role() { return FM && FM.member && FM.member.role; },
+  allowed() { return !!(FM && FM.sb && FM.member && ['admin', 'recepcion'].includes(RM.role())); },
+  /* ---------- fechas y formato ---------- */
+  today() { return Dates.toISO(Dates.today()); },
+  addDays(iso, n) { return new Date(Date.parse(iso + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10); },
+  when(iso) { try { return new Intl.DateTimeFormat('es', { timeZone: RM.TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(iso)); } catch (e) { return ''; } },
+  phoneFmt(p) { const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(p || ''); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : (p || ''); },
+  split(t) { const m = /^(\d{1,2}:\d{2})\s*([AP]M)$/i.exec(String(t || '').trim()); return m ? [m[1], m[2].toUpperCase()] : [t || '', '']; },
+  first(m) { return m.first_name || String(m.client_name || '').split(' ')[0] || ''; },
+  eff(m) { return m.text_override != null ? m.text_override : m.text; },
+  link(phone, text) { return 'sms:' + phone + '?&body=' + encodeURIComponent(text); },
+  friendly(msg) {
+    msg = String(msg || '');
+    if (/relation .*does not exist|schema cache|Could not find the table|Could not find the function/i.test(msg)) return 'Falta correr el archivo actualizacion-mensajes-clientas.sql en Supabase.';
+    if (/row-level security|permission denied|No tienes acceso/i.test(msg)) return 'Tu usuario no tiene permiso para ver los mensajes a clientas.';
+    if (/ya no existe/i.test(msg)) return 'Ese mensaje ya no existe. Actualiza la pantalla.';
+    if (/Failed to fetch|NetworkError|Load failed|network/i.test(msg)) return 'Sin conexión. Revisa el internet e inténtalo de nuevo.';
+    return msg;
+  },
+  /* ---------- datos ---------- */
+  batch() { const s = RM.st; return s.batches.find(b => b.date === s.date && b.kind === s.kind) || null; },
+  kindsFor(d) { return RM.KINDS.filter(k => RM.st.batches.some(b => b.date === d && b.kind === k)); },
+  pick() {
+    const s = RM.st, today = RM.today(), dates = [...new Set(s.batches.map(b => b.date))].sort();
+    if (!dates.length) { s.date = ''; s.kind = ''; return; }
+    if (!(s.date && dates.includes(s.date))) {
+      const fut = dates.find(d => d > today), evening = new Date().getHours() >= 17;
+      s.date = evening && fut ? fut : dates.includes(today) ? today : (fut || dates[dates.length - 1]);
+    }
+    const ks = RM.kindsFor(s.date);
+    if (!ks.includes(s.kind)) s.kind = s.date === today ? (ks.includes('hoy') ? 'hoy' : ks[0]) : (ks.includes('24h') ? '24h' : ks[0]);
+  },
+  async fetchBatches() {
+    const r = await FM.sb.from('fm_reception_batches').select('id,date,kind,label,generated_at').gte('date', RM.addDays(RM.today(), -31)).order('date', { ascending: true });
+    if (r.error) throw new Error(RM.friendly(r.error.message));
+    RM.st.batches = r.data || []; RM.pick();
+  },
+  async fetchMsgs() {
+    const s = RM.st, b = RM.batch();
+    if (!b) { s.msgs = []; s.batchId = null; s.sel = new Set(); return; }
+    const r = await FM.sb.from('fm_reception_messages').select('*').eq('batch_id', b.id).order('sort_order', { ascending: true });
+    if (r.error) throw new Error(RM.friendly(r.error.message));
+    const ch = s.batchId !== b.id; s.batchId = b.id; s.msgs = r.data || [];
+    RM.overlay();
+    if (ch) { s.sel = RM.loadSel(); s.open = new Set(); }
+  },
+  /* lo que todavía no llegó al servidor (cola de «enviado» y textos por guardar) se encima a lo recién leído */
+  overlay() {
+    const s = RM.st;
+    for (const it of RM.qget()) if (it.b === s.batchId) for (const m of s.msgs) if (it.ids.includes(m.id)) { m.sent_at = it.s ? new Date(it.t).toISOString() : null; m.sent_by_name = it.s ? (it.n || '') : null; }
+    for (const [id, t] of RM.pendingText) { const m = s.msgs.find(x => x.id === id); if (m) m.text_override = t === m.text ? null : t; }
+  },
+  async load(quiet) {
+    const s = RM.st; if (s.loading || !RM.allowed()) return; s.loading = true; if (!quiet && !s.loaded) s.err = '';
+    if (!quiet) RM.paint();
+    try { await RM.fetchBatches(); await RM.fetchMsgs(); s.loaded = true; s.err = ''; }
+    catch (e) { if (!quiet || !s.loaded) s.err = RM.friendly(e.message); }
+    finally { s.loading = false; RM.paint(); RM.flush(); }
+  },
+  async changeBatch() { const s = RM.st; s.filter = 'all'; s.q = ''; s.loading = true; RM.paint(); try { await RM.fetchMsgs(); s.err = ''; } catch (e) { s.err = RM.friendly(e.message); } finally { s.loading = false; RM.paint(); } },
+  /* recarga silenciosa (otro dispositivo marcó algo, volvimos desde la app Mensajes…) sin pisar lo que se está escribiendo */
+  soft() { clearTimeout(RM._st); RM._st = setTimeout(() => { if (RM.pendingText.size || RM.qget().length || RM.flushing) return; RM.load(true); }, 400); },
+  /* ---------- selección (se recuerda en este equipo por lote) ---------- */
+  loadSel() { try { const a = JSON.parse(localStorage.getItem(RM.SK + RM.st.batchId) || '[]'); return new Set(a.filter(id => RM.st.msgs.some(m => m.id === id))); } catch (e) { return new Set(); } },
+  saveSel() { try { localStorage.setItem(RM.SK + RM.st.batchId, JSON.stringify([...RM.st.sel])); } catch (e) { /* sin almacenamiento */ } },
+  /* ---------- cola de «enviado» ---------- */
+  qget() { try { const a = JSON.parse(localStorage.getItem(RM.QK) || '[]'); return Array.isArray(a) ? a.filter(x => Date.now() - x.t < 864e5) : []; } catch (e) { return RM._q || []; } },
+  qset(a) { RM._q = a; try { localStorage.setItem(RM.QK, JSON.stringify(a.slice(-200))); } catch (e) { /* sin almacenamiento */ } },
+  async flush() {
+    if (RM.flushing || !RM.allowed()) return; RM.flushing = true; let touched = false;
+    try {
+      for (;;) {
+        const it = RM.qget()[0]; if (!it) break;
+        let r; try { r = await FM.sb.rpc('fm_rm_set_sent', { p_batch: it.b, p_ids: it.ids, p_sent: it.s }); } catch (e) { r = { error: { message: String(e && e.message || e) } }; }
+        if (r.error && !r.error.code) break;                    // sin conexión: se queda en la cola y se reintenta
+        RM.qset(RM.qget().filter(x => x.t !== it.t || x.b !== it.b)); touched = true;
+        if (r.error) UI.toast('No se pudo guardar «enviado»: ' + RM.friendly(r.error.message), true);
+      }
+    } finally { RM.flushing = false; }
+    if (touched && !RM.qget().length) RM.soft();
+  },
+  mark(ids, v) {
+    const s = RM.st, t = Date.now(), n = (FM.member && FM.member.name) || '';
+    ids = ids.filter(id => { const m = s.msgs.find(x => x.id === id); return m && (!!m.sent_at) !== v; }); if (!ids.length) return;
+    for (const id of ids) { const m = s.msgs.find(x => x.id === id); m.sent_at = v ? new Date(t).toISOString() : null; m.sent_by_name = v ? n : null; }
+    RM.qset([...RM.qget(), { b: s.batchId, ids, s: v, t, n }]); RM.paint(); RM.flush();
+  },
+  /* ---------- texto editable ---------- */
+  setText(id, text) {
+    const m = RM.st.msgs.find(x => x.id === id); if (!m) return;
+    m.text_override = text === m.text ? null : text; RM.pendingText.set(id, text);
+    clearTimeout(RM.timers.get(id)); RM.timers.set(id, setTimeout(() => RM.saveText(id, false), 700));
+  },
+  async saveText(id, final) {
+    clearTimeout(RM.timers.get(id)); RM.timers.delete(id);
+    if (!RM.pendingText.has(id)) return; const text = RM.pendingText.get(id), m = RM.st.msgs.find(x => x.id === id);
+    if (!m) { RM.pendingText.delete(id); return; }
+    const blank = !String(text).trim();
+    if (blank && !final) return;                 // mientras escribe no se salta al texto original: solo al salir del cuadro
+    let r; try { r = await FM.sb.rpc('fm_rm_set_text', { p_batch: RM.st.batchId, p_id: id, p_text: blank ? null : (text === m.text ? null : text) }); } catch (e) { r = { error: { message: String(e && e.message || e) } }; }
+    if (r.error) { UI.toast('No se guardó el cambio del texto: ' + RM.friendly(r.error.message), true); return; }   // queda en pantalla; se reintenta al editar otra vez
+    if (RM.pendingText.get(id) === text) RM.pendingText.delete(id);
+    if (blank) { m.text_override = null; RM.paint(); }
+  },
+  
+  /* ---------- cálculos ---------- */
+  isFollow(m) { return RM.st.kind === '24h' ? m.type === 'deposit' : (m.type !== 'special' && m.type !== 'deposit' && m.deposit_status === 'missing'); },
+  has(m) { return !!m.phone; },
+  matches(m, f) { if (f === 'pend') return RM.has(m) && !m.sent_at; if (f === 'sent') return !!m.sent_at; if (f === 'follow') return RM.isFollow(m); if (f === 'nophone') return !RM.has(m); return true; },
+  visible() { const s = RM.st, q = s.q.trim().toLowerCase(); return s.msgs.filter(m => RM.matches(m, s.filter) && (!q || [m.client_name, m.title, m.service, m.artist].join(' ').toLowerCase().includes(q))); },
+  stats() {
+    const M = RM.st.msgs, withPh = M.filter(RM.has);
+    return { citas: M.filter(m => m.type === 'reminder').length, pend: withPh.filter(m => !m.sent_at).length, sent: withPh.filter(m => m.sent_at).length, follow: M.filter(RM.isFollow).length, nophone: M.filter(m => !RM.has(m)).length, total: withPh.length };
+  },
+  pendingList() { return RM.st.msgs.filter(m => RM.has(m) && !m.sent_at); },
+  startSet() { return RM.pendingList().filter(m => m.type !== 'deposit'); },
+  selLeft() { return RM.st.msgs.filter(m => RM.st.sel.has(m.id) && RM.has(m) && !m.sent_at); },
+  cta() {
+    const s = RM.st, pend = RM.pendingList(), left = RM.selLeft(), any = s.msgs.some(m => m.sent_at);
+    if (!s.msgs.length) return { k: 'empty', label: 'Sin mensajes', dis: true };
+    if (!pend.length) return { k: 'done', label: 'Todo enviado', dis: true, ico: 'rcheck' };
+    if (left.length) return { k: 'next', label: 'Enviar siguiente', sub: `${left.length} ${left.length === 1 ? 'restante' : 'restantes'}`, ico: 'rsend' };
+    const n = RM.startSet().length || pend.length;
+    if (any) return { k: 'resume', label: 'Seguir enviando', sub: `${n} pendientes`, ico: 'rplay' };
+    return { k: 'start', label: s.kind === 'hoy' ? 'Start My Day' : 'Send All', sub: `${n} ${s.msgs.some(m => m.type === 'deposit') ? 'recordatorios' : 'mensajes'}`, ico: 'rplay' };
+  },
+  /* ---------- acciones ---------- */
+  send(id) {
+    const m = RM.st.msgs.find(x => x.id === id); if (!m || !RM.has(m)) return;
+    if (RM.pendingText.has(id)) RM.saveText(id, true);
+    RM.mark([id], true); location.href = RM.link(m.phone, RM.eff(m));
+  },
+  next() {
+    const m = RM.selLeft()[0]; if (!m) { UI.toast(RM.st.sel.size ? 'Ya se enviaron todas las seleccionadas' : 'Primero selecciona clientas'); return; }
+    if (RM.st.filter !== 'all' && !RM.visible().includes(m)) { RM.st.filter = 'all'; RM.paint(); }
+    const c = document.querySelector(`[data-rm-card="${CSS.escape(m.id)}"]`); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'center' });
+    RM.send(m.id);
+  },
+  primary() {
+    const c = RM.cta(), s = RM.st; if (c.dis) return;
+    if (c.k === 'start' || c.k === 'resume') {
+      let set = RM.startSet(); if (!set.length) set = RM.pendingList();
+      set.forEach(m => s.sel.add(m.id)); RM.saveSel();
+      if (s.msgs.some(m => m.type === 'deposit') && set.every(m => m.type !== 'deposit')) UI.toast('Los textos de depósito van aparte: revísalos en Booksy');
+    }
+    RM.next();
+  },
+  async copy(id, btn) {
+    const m = RM.st.msgs.find(x => x.id === id); if (!m) return; const t = RM.eff(m);
+    let done = false;
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(t); done = true; } } catch (e) { /* se intenta el método de respaldo */ }
+    if (!done) { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0'; document.body.appendChild(ta); ta.select(); try { done = document.execCommand('copy'); } catch (e) { /* nada */ } ta.remove(); }
+    UI.toast(done ? 'Texto copiado' : 'No se pudo copiar: mantén presionado el texto', !done);
+    if (done && btn) { btn.classList.add('ok'); setTimeout(() => btn.classList.remove('ok'), 1400); }
+  },
+  async restoreAll() {
+    const ids = RM.st.msgs.filter(m => m.text_override != null).map(m => m.id); if (!ids.length) { UI.toast('No hay textos editados'); return; }
+    let bad = 0; for (const id of ids) { const m = RM.st.msgs.find(x => x.id === id); RM.pendingText.delete(id); const r = await FM.sb.rpc('fm_rm_set_text', { p_batch: RM.st.batchId, p_id: id, p_text: null }); if (r.error) bad++; else m.text_override = null; }
+    RM.paint(); UI.toast(bad ? 'Algunos textos no se pudieron restaurar' : 'Textos originales restaurados', !!bad);
+  },
+  async applyGeneral(text) {
+    const set = RM.st.msgs.filter(m => RM.st.sel.has(m.id)); if (!set.length) { UI.toast('Primero selecciona clientas', true); return; }
+    if (!String(text).trim()) { UI.toast('Escribe el mensaje', true); return; }
+    UI.close(); let bad = 0;
+    for (const m of set) { const t = text.split('[Name]').join(RM.first(m)); m.text_override = t === m.text ? null : t; const r = await FM.sb.rpc('fm_rm_set_text', { p_batch: RM.st.batchId, p_id: m.id, p_text: t }); if (r.error) { bad++; RM.pendingText.set(m.id, t); } }
+    RM.paint(); UI.toast(bad ? `Aplicado, pero ${bad} no se guardaron: reintenta` : `Aplicado a ${set.length} ${set.length === 1 ? 'clienta' : 'clientas'}`, !!bad);
+  },
+  groupSend(text) {
+    const set = RM.st.msgs.filter(m => RM.st.sel.has(m.id) && RM.has(m)); if (!set.length) { UI.toast('Primero selecciona clientas con teléfono', true); return; }
+    const body = String(text).split('[Name]').join('').replace(/^Hi\s*!\s*/, 'Hi! ').trim(); if (!body) { UI.toast('Escribe el mensaje', true); return; }
+    const phones = [...new Set(set.map(m => m.phone))]; UI.close(); RM.mark(set.map(m => m.id), true);
+    location.href = 'sms:/open?addresses=' + phones.join(',') + '&body=' + encodeURIComponent(body);
+  },
+  /* ---------- ventanas ---------- */
+  openGeneral() {
+    const s = RM.st; if (!s.msgs.length) return;
+    UI.modal(`<h3>Mensaje general</h3><p class="mutedc" style="margin:0 0 10px">Un solo texto para varias clientas. Escribe <b>[Name]</b> donde va el nombre de cada una. <span data-rm-gcnt>${s.sel.size ? s.sel.size + ' seleccionadas.' : 'Ninguna seleccionada todavía.'}</span></p>
+      <label class="field"><span>Texto</span><textarea data-rm-gtxt rows="5" maxlength="1900" placeholder="Hi [Name]! …">${esc(s.gen)}</textarea></label>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Aplicar a seleccionadas</button></div>`, m => {
+      const t = $('[data-rm-gtxt]', m); t.addEventListener('input', () => { s.gen = t.value; });
+      $('[data-x=no]', m).onclick = () => UI.close(); $('[data-x=ok]', m).onclick = () => { s.gen = t.value; RM.applyGeneral(t.value); };
+    });
+  },
+  openGroup() {
+    const s = RM.st, set = s.msgs.filter(m => s.sel.has(m.id) && RM.has(m)); if (!set.length) { UI.toast('Primero selecciona clientas con teléfono', true); return; }
+    UI.modal(`<h3>Un solo mensaje en grupo</h3><div class="banner" style="border-color:var(--bad)"><b>Todas verán los números de las demás</b> y las respuestas les llegarán a todas (${set.length} ${set.length === 1 ? 'persona' : 'personas'}). Para recordatorios y cupones es mejor enviar una por una.</div>
+      <label class="field"><span>Texto del grupo (sin nombres)</span><textarea data-rm-gtxt rows="5" maxlength="1900">${esc(s.gen.split('[Name]').join('').replace(/^Hi\s*!\s*/, 'Hi! '))}</textarea></label>
+      <div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Abrir chat de grupo</button></div>`, m => {
+      const t = $('[data-rm-gtxt]', m); $('[data-x=no]', m).onclick = () => UI.close(); $('[data-x=ok]', m).onclick = () => RM.groupSend(t.value);
+    });
+  },
+  openMenu() {
+    const s = RM.st, all = s.msgs.length && s.msgs.every(m => s.sel.has(m.id)), edited = s.msgs.some(m => m.text_override != null);
+    UI.modal(`<h3>Más acciones</h3><div class="rm-menu">
+      <button class="btn" data-a="all">${all ? 'Quitar selección' : 'Seleccionar todas'}</button>
+      <button class="btn" data-a="next" ${s.sel.size ? '' : 'disabled'}>Enviar seleccionadas una por una</button>
+      <button class="btn" data-a="restore" ${edited ? '' : 'disabled'}>Restaurar textos originales</button>
+      <button class="btn" data-a="group" ${s.sel.size ? '' : 'disabled'}>Un solo mensaje en grupo…</button>
+      <button class="btn" data-a="reload">Actualizar mensajes</button></div>
+      <div class="acts"><button class="btn" data-x="no">Cerrar</button></div>`, m => {
+      $('[data-x=no]', m).onclick = () => UI.close();
+      m.addEventListener('click', e => {
+        const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = b.dataset.a; UI.close();
+        if (a === 'all') { if (all) s.sel.clear(); else s.msgs.forEach(x => s.sel.add(x.id)); RM.saveSel(); RM.paint(); }
+        else if (a === 'next') RM.next(); else if (a === 'restore') RM.restoreAll(); else if (a === 'group') RM.openGroup(); else if (a === 'reload') RM.load(false);
+      });
+    });
+  },
+};
+
+/* ---------- pantalla ---------- */
+Views.mensajes = {
+  html() {
+    const s = RM.st, head = (sub, extra) => `<div class="head"><div><h1>Mensajes a clientas</h1><p>${sub}</p></div>${extra || ''}</div>`;
+    { const a = document.activeElement; RM._keep = a && a.matches && a.matches('[data-rm-text],[data-rm-q]') ? { t: a.hasAttribute('data-rm-q') ? 'q' : a.dataset.rmText, s: a.selectionStart, e: a.selectionEnd } : null; }
+    if (!(typeof FM !== 'undefined' && FM.sb && FM.member)) return head('Textos del día listos para enviar a las clientas.') + `<div class="banner">Esta sección funciona al abrir Fluffy Master con tu cuenta (necesita conexión con la base de datos).</div>`;
+    if (!RM.allowed()) return head('Textos del día listos para enviar a las clientas.') + `<div class="banner">Tu usuario no tiene permiso para ver los mensajes a clientas. Pide acceso a administración.</div>`;
+    if (!s.loaded && s.loading) return head('Textos del día listos para enviar a las clientas.') + `<div class="loading">Cargando mensajes…</div>`;
+    if (s.err && !s.loaded) return head('Textos del día listos para enviar a las clientas.') + `<div class="rm"><div class="rm-state err"><b>No se pudieron cargar los mensajes</b><p>${esc(s.err)}</p><button class="btn primary" data-rm-reload>Reintentar</button></div></div>`;
+    if (!s.batches.length) return head('Textos del día listos para enviar a las clientas.') + `<div class="rm"><div class="rm-state"><b>Todavía no hay mensajes cargados</b><p>Cuando el asistente de la agenda cargue los textos de un día aparecerán aquí, listos para enviar.</p><button class="btn" data-rm-reload>Actualizar</button></div></div>`;
+
+    const b = RM.batch(), kind = s.kind, today = RM.today();
+    const lead = { '24h': 'Recordatorios para mañana (enviar hoy). Revisa el depósito en Booksy antes de mandar el 2.º texto. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
+      hoy: 'Mensajes de llegada de hoy. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
+      '2h': 'Recordatorios 2 horas antes (opcional). Cada tarjeta dice a qué hora conviene mandarlo.' }[kind] || '';
+    const dates = [...new Set(s.batches.map(x => x.date))].sort().reverse();
+    const dlab = d => { const x = s.batches.find(y => y.date === d && y.label) || { label: '' }; return (x.label || d) + (d === today ? ' · hoy' : ''); };
+    const c = RM.cta(), st = RM.stats(), list = RM.visible();
+    const ctaBtn = `<button class="btn primary rm-cta ${c.dis ? 'done' : ''}" data-rm-cta ${c.dis ? 'disabled' : ''}>${c.ico ? ic(c.ico) : ''}<span>${esc(c.label)}${c.sub ? ` <small>· ${esc(c.sub)}</small>` : ''}</span></button>`;
+    const kpi = (cls, ico, lab, val, f) => `<button class="rm-kpi ${cls} ${val ? '' : 'zero'} ${s.filter === f && f !== 'all' ? 'on' : ''}" data-rm-filter="${f}">${'<span class="rm-kl">' + ic(ico) + esc(lab) + '</span>'}<span class="rm-kv">${val}</span></button>`;
+    const FILTERS = [['all', 'Todos'], ['pend', 'Pendientes'], ['sent', 'Enviados'], ['follow', kind === '24h' ? 'Depósito' : 'Sin depósito'], ['nophone', 'Sin teléfono']];
+    const chips = FILTERS.map(([k, l]) => { const n = s.msgs.filter(m => RM.matches(m, k)).length; if (k === 'nophone' && !n && s.filter !== k) return ''; return `<button class="chip ${s.filter === k ? 'on' : ''}" data-rm-filter="${k}" role="tab" aria-selected="${s.filter === k}">${l}<span class="n">${n}</span></button>`; }).join('');
+    const pct = st.total ? Math.round(st.sent / st.total * 100) : 0, allSel = s.msgs.length > 0 && s.msgs.every(m => s.sel.has(m.id)), someSel = s.sel.size > 0 && !allSel;
+    const tag = (cls, t, title) => `<span class="rm-tag ${cls}"${title ? ` title="${esc(title)}"` : ''}>${t}</span>`;
+    const card = m => {
+      const [hm, ap] = RM.split(m.time), sent = !!m.sent_at, open = s.open.has(m.id), sel = s.sel.has(m.id), dep = m.type === 'deposit', sp = m.type === 'special', nop = !RM.has(m);
+      const tags = [];
+      if (nop) tags.push(tag('bad', 'Sin teléfono')); else if (sent) tags.push(tag('sent', 'Enviado' + (m.sent_by_name ? ' · ' + esc(String(m.sent_by_name).split(' ')[0]) : ''), (m.sent_by_name ? 'Enviado por ' + m.sent_by_name : 'Enviado') + (m.sent_at ? ' · ' + RM.when(m.sent_at) : ''))); else tags.push(tag('pend', 'Pendiente'));
+      if (dep) tags.push(tag('warn', 'Pedir depósito')); else if (!sp && m.deposit_status === 'missing') tags.push(tag('warn', 'Sin depósito'));
+      if (sp) tags.push(tag('warn', '⭐ Especial')); if (m.send_at) tags.push(tag('mute', 'Enviar ' + esc(m.send_at))); if (m.text_override != null) tags.push(tag('mute', 'Editado'));
+      const name = m.client_name ? (dep ? m.client_name + ' · depósito' : m.client_name) : m.title;
+      const meta = sp ? (m.service ? 'Mensaje especial · ' + m.service : (m.subtitle || 'Mensaje especial')) : dep ? (m.subtitle || 'Depósito') : (m.service ? m.service + (m.artist ? ' · ' + m.artist : '') : (m.subtitle || ''));
+      return `<article class="rm-card ${sent ? 'sent' : ''} ${dep ? 'dep' : ''} ${nop ? 'nop' : ''} ${sel ? 'is-sel' : ''} ${open ? 'open' : ''}" data-rm-card="${esc(m.id)}">
+        <div class="rm-top"><label class="rm-ck"><input type="checkbox" data-rm-sel="${esc(m.id)}" ${sel ? 'checked' : ''} aria-label="Seleccionar a ${esc(name)}"></label>
+          <div class="rm-time">${sp ? `<span class="rm-star">${ic('rstar')}</span>` : hm ? `<b>${esc(hm)}</b><span>${esc(ap)}</span>` : ''}</div>
+          <button class="rm-main" data-rm-open="${esc(m.id)}" aria-expanded="${open}"><span class="rm-name">${esc(name)}</span><span class="rm-meta">${esc(meta)}</span><span class="rm-tags">${tags.join('')}</span></button></div>
+        <div class="rm-prev" data-rm-open="${esc(m.id)}">${esc(RM.eff(m))}</div>
+        <div class="rm-editor"><textarea data-rm-text="${esc(m.id)}" rows="6" maxlength="2000" aria-label="Texto del mensaje">${esc(RM.eff(m))}</textarea>
+          <div class="rm-edhint"><span>${m.phone ? esc(RM.phoneFmt(m.phone)) : 'Sin teléfono'}</span><button class="rm-link" data-rm-restore="${esc(m.id)}" ${m.text_override != null ? '' : 'hidden'}>Restaurar este texto</button></div></div>
+        <div class="rm-foot"><label class="rm-toggle"><input type="checkbox" data-rm-sent="${esc(m.id)}" ${sent ? 'checked' : ''} ${nop ? 'disabled' : ''}><i></i> Enviado</label><span class="rm-sp"></span>
+          <button class="btn rm-ibtn" data-rm-copy="${esc(m.id)}" aria-label="Copiar texto" title="Copiar">${ic('rcopy')}</button>
+          ${nop ? `<span class="rm-nop">${ic('rwarn')}Sin teléfono en Booksy</span>` : `<button class="btn primary" data-rm-send="${esc(m.id)}">${ic('rsend')}Enviar</button>`}</div></article>`;
+    };
+    const body = !s.msgs.length ? `<div class="rm-state"><b>No hay mensajes para este día</b><p>Cuando haya citas en Booksy aparecerán aquí listas para enviar.</p></div>`
+      : list.length ? `<div class="rm-list">${list.map(card).join('')}</div>` : `<div class="rm-state"><b>Nada por aquí</b><p>No hay tarjetas que coincidan con este filtro.</p></div>`;
+    return head(lead + (b && b.generated_at ? ` <span class="mutedc">Cargado ${esc(RM.when(b.generated_at))}.</span>` : ''),
+      `<div class="chips rm-headacts"><label class="rm-date">${ic('cal')}<select data-rm-date aria-label="Fecha de las citas">${dates.map(d => `<option value="${d}" ${d === s.date ? 'selected' : ''}>${esc(dlab(d))}</option>`).join('')}</select></label>${ctaBtn.replace('rm-cta', 'rm-cta rm-cta-top')}<button class="btn rm-ibtn" data-rm-menu aria-label="Más acciones" title="Más acciones">${ic('rdots')}</button></div>`) +
+      `<div class="rm">${s.err ? `<div class="banner" style="border-color:var(--bad)">${esc(s.err)} <button class="rm-link" data-rm-reload>Reintentar</button></div>` : ''}
+      <div class="segmented small rm-kinds" role="tablist">${RM.kindsFor(s.date).map(k => `<button class="${k === kind ? 'on' : ''}" data-rm-kind="${k}" role="tab" aria-selected="${k === kind}">${RM.KLAB[k]}</button>`).join('')}</div>
+      <div class="rm-kpis">${kpi('lead', 'cal', kind === '24h' ? 'Citas mañana' : 'Citas hoy', st.citas, 'all')}${kpi('', 'rclock', 'Por enviar', st.pend, 'pend')}${kpi('ok', 'rcheck', 'Enviados', st.sent, 'sent')}${kpi('warn', 'rdollar', kind === '24h' ? 'Pedir depósito' : 'Sin depósito', st.follow, 'follow')}${kpi('bad', 'rwarn', 'Sin teléfono', st.nophone, 'nophone')}</div>
+      <div class="rm-prog ${st.total && st.sent === st.total ? 'done' : ''}"><div class="rm-pl"><span>${st.total && st.sent === st.total ? 'Todo enviado' : st.sent ? 'Enviados · ' + pct + '%' : 'Ningún mensaje enviado todavía'}</span><b>${st.sent} / ${st.total}</b></div><div class="rm-bar"><i style="width:${pct}%"></i></div></div>
+      <div class="rm-filters"><div class="chips" role="tablist">${chips}</div><label class="rm-search">${ic('rsearch')}<input type="search" data-rm-q value="${esc(s.q)}" placeholder="Buscar clienta, servicio o técnica…" aria-label="Buscar" autocomplete="off"></label></div>
+      <div class="rm-selbar"><label class="rm-selall"><input type="checkbox" data-rm-selall ${allSel ? 'checked' : ''} ${someSel ? 'data-ind="1"' : ''} ${s.msgs.length ? '' : 'disabled'}> <span>Seleccionar todas${s.sel.size ? ` <small class="mutedc">· ${s.sel.size} seleccionadas</small>` : ''}</span></label><button class="btn sm" data-rm-gen ${s.msgs.length ? '' : 'disabled'}>${ic('redit')}Mensaje general</button></div>
+      ${body}
+      <div class="rm-ctabar">${ctaBtn}<button class="btn rm-ibtn" data-rm-menu aria-label="Más acciones">${ic('rdots')}</button></div></div>`;
+  },
+  mount(root) {
+    RM.start();
+    if (RM.allowed() && !RM.st.loaded && !RM.st.loading && !RM.st.err) RM.load(false);   // si falló, no reintenta solo (evita un ciclo): espera «Reintentar»
+    $$('[data-ind]', root).forEach(x => { x.indeterminate = true; });
+    const k = RM._keep; RM._keep = null;
+    if (k) { const el = k.t === 'q' ? $('[data-rm-q]', root) : $$('[data-rm-text]', root).find(x => x.dataset.rmText === k.t); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(k.s, k.e); } catch (e) { /* tipo sin selección */ } } }
+  },
+};
+
+/* ---------- eventos (una sola vez, a nivel de documento) ---------- */
+Object.assign(RM, {
+  paint() { if (UI.route === 'mensajes') UI.render(); },
+  start() {
+    if (RM.started || !RM.allowed()) return; RM.started = true;
+    try { RM.ch = FM.sb.channel && FM.sb.channel('fm-rm').on('postgres_changes', { event: '*', schema: 'public', table: 'fm_reception_messages' }, () => { if (UI.route === 'mensajes') RM.soft(); }).on('postgres_changes', { event: '*', schema: 'public', table: 'fm_reception_batches' }, () => { if (UI.route === 'mensajes') RM.soft(); }).subscribe(); } catch (e) { /* sin tiempo real: queda el chequeo periódico */ }
+    const back = () => { if (document.visibilityState === 'visible') { RM.flush(); if (UI.route === 'mensajes') RM.soft(); } };
+    document.addEventListener('visibilitychange', back); window.addEventListener('focus', back); window.addEventListener('online', () => RM.flush()); window.addEventListener('pageshow', back);
+    setInterval(() => { if (UI.route === 'mensajes' && document.visibilityState === 'visible') RM.soft(); RM.flush(); }, 45000);
+  },
+});
+document.addEventListener('click', e => {
+  if (UI.route !== 'mensajes' || e.target.closest('.modal')) return; const t = e.target, s = RM.st, q = sel => t.closest(sel);
+  let el;
+  if ((el = q('[data-rm-cta]'))) { RM.primary(); return; }
+  if ((el = q('[data-rm-send]'))) { RM.send(el.dataset.rmSend); return; }
+  if ((el = q('[data-rm-copy]'))) { RM.copy(el.dataset.rmCopy, el); return; }
+  if ((el = q('[data-rm-restore]'))) { const id = el.dataset.rmRestore, m = s.msgs.find(x => x.id === id); if (m) { m.text_override = null; RM.pendingText.set(id, m.text); RM.saveText(id, true); RM.paint(); UI.toast('Texto restaurado'); } return; }
+  if ((el = q('[data-rm-open]'))) { const id = el.dataset.rmOpen; if (s.open.has(id)) s.open.delete(id); else s.open.add(id); RM.paint(); if (s.open.has(id)) { const ta = $$('[data-rm-text]').find(x => x.dataset.rmText === id); if (ta) ta.focus({ preventScroll: true }); } return; }
+  if ((el = q('[data-rm-filter]'))) { s.filter = el.dataset.rmFilter; RM.paint(); const c = $('.rm-filters'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+  if ((el = q('[data-rm-kind]'))) { s.kind = el.dataset.rmKind; RM.changeBatch(); return; }
+  if ((el = q('[data-rm-menu]'))) { RM.openMenu(); return; }
+  if ((el = q('[data-rm-gen]'))) { RM.openGeneral(); return; }
+  if ((el = q('[data-rm-reload]'))) { RM.load(false); return; }
+});
+document.addEventListener('change', e => {
+  if (UI.route !== 'mensajes' || e.target.closest('.modal')) return; const t = e.target, s = RM.st;
+  if (t.matches('[data-rm-sel]')) { if (t.checked) s.sel.add(t.dataset.rmSel); else s.sel.delete(t.dataset.rmSel); RM.saveSel(); RM.paint(); }
+  else if (t.matches('[data-rm-selall]')) { if (t.checked) s.msgs.forEach(m => s.sel.add(m.id)); else s.sel.clear(); RM.saveSel(); RM.paint(); }
+  else if (t.matches('[data-rm-sent]')) RM.mark([t.dataset.rmSent], t.checked);
+  else if (t.matches('[data-rm-date]')) { s.date = t.value; s.kind = ''; RM.pick(); RM.changeBatch(); }
+  else if (t.matches('[data-rm-text]')) RM.saveText(t.dataset.rmText, true);
+});
+document.addEventListener('input', e => {
+  if (UI.route !== 'mensajes' || e.target.closest('.modal')) return; const t = e.target, s = RM.st;
+  if (t.matches('[data-rm-text]')) {
+    const id = t.dataset.rmText, m = s.msgs.find(x => x.id === id); if (!m) return; RM.setText(id, t.value);
+    const c = t.closest('.rm-card'); if (c) { $('.rm-prev', c).textContent = t.value; const r = $('[data-rm-restore]', c); if (r) r.hidden = m.text_override == null; const tg = $('.rm-tags', c); if (tg) { const has = tg.querySelector('[data-ed]'); if (m.text_override != null && !has) tg.insertAdjacentHTML('beforeend', '<span class="rm-tag mute" data-ed>Editado</span>'); else if (m.text_override == null) { [...tg.querySelectorAll('.rm-tag')].filter(x => x.textContent === 'Editado').forEach(x => x.remove()); } } }
+  } else if (t.matches('[data-rm-q]')) { s.q = t.value; RM.paint(); }
+});
+document.addEventListener('focusout', e => { if (UI.route === 'mensajes' && e.target.matches && e.target.matches('[data-rm-text]')) RM.saveText(e.target.dataset.rmText, true); });
+
+/* ---------- menú y rutas ---------- */
+NAV.splice(NAV.findIndex(n => n.id === 'dia') + 1, 0, { id: 'mensajes', label: 'Mensajes a clientas', icon: 'rmsg' });
+if (!RECEP_ROUTES.includes('mensajes')) RECEP_ROUTES.push('mensajes');
+if (typeof RECEP_MENU !== 'undefined' && !RECEP_MENU.some(x => x[0] === 'mensajes')) RECEP_MENU.splice(Math.max(0, RECEP_MENU.findIndex(x => x[0] === 'dia')) + 1, 0, ['mensajes', 'Mensajes a clientas', 'rmsg']);
+{ const add = arr => { const g = (arr || []).find(x => x.id === 'jornada'); if (g && !g.ids.includes('mensajes')) g.ids.splice(Math.max(0, g.ids.indexOf('dia')) + 1, 0, 'mensajes'); }; try { add(SB.ADMIN); add(SB.RECEP); } catch (e) { /* la barra queda como estaba */ } }
+try { if (typeof UI2 !== 'undefined') { UI2.NAVIC.mensajes = ICON.rmsg; ['admin', 'recep'].forEach(k => { const g = (UI2.GROUPS[k] || []).find(x => x[1].includes('dia')); if (g && !g[1].includes('mensajes')) g[1].splice(g[1].indexOf('dia') + 1, 0, 'mensajes'); }); } } catch (e) { /* solo migas de pan */ }
+{ const T0 = SB.transform; SB.transform = function () {      /* Recepción: el enlace se agrega antes de que la barra se agrupe (igual que Gift Cards) */
+    if (Mode.reception && RM.allowed() && !$('#side .nav [data-go=mensajes]')) { const c = $('#side .nav [data-go=dia]'); if (c) c.insertAdjacentHTML('afterend', `<a class="${UI.route === 'mensajes' ? 'on' : ''}" data-go="mensajes">${ic('rmsg')}Mensajes a clientas</a>`); }
+    return T0.apply(this, arguments); }; }
+{ const R = UI.renderNav; UI.renderNav = function () {
+    const r = R.apply(this, arguments);
+    try {
+      if (Mode.accountant) return r;
+      if (!RM.allowed()) { $$('#side [data-go=mensajes]').forEach(x => x.remove()); return r; }   // editor, lectura u otros roles: no se ofrece
+      const b = $('#bottom');
+      if (Mode.reception && b && !$('[data-go=mensajes]', b)) { const mas = $('[data-go=mas]', b); if (mas) { mas.insertAdjacentHTML('beforebegin', `<a data-go="mensajes" class="${UI.route === 'mensajes' ? 'on' : ''}">${ic('rmsg')}Textos</a>`); b.classList.add('rm6'); } }
+    } catch (e) { /* nunca debe romper la barra */ }
+    return r; }; }
+(function () {
+  if (document.getElementById('rm-css')) return;
+  const st = document.createElement('style'); st.id = 'rm-css';
+  st.textContent = `
+.rm svg,.rm-headacts svg,.rm-menu svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.rm-headacts{gap:10px;align-items:center}
+.rm-date{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:0 6px 0 14px;height:40px;color:var(--pink-deep)}
+.rm-date select{border:0;background:transparent;font:inherit;font-weight:600;color:var(--ink);padding:8px 10px 8px 0;max-width:230px;cursor:pointer}
+.rm-cta{height:42px;font-size:15px;padding:0 20px;justify-content:center}.rm-cta small{font-weight:500;opacity:.8}
+.rm-cta.done{background:var(--blush);color:var(--ok);border-color:var(--line);opacity:1}
+.rm-ibtn{width:42px;height:42px;padding:0;justify-content:center;flex:none}
+.rm-ibtn.ok{color:var(--ok);border-color:var(--ok)}
+.rm .segmented.rm-kinds{margin:0 0 16px}
+.rm-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.rm-kpi{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--ink);min-width:0}
+.rm-kpi:hover{border-color:var(--sand)}.rm-kpi.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.18)}
+.rm-kl{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--muted)}
+.rm-kv{font-size:26px;font-weight:600;line-height:1.1;font-variant-numeric:lining-nums tabular-nums}
+.rm-kpi.lead .rm-kv{color:var(--pink-deep)}.rm-kpi.warn .rm-kv{color:var(--warn)}.rm-kpi.bad .rm-kv{color:var(--bad)}.rm-kpi.ok .rm-kv{color:var(--ok)}.rm-kpi.zero .rm-kv{opacity:.35}
+.rm-prog{border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:12px 14px;margin-bottom:16px}
+.rm-pl{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:8px}
+.rm-bar{height:8px;border-radius:99px;background:var(--blush);overflow:hidden}.rm-bar i{display:block;height:100%;background:var(--pink-deep);border-radius:99px;transition:width .3s}
+.rm-prog.done .rm-bar i{background:var(--ok)}.rm-prog.done .rm-pl span{color:var(--ok)}
+.rm-filters{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px;scroll-margin-top:12px}
+.rm-search{display:flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:0 12px;height:40px;min-width:240px;flex:0 1 320px;color:var(--muted)}
+.rm-search input{border:0;background:transparent;font:inherit;font-size:16px;color:var(--ink);width:100%;outline:none;min-width:0}
+.chip .n{margin-left:6px;opacity:.65;font-weight:600}
+.rm-selbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:6px 0 12px}
+.rm-selall{display:flex;align-items:center;gap:10px;font-weight:600;font-size:14px;cursor:pointer}
+.rm-selall input,.rm-ck input{width:22px;height:22px;accent-color:var(--pink-deep);cursor:pointer}
+.rm-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.rm-card{border:1px solid var(--line);background:var(--bg);border-radius:16px;padding:12px 14px;min-width:0;box-shadow:var(--shadow)}
+.rm-card.dep{border-left:4px solid var(--gold)}.rm-card.sent{background:var(--blush)}.rm-card.is-sel{border-color:var(--pink-deep)}.rm-card.nop{border-style:dashed}
+.rm-top{display:flex;gap:10px;align-items:flex-start}
+.rm-ck{display:flex;padding:2px;flex:none}
+.rm-time{width:56px;flex:none;text-align:center;line-height:1.15;padding-top:2px}.rm-time b{display:block;font-size:15px}.rm-time span{font-size:11px;color:var(--muted);font-weight:600}
+.rm-star{display:inline-flex;width:34px;height:34px;border-radius:10px;background:var(--sand-soft);color:var(--gold-ink);align-items:center;justify-content:center}
+.rm-main{display:flex;flex-direction:column;align-items:flex-start;gap:3px;border:0;background:transparent;text-align:left;flex:1;min-width:0;padding:2px 0;cursor:pointer;font:inherit;color:inherit}
+.rm-name{font-weight:700;font-size:15.5px;overflow-wrap:anywhere}.rm-meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.rm-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.rm-tag{font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 9px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.rm-tag.pend{border-color:var(--pink);color:var(--pink-deep)}.rm-tag.sent{border-color:var(--ok);color:var(--ok)}.rm-tag.warn{border-color:var(--warn);color:var(--warn)}.rm-tag.bad{border-color:var(--bad);color:var(--bad)}
+.rm-prev{margin:8px 0 0;font-size:13.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer;overflow-wrap:anywhere}
+.rm-card.open .rm-prev{display:none}
+.rm-editor{display:none;margin-top:8px}.rm-card.open .rm-editor{display:block}
+.rm-editor textarea{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:10px 12px;font:inherit;font-size:16px;line-height:1.4;color:var(--ink);resize:vertical;min-height:120px}
+.rm-editor textarea:focus{border-color:var(--gold);outline:none;box-shadow:0 0 0 3px rgba(212,175,55,.18)}
+.rm-edhint{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--muted);margin-top:6px}
+.rm-link{border:0;background:none;color:var(--pink-deep);font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;padding:0}
+.rm-foot{display:flex;align-items:center;gap:8px;margin-top:10px}.rm-sp{flex:1}
+.rm-toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;min-height:44px}
+.rm-toggle input{position:absolute;opacity:0;width:1px;height:1px}
+.rm-toggle i{width:38px;height:22px;border-radius:99px;background:var(--sand);position:relative;transition:background .2s;flex:none}
+.rm-toggle i:after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s}
+.rm-toggle input:checked+i{background:var(--ok)}.rm-toggle input:checked+i:after{transform:translateX(16px)}
+.rm-toggle input:focus-visible+i{outline:2px solid var(--gold);outline-offset:2px}.rm-toggle input:disabled+i{opacity:.4}
+.rm-foot .btn.primary{height:42px;padding:0 18px}
+.rm-nop{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--bad)}
+.rm-state{border:1px dashed var(--line);border-radius:16px;padding:34px 20px;text-align:center;color:var(--muted)}.rm-state b{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}.rm-state p{margin:0 0 12px}.rm-state.err{border-color:var(--bad)}
+.rm-menu{display:flex;flex-direction:column;gap:8px;margin:10px 0}.rm-menu .btn{justify-content:flex-start;height:44px}
+.rm-ctabar{display:none}
+#bottom.bottom.rm6{grid-template-columns:repeat(6,1fr)}#bottom.bottom.rm6 a{font-size:10.5px}
+@media (max-width:1100px){.rm-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){
+  .rm-list{grid-template-columns:1fr}.rm-cta-top{display:none}.rm-headacts .rm-ibtn{display:none}.rm-headacts{width:100%}.rm-date{width:100%}.rm-date select{flex:1;max-width:none}
+  .rm{padding-bottom:70px}
+  .rm-ctabar{display:flex;gap:10px;position:sticky;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:30;margin-top:14px;padding:8px;border-radius:22px;background:var(--bg);border:1px solid var(--line);box-shadow:0 10px 28px rgba(46,27,32,.2)}
+  .rm-ctabar .rm-cta{flex:1;height:48px;border-radius:16px}
+}
+@media (max-width:640px){.rm-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.rm-kpi:first-child{grid-column:1/-1}.rm-search{flex:1 1 100%;min-width:0}}
+`;
+  document.head.appendChild(st);
+})();
+/* @@RM-END */
+
 
 
 
