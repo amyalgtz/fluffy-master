@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-19 12:00';
+window.FM_VERSION = '2026-11-19 18:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1013,6 +1013,8 @@ var DATA = null, PERF = null;
 const FM = { sb: null, session: null, member: null, cache: new Map(), subs: new Set(), ready: false };
 const ROLE_LABEL = { admin: 'Administración', editor: 'Edición', recepcion: 'Recepción', lectura: 'Solo lectura' };
 const WRITE_ROLES = ['admin', 'editor', 'recepcion'];
+/* Dueña: administradora con marca is_owner (solo se asigna desde Supabase). Si la columna aún no existe, todo funciona como antes. */
+const OWN = { on: () => !!(FM.member && 'is_owner' in FM.member), is: () => !OWN.on() || FM.member.is_owner === true };
 const colMap = c => { if (!FM.cache.has(c)) FM.cache.set(c, new Map()); return FM.cache.get(c); };
 const clone = x => x == null ? x : JSON.parse(JSON.stringify(x));
 const genId = () => Array.from(crypto.getRandomValues(new Uint8Array(10)), b => 'abcdefghijklmnopqrstuvwxyz0123456789'[b % 36]).join('');
@@ -7906,7 +7908,7 @@ UI.renderNav = function () {
   _rnWeb();
   const foot = $('#side .side-foot'); if (!foot || !FM.member) return;
   if (FM.member.role === 'recepcion') { const off = $('[data-rec-off]', foot); if (off) off.remove(); }
-  foot.insertAdjacentHTML('afterbegin', `<div style="margin-bottom:8px"><b>${esc(FM.member.name)}</b> · ${esc(ROLE_LABEL[FM.member.role] || FM.member.role)}<br><span class="mutedc">${esc(FM.session.user.email)}</span><br><button data-logout>Cerrar sesión</button> <button data-sync>Actualizar datos</button><div class="syncinfo">${FM.online === false ? '⚠︎ Sin conexión' : FM.live ? '● En vivo' : '● Conectado'} · actualizado ${FM.syncedAt ? FM.syncedAt.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '—'}<br>Versión ${esc(window.FM_VERSION || '')}</div></div>`);
+  foot.insertAdjacentHTML('afterbegin', `<div style="margin-bottom:8px"><b>${esc(FM.member.name)}</b> · ${esc(FM.member.is_owner ? 'Dueña' : ROLE_LABEL[FM.member.role] || FM.member.role)}<br><span class="mutedc">${esc(FM.session.user.email)}</span><br><button data-logout>Cerrar sesión</button> <button data-sync>Actualizar datos</button><div class="syncinfo">${FM.online === false ? '⚠︎ Sin conexión' : FM.live ? '● En vivo' : '● Conectado'} · actualizado ${FM.syncedAt ? FM.syncedAt.toLocaleTimeString('es-MX', { hour: 'numeric', minute: '2-digit' }) : '—'}<br>Versión ${esc(window.FM_VERSION || '')}</div></div>`);
   const rec = $('[data-rec-on]', foot); if (rec && FM.member.role === 'lectura') rec.remove();
 };
 document.addEventListener('click', e => { if (e.target.closest('[data-logout]')) FM.sb.auth.signOut(); });
@@ -7918,18 +7920,18 @@ Views.config.html = function () {
   const list = this._members || [];
   return `<section class="panel"><h2>Usuarios</h2><p class="hint">Quién puede entrar y qué puede hacer. Después de agregar a alguien, esa persona entra a la página y toca “Crear mi contraseña” con ese correo.</p>
     ${table([{ label: 'Nombre' }, { label: 'Correo' }, { label: 'Rol' }, { label: 'Estado', html: 1 }, { label: '', html: 1 }],
-      list.map((m, i) => [m.name, m.email, ROLE_LABEL[m.role] || m.role, m.active === false ? '<span class="tag off">Sin acceso</span>' : '<span class="tag app">Activo</span>',
-        m.email.toLowerCase() === FM.session.user.email.toLowerCase() ? '<span class="mutedc">Tú</span>' : `<button class="btn sm" data-mrole="${i}">Cambiar rol</button> <button class="btn sm" data-mtoggle="${i}">${m.active === false ? 'Dar acceso' : 'Quitar acceso'}</button>`]), null,
+      list.map((m, i) => [m.name, m.email, m.is_owner ? 'Dueña' : ROLE_LABEL[m.role] || m.role, m.active === false ? '<span class="tag off">Sin acceso</span>' : '<span class="tag app">Activo</span>',
+        m.email.toLowerCase() === FM.session.user.email.toLowerCase() ? '<span class="mutedc">Tú</span>' : m.is_owner ? '<span class="mutedc">Protegida</span>' : m.role === 'admin' && !OWN.is() ? '<span class="mutedc">Solo la dueña</span>' : `<button class="btn sm" data-mrole="${i}">Cambiar rol</button> <button class="btn sm" data-mtoggle="${i}">${m.active === false ? 'Dar acceso' : 'Quitar acceso'}</button>`]), null,
       { emptyTitle: 'Cargando usuarios…', empty: '' })}
     <div class="chips" style="margin-top:10px"><button class="btn sm primary" data-madd>${ic('plus')}Agregar usuario</button></div>
-    <p class="formula">Administración: todo. Edición: todo menos claves y usuarios. Recepción: cobrar, agenda, depósitos, paquetes, insumos, venta de producto, pagos de lashistas y notas del día. Solo lectura: ver sin guardar.</p></section>` + _cfgHtmlW.call(this);
+    <p class="formula">${OWN.on() ? 'Dueña: todo, y es la única que da o quita acceso a administradoras y maneja las claves de edición. ' : ''}Administración: todo. Edición: todo menos claves y usuarios. Recepción: cobrar, agenda, depósitos, paquetes, insumos, venta de producto, pagos de lashistas y notas del día. Solo lectura: ver sin guardar.</p></section>` + _cfgHtmlW.call(this);
 };
 Views.config.mount = function (root) {
   _cfgMountW.call(this, root);
   if (FM.member.role !== 'admin') return;
   if (!this._members) { FM.sb.from('members').select('*').order('name').then(({ data }) => { this._members = data || []; if (UI.route === 'config') UI.render(); }); return; }
   const reload = async () => { const { data } = await FM.sb.from('members').select('*').order('name'); this._members = data || []; UI.render(); };
-  const roleSel = sel => `<select data-u="role">${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const roleSel = sel => `<select data-u="role">${Object.entries(ROLE_LABEL).filter(([k]) => k !== 'admin' || OWN.is()).map(([k, l]) => `<option value="${k}" ${sel === k ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   const add = $('[data-madd]', root); if (add) add.onclick = () => UI.modal(`<h3>Agregar usuario</h3><div class="formgrid"><label class="field">Nombre<input data-u="name"></label><label class="field">Correo<input type="email" data-u="email"></label><label class="field full">Rol${roleSel('recepcion')}</label></div>
       <p class="err" data-uerr style="color:var(--bad);font-size:13px;font-weight:600"></p><div class="acts"><button class="btn" data-x="no">Cancelar</button><button class="btn primary" data-x="ok">Agregar</button></div>`, m => {
     $('[data-x=no]', m).onclick = UI.close;
@@ -7948,6 +7950,14 @@ Views.config.mount = function (root) {
   $$('[data-mtoggle]', root).forEach(b => b.onclick = async () => { const u = this._members[+b.dataset.mtoggle];
     if (u.active !== false && !await UI.confirm('Quitar acceso', `${esc(u.name)} ya no podrá entrar a Fluffy Master.`, 'Quitar acceso')) return;
     const { error } = await FM.sb.from('members').update({ active: u.active === false }).eq('email', u.email); if (error) return UI.toast(error.message, true); reload(); });
+};
+
+/* Claves de edición: solo la dueña (el servidor también lo exige). */
+const _cfgHtmlO = Views.config.html;
+Views.config.html = function () {
+  const h = _cfgHtmlO.call(this);
+  if (!OWN.on() || OWN.is()) return h;
+  return h.replace(/<section class="panel"><h2>Claves de edición<\/h2>[\s\S]*?<\/section>/, '<section class="panel"><h2>Claves de edición</h2><p class="hint">Solo la dueña administra las claves de edición.</p></section>');
 };
 
 /* Con login personal, el turno y el nombre en cada registro salen del usuario conectado.
