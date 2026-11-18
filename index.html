@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-19 18:00';
+window.FM_VERSION = '2026-11-19 19:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -13655,7 +13655,7 @@ const RM = {
     if (!ks.includes(s.kind)) s.kind = s.date === today ? (ks.includes('hoy') ? 'hoy' : ks[0]) : (ks.includes('24h') ? '24h' : ks[0]);
   },
   async fetchBatches() {
-    const r = await FM.sb.from('fm_reception_batches').select('id,date,kind,label,generated_at').gte('date', RM.addDays(RM.today(), -31)).order('date', { ascending: true });
+    const r = await FM.sb.from('fm_reception_batches').select('id,date,kind,label,generated_at').gte('date', RM.today()).order('date', { ascending: true }); /* solo hoy y días siguientes; los pasados no se muestran */
     if (r.error) throw new Error(RM.friendly(r.error.message));
     RM.st.batches = r.data || []; RM.pick();
   },
