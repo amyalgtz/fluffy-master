@@ -21,7 +21,7 @@ export const config = { path: ['/api/reception-messages'] };
 
 const MAX_BODY = 1024 * 1024;           // 1 MB (300 mensajes de ~2 KB caben de sobra)
 const MAX_MSGS = 300;
-const KINDS = ['24h', 'hoy', '2h'];
+const KINDS = ['confirmacion', 'deposito', '2h', '24h', 'hoy'];   // 24h y hoy se mantienen por compatibilidad
 const TYPES = ['reminder', 'deposit', 'special'];
 const RE_DAY = /^\d{4}-\d{2}-\d{2}$/;
 const RE_PHONE = /^\+[1-9][0-9]{6,14}$/;
@@ -58,7 +58,7 @@ const optStr = (v, max) => v === undefined || v === null || (typeof v === 'strin
 /** Devuelve { error } o { payload } ya normalizado. */
 export function validate(b) {
   if (!b || typeof b !== 'object' || Array.isArray(b)) return { error: 'El cuerpo debe ser un objeto JSON.' };
-  if (!KINDS.includes(b.kind)) return { error: 'kind debe ser 24h, hoy o 2h.' };
+  if (!KINDS.includes(b.kind)) return { error: 'kind debe ser confirmacion, deposito, 2h, 24h o hoy.' };
   if (!validDay(b.date)) return { error: 'date debe ser una fecha AAAA-MM-DD válida.' };
   const t = dayNum(todayNY());
   if (dayNum(b.date) < t - 30 || dayNum(b.date) > t + 60) return { error: 'date fuera de rango (de 30 días atrás a 60 días adelante).' };
