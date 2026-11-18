@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-19 19:00';
+window.FM_VERSION = '2026-11-19 20:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -13619,8 +13619,9 @@ Object.assign(ICON, {
 
 const RM = {
   TZ: 'America/New_York', QK: 'fm-rm-queue', SK: 'fm-rm-sel|',
-  KINDS: ['24h', 'hoy', '2h'], KLAB: { '24h': '24 h antes', hoy: 'Hoy', '2h': '2 h antes' },
-  st: { loaded: false, loading: false, err: '', batches: [], date: '', kind: '', msgs: [], batchId: null, filter: 'all', q: '', sel: new Set(), open: new Set(), gen: '' },
+  KINDS: ['confirmacion', 'deposito', '2h', '24h', 'hoy'], TABS: ['confirmacion', 'deposito', '2h'],
+  KLAB: { confirmacion: 'Confirmar cita', deposito: 'Pedir depósito', '2h': 'Confirmación 2h', '24h': 'Recordatorio 24 h', hoy: 'Llegada de hoy' },
+  st: { loaded: false, loading: false, err: '', batches: [], rows: {}, dateOf: {}, raw: [], date: '', kind: '', msgs: [], batchId: null, filter: 'all', q: '', sel: new Set(), open: new Set(), gen: '' },
   pendingText: new Map(), timers: new Map(), flushing: false, started: false,
   role() { return FM && FM.member && FM.member.role; },
   allowed() { return !!(FM && FM.sb && FM.member && ['admin', 'recepcion'].includes(RM.role())); },
@@ -13643,28 +13644,74 @@ const RM = {
   },
   /* ---------- datos ---------- */
   batch() { const s = RM.st; return s.batches.find(b => b.date === s.date && b.kind === s.kind) || null; },
-  kindsFor(d) { return RM.KINDS.filter(k => RM.st.batches.some(b => b.date === d && b.kind === k)); },
+  /* Pestañas: Confirmar cita, Pedir depósito, Confirmación 2h. Los tipos anteriores (24h, hoy) siguen funcionando y aparecen como pestaña extra solo si hay lotes. */
+  tabKinds() { return RM.TABS.concat(['24h', 'hoy'].filter(k => RM.st.batches.some(b => b.kind === k))); },
+  datesFor(k) { return [...new Set(RM.st.batches.filter(b => b.kind === k).map(b => b.date))].sort(); },
+  pickDate(k, ds) {
+    ds = ds || RM.datesFor(k); if (!ds.length) return '';
+    const today = RM.today(), fut = ds.find(d => d > today), evening = new Date().getHours() >= 17;
+    if (k === 'deposito' || k === '24h') return evening && fut ? fut : ds.includes(today) ? today : (fut || ds[ds.length - 1]);
+    return ds.includes(today) ? today : (fut || ds[ds.length - 1]);
+  },
+  tabDate(k) { const s = RM.st; if (k === s.kind) return s.date; const ds = RM.datesFor(k), d = s.dateOf[k]; return d && ds.includes(d) ? d : RM.pickDate(k, ds); },
   pick() {
-    const s = RM.st, today = RM.today(), dates = [...new Set(s.batches.map(b => b.date))].sort();
-    if (!dates.length) { s.date = ''; s.kind = ''; return; }
-    if (!(s.date && dates.includes(s.date))) {
-      const fut = dates.find(d => d > today), evening = new Date().getHours() >= 17;
-      s.date = evening && fut ? fut : dates.includes(today) ? today : (fut || dates[dates.length - 1]);
-    }
-    const ks = RM.kindsFor(s.date);
-    if (!ks.includes(s.kind)) s.kind = s.date === today ? (ks.includes('hoy') ? 'hoy' : ks[0]) : (ks.includes('24h') ? '24h' : ks[0]);
+    const s = RM.st, tabs = RM.tabKinds();
+    if (!tabs.includes(s.kind)) s.kind = tabs.find(k => RM.pendN(k) > 0) || tabs.find(k => RM.datesFor(k).length) || tabs[0];
+    const ds = RM.datesFor(s.kind);
+    if (!(s.date && ds.includes(s.date))) s.date = RM.pickDate(s.kind, ds);
+    s.dateOf[s.kind] = s.date;
+  },
+  /* ---------- reglas por pestaña ---------- */
+  nn(x) { return String(x || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); },
+  min12(t) { const m = /^(\d{1,2}):(\d{2})\s*([AP]M)?$/i.exec(String(t || '').trim()); if (!m) return null; let h = +m[1]; const ap = (m[3] || '').toUpperCase(); if (ap === 'PM' && h < 12) h += 12; if (ap === 'AM' && h === 12) h = 0; return h * 60 + +m[2]; },
+  nyMin(d) { const p = new Intl.DateTimeFormat('en-US', { timeZone: RM.TZ, hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(d); return (+p.find(x => x.type === 'hour').value % 24) * 60 + +p.find(x => x.type === 'minute').value; },
+  /* hora (minutos del día) a la que toca mandar el mensaje de 2 h: send_at; si falta, 2 horas antes de la cita */
+  sendMin(m) {
+    const t = String(m.send_at || '').trim(); let v = null;
+    if (/\d{4}-\d{2}-\d{2}/.test(t)) { const d = new Date(t); if (!Number.isNaN(d.getTime())) v = RM.nyMin(d); } else v = RM.min12(t);
+    if (v == null) { const c = RM.min12(m.time); v = c == null ? 1e6 : c - 120; }
+    return v;
+  },
+  sendLabel(m) { const t = String(m.send_at || '').trim(); if (/\d{4}-\d{2}-\d{2}/.test(t)) { const d = new Date(t); if (!Number.isNaN(d.getTime())) return new Intl.DateTimeFormat('en-US', { timeZone: RM.TZ, hour: 'numeric', minute: '2-digit' }).format(d); } return t; },
+  isDue(m, date) { const today = RM.today(); return date < today ? true : date > today ? false : RM.sendMin(m) <= RM.nyMin(new Date()); },
+  /* ¿la agenda de Fluffy Master ya tiene depósito para esta cita? (misma fecha, misma clienta por teléfono o nombre, misma hora) */
+  depPaid(m, date) {
+    try {
+      const A = (Store.appointments || []).filter(a => a.date === date); if (!A.length) return false;
+      const ph = String(m.phone || '').replace(/\D/g, '').slice(-10), nm = RM.nn(m.client_name), t = RM.min12(m.time);
+      const same = A.filter(a => (ph && String(a.phone || '').replace(/\D/g, '').slice(-10) === ph) || (nm && RM.nn((a.first || '') + ' ' + (a.last || '')) === nm));
+      if (!same.length) return false;
+      const at = same.filter(a => RM.min12(a.time) === t), pick = at.length ? at : same.length === 1 ? same : [];
+      return pick.some(a => { const d = apptDeposit(a); return !!d && !d.annulled && !d.dupOf && d.status !== 'Rechazado'; });
+    } catch (e) { return false; }
+  },
+  /* lo que se muestra en una pestaña: en «Pedir depósito» se ocultan las que ya pagaron; en «2h» van ordenadas por hora de envío */
+  shown(list, kind, date) {
+    let L = list || [];
+    if (kind === 'deposito') L = L.filter(m => m.deposit_status !== 'paid' && !RM.depPaid(m, date));
+    if (kind === '2h') L = L.slice().sort((a, b) => RM.sendMin(a) - RM.sendMin(b));
+    return L;
+  },
+  /* pendientes (con teléfono y sin enviar) de una pestaña, para el contador de arriba */
+  pendN(k) {
+    const s = RM.st, d = RM.tabDate(k), b = s.batches.find(x => x.kind === k && x.date === d); if (!b) return 0;
+    const list = b.id === s.batchId ? s.raw : (s.rows[b.id] || []);
+    return RM.shown(list, k, d).filter(m => m.phone && !m.sent_at).length;
   },
   async fetchBatches() {
     const r = await FM.sb.from('fm_reception_batches').select('id,date,kind,label,generated_at').gte('date', RM.today()).order('date', { ascending: true }); /* solo hoy y días siguientes; los pasados no se muestran */
     if (r.error) throw new Error(RM.friendly(r.error.message));
-    RM.st.batches = r.data || []; RM.pick();
+    RM.st.batches = r.data || []; RM.st.rows = {};
+    const ids = RM.st.batches.map(b => b.id);
+    if (ids.length) { const q = await FM.sb.from('fm_reception_messages').select('batch_id,id,phone,sent_at,type,deposit_status,time,client_name').in('batch_id', ids); if (!q.error) (q.data || []).forEach(x => { (RM.st.rows[x.batch_id] = RM.st.rows[x.batch_id] || []).push(x); }); }
+    RM.pick();
   },
   async fetchMsgs() {
     const s = RM.st, b = RM.batch();
-    if (!b) { s.msgs = []; s.batchId = null; s.sel = new Set(); return; }
+    if (!b) { s.raw = []; s.msgs = []; s.batchId = null; s.sel = new Set(); return; }
     const r = await FM.sb.from('fm_reception_messages').select('*').eq('batch_id', b.id).order('sort_order', { ascending: true });
     if (r.error) throw new Error(RM.friendly(r.error.message));
-    const ch = s.batchId !== b.id; s.batchId = b.id; s.msgs = r.data || [];
+    const ch = s.batchId !== b.id; s.batchId = b.id; s.raw = r.data || []; s.msgs = RM.shown(s.raw, s.kind, s.date);
     RM.overlay();
     if (ch) { s.sel = RM.loadSel(); s.open = new Set(); }
   },
@@ -13728,16 +13775,16 @@ const RM = {
   },
   
   /* ---------- cálculos ---------- */
-  isFollow(m) { return RM.st.kind === '24h' ? m.type === 'deposit' : (m.type !== 'special' && m.type !== 'deposit' && m.deposit_status === 'missing'); },
+  isFollow(m) { const k = RM.st.kind; return k === '24h' ? m.type === 'deposit' : k === 'deposito' ? false : (m.type !== 'special' && m.type !== 'deposit' && m.deposit_status === 'missing'); },
   has(m) { return !!m.phone; },
   matches(m, f) { if (f === 'pend') return RM.has(m) && !m.sent_at; if (f === 'sent') return !!m.sent_at; if (f === 'follow') return RM.isFollow(m); if (f === 'nophone') return !RM.has(m); return true; },
   visible() { const s = RM.st, q = s.q.trim().toLowerCase(); return s.msgs.filter(m => RM.matches(m, s.filter) && (!q || [m.client_name, m.title, m.service, m.artist].join(' ').toLowerCase().includes(q))); },
   stats() {
     const M = RM.st.msgs, withPh = M.filter(RM.has);
-    return { citas: M.filter(m => m.type === 'reminder').length, pend: withPh.filter(m => !m.sent_at).length, sent: withPh.filter(m => m.sent_at).length, follow: M.filter(RM.isFollow).length, nophone: M.filter(m => !RM.has(m)).length, total: withPh.length };
+    return { citas: RM.TABS.includes(RM.st.kind) ? M.filter(m => m.type !== 'special').length : M.filter(m => m.type === 'reminder').length, pend: withPh.filter(m => !m.sent_at).length, sent: withPh.filter(m => m.sent_at).length, follow: M.filter(RM.isFollow).length, nophone: M.filter(m => !RM.has(m)).length, total: withPh.length };
   },
   pendingList() { return RM.st.msgs.filter(m => RM.has(m) && !m.sent_at); },
-  startSet() { return RM.pendingList().filter(m => m.type !== 'deposit'); },
+  startSet() { return RM.st.kind === 'deposito' ? RM.pendingList() : RM.pendingList().filter(m => m.type !== 'deposit'); },
   selLeft() { return RM.st.msgs.filter(m => RM.st.sel.has(m.id) && RM.has(m) && !m.sent_at); },
   cta() {
     const s = RM.st, pend = RM.pendingList(), left = RM.selLeft(), any = s.msgs.some(m => m.sent_at);
@@ -13841,30 +13888,34 @@ Views.mensajes = {
     if (!RM.allowed()) return head('Textos del día listos para enviar a las clientas.') + `<div class="banner">Tu usuario no tiene permiso para ver los mensajes a clientas. Pide acceso a administración.</div>`;
     if (!s.loaded && s.loading) return head('Textos del día listos para enviar a las clientas.') + `<div class="loading">Cargando mensajes…</div>`;
     if (s.err && !s.loaded) return head('Textos del día listos para enviar a las clientas.') + `<div class="rm"><div class="rm-state err"><b>No se pudieron cargar los mensajes</b><p>${esc(s.err)}</p><button class="btn primary" data-rm-reload>Reintentar</button></div></div>`;
-    if (!s.batches.length) return head('Textos del día listos para enviar a las clientas.') + `<div class="rm"><div class="rm-state"><b>Todavía no hay mensajes cargados</b><p>Cuando el asistente de la agenda cargue los textos de un día aparecerán aquí, listos para enviar.</p><button class="btn" data-rm-reload>Actualizar</button></div></div>`;
+    s.msgs = RM.shown(s.raw, s.kind, s.date);   /* se recalcula al pintar: la agenda puede haber cambiado (depósito pagado) */
 
     const b = RM.batch(), kind = s.kind, today = RM.today();
-    const lead = { '24h': 'Recordatorios para mañana (enviar hoy). Revisa el depósito en Booksy antes de mandar el 2.º texto. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
+    const lead = { confirmacion: 'Confirma las citas nuevas en cuanto aparezcan o al abrir el salón. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
+      deposito: 'Clientas con cita que todavía no tienen depósito pagado. Se cargan a las 5 PM del día anterior; las que ya pagaron en la agenda se ocultan solas.',
+      '2h': 'Una confirmación por cita de hoy, 2 horas antes. Arriba las que ya toca mandar; abajo, las que vienen.',
+      '24h': 'Recordatorios para mañana (enviar hoy). Revisa el depósito en Booksy antes de mandar el 2.º texto. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
       hoy: 'Mensajes de llegada de hoy. Puedes editar cualquier texto antes de tocar <b>Enviar</b>; se abre Mensajes con el número y el texto listos.',
-      '2h': 'Recordatorios 2 horas antes (opcional). Cada tarjeta dice a qué hora conviene mandarlo.' }[kind] || '';
-    const dates = [...new Set(s.batches.map(x => x.date))].sort().reverse();
+      }[kind] || '';
+    const dates = RM.datesFor(kind).reverse();
     const dlab = d => { const x = s.batches.find(y => y.date === d && y.label) || { label: '' }; return (x.label || d) + (d === today ? ' · hoy' : ''); };
     const c = RM.cta(), st = RM.stats(), list = RM.visible();
     const ctaBtn = `<button class="btn primary rm-cta ${c.dis ? 'done' : ''}" data-rm-cta ${c.dis ? 'disabled' : ''}>${c.ico ? ic(c.ico) : ''}<span>${esc(c.label)}${c.sub ? ` <small>· ${esc(c.sub)}</small>` : ''}</span></button>`;
     const kpi = (cls, ico, lab, val, f) => `<button class="rm-kpi ${cls} ${val ? '' : 'zero'} ${s.filter === f && f !== 'all' ? 'on' : ''}" data-rm-filter="${f}">${'<span class="rm-kl">' + ic(ico) + esc(lab) + '</span>'}<span class="rm-kv">${val}</span></button>`;
-    const FILTERS = [['all', 'Todos'], ['pend', 'Pendientes'], ['sent', 'Enviados'], ['follow', kind === '24h' ? 'Depósito' : 'Sin depósito'], ['nophone', 'Sin teléfono']];
+    const FILTERS = [['all', 'Todos'], ['pend', 'Pendientes'], ['sent', 'Enviados'], ['follow', kind === '24h' ? 'Depósito' : 'Sin depósito'], ['nophone', 'Sin teléfono']].filter(f => !(kind === 'deposito' && f[0] === 'follow'));
     const chips = FILTERS.map(([k, l]) => { const n = s.msgs.filter(m => RM.matches(m, k)).length; if (k === 'nophone' && !n && s.filter !== k) return ''; return `<button class="chip ${s.filter === k ? 'on' : ''}" data-rm-filter="${k}" role="tab" aria-selected="${s.filter === k}">${l}<span class="n">${n}</span></button>`; }).join('');
     const pct = st.total ? Math.round(st.sent / st.total * 100) : 0, allSel = s.msgs.length > 0 && s.msgs.every(m => s.sel.has(m.id)), someSel = s.sel.size > 0 && !allSel;
     const tag = (cls, t, title) => `<span class="rm-tag ${cls}"${title ? ` title="${esc(title)}"` : ''}>${t}</span>`;
-    const card = m => {
+    const card = (m, up) => {
       const [hm, ap] = RM.split(m.time), sent = !!m.sent_at, open = s.open.has(m.id), sel = s.sel.has(m.id), dep = m.type === 'deposit', sp = m.type === 'special', nop = !RM.has(m);
       const tags = [];
       if (nop) tags.push(tag('bad', 'Sin teléfono')); else if (sent) tags.push(tag('sent', 'Enviado' + (m.sent_by_name ? ' · ' + esc(String(m.sent_by_name).split(' ')[0]) : ''), (m.sent_by_name ? 'Enviado por ' + m.sent_by_name : 'Enviado') + (m.sent_at ? ' · ' + RM.when(m.sent_at) : ''))); else tags.push(tag('pend', 'Pendiente'));
-      if (dep) tags.push(tag('warn', 'Pedir depósito')); else if (!sp && m.deposit_status === 'missing') tags.push(tag('warn', 'Sin depósito'));
-      if (sp) tags.push(tag('warn', '⭐ Especial')); if (m.send_at) tags.push(tag('mute', 'Enviar ' + esc(m.send_at))); if (m.text_override != null) tags.push(tag('mute', 'Editado'));
+      if (kind === 'confirmacion') tags.push(tag('new', 'Nueva')); else if (kind === 'deposito') tags.push(tag('bad', 'Falta depósito')); else if (kind === '2h') tags.push(tag('go', 'Hoy 2h'));
+      else if (dep) tags.push(tag('warn', 'Pedir depósito')); else if (!sp && m.deposit_status === 'missing') tags.push(tag('warn', 'Sin depósito'));
+      if (sp) tags.push(tag('warn', '⭐ Especial')); if (m.send_at) tags.push(tag('mute', 'Enviar ' + esc(RM.sendLabel(m)))); if (m.text_override != null) tags.push(tag('mute', 'Editado'));
       const name = m.client_name ? (dep ? m.client_name + ' · depósito' : m.client_name) : m.title;
       const meta = sp ? (m.service ? 'Mensaje especial · ' + m.service : (m.subtitle || 'Mensaje especial')) : dep ? (m.subtitle || 'Depósito') : (m.service ? m.service + (m.artist ? ' · ' + m.artist : '') : (m.subtitle || ''));
-      return `<article class="rm-card ${sent ? 'sent' : ''} ${dep ? 'dep' : ''} ${nop ? 'nop' : ''} ${sel ? 'is-sel' : ''} ${open ? 'open' : ''}" data-rm-card="${esc(m.id)}">
+      return `<article class="rm-card ${up ? 'upcoming' : ''} ${sent ? 'sent' : ''} ${dep ? 'dep' : ''} ${nop ? 'nop' : ''} ${sel ? 'is-sel' : ''} ${open ? 'open' : ''}" data-rm-card="${esc(m.id)}">
         <div class="rm-top"><label class="rm-ck"><input type="checkbox" data-rm-sel="${esc(m.id)}" ${sel ? 'checked' : ''} aria-label="Seleccionar a ${esc(name)}"></label>
           <div class="rm-time">${sp ? `<span class="rm-star">${ic('rstar')}</span>` : hm ? `<b>${esc(hm)}</b><span>${esc(ap)}</span>` : ''}</div>
           <button class="rm-main" data-rm-open="${esc(m.id)}" aria-expanded="${open}"><span class="rm-name">${esc(name)}</span><span class="rm-meta">${esc(meta)}</span><span class="rm-tags">${tags.join('')}</span></button></div>
@@ -13875,13 +13926,17 @@ Views.mensajes = {
           <button class="btn rm-ibtn" data-rm-copy="${esc(m.id)}" aria-label="Copiar texto" title="Copiar">${ic('rcopy')}</button>
           ${nop ? `<span class="rm-nop">${ic('rwarn')}Sin teléfono en Booksy</span>` : `<button class="btn primary" data-rm-send="${esc(m.id)}">${ic('rsend')}Enviar</button>`}</div></article>`;
     };
-    const body = !s.msgs.length ? `<div class="rm-state"><b>No hay mensajes para este día</b><p>Cuando haya citas en Booksy aparecerán aquí listas para enviar.</p></div>`
-      : list.length ? `<div class="rm-list">${list.map(card).join('')}</div>` : `<div class="rm-state"><b>Nada por aquí</b><p>No hay tarjetas que coincidan con este filtro.</p></div>`;
+    const emptyT = { confirmacion: ['No hay citas nuevas por confirmar', 'Cuando entre una cita nueva aparecerá aquí.'], deposito: ['No hay depósitos por pedir', 'Se cargan a las 5 PM del día anterior. Las clientas que ya pagaron no aparecen.'], '2h': ['No hay confirmaciones de 2 h', 'Aparecen una por cita del día.'] }[kind] || ['No hay mensajes para este día', 'Cuando haya citas en Booksy aparecerán aquí listas para enviar.'];
+    const dueL = kind === '2h' ? list.filter(m => RM.isDue(m, s.date)).sort((a, b2) => (!!a.sent_at) - (!!b2.sent_at)) : [], upL = kind === '2h' ? list.filter(m => !RM.isDue(m, s.date)) : [];
+    const grouped = `${dueL.length ? `<h3 class="rm-sub">Ya toca mandar <span>${dueL.length}</span></h3><div class="rm-list">${dueL.map(m => card(m)).join('')}</div>` : `<div class="rm-state"><b>Nada por mandar todavía</b><p>Las siguientes aparecen abajo y se mueven aquí a su hora.</p></div>`}${upL.length ? `<h3 class="rm-sub">Próximas <span>${upL.length}</span></h3><div class="rm-list">${upL.map(m => card(m, true)).join('')}</div>` : ''}`;
+    const body = !s.msgs.length ? `<div class="rm-state"><b>${emptyT[0]}</b><p>${emptyT[1]}</p></div>`
+      : list.length ? (kind === '2h' ? grouped : `<div class="rm-list">${list.map(card).join('')}</div>`) : `<div class="rm-state"><b>Nada por aquí</b><p>No hay tarjetas que coincidan con este filtro.</p></div>`;
     return head(lead + (b && b.generated_at ? ` <span class="mutedc">Cargado ${esc(RM.when(b.generated_at))}.</span>` : ''),
       `<div class="chips rm-headacts"><label class="rm-date">${ic('cal')}<select data-rm-date aria-label="Fecha de las citas">${dates.map(d => `<option value="${d}" ${d === s.date ? 'selected' : ''}>${esc(dlab(d))}</option>`).join('')}</select></label>${ctaBtn.replace('rm-cta', 'rm-cta rm-cta-top')}<button class="btn rm-ibtn" data-rm-menu aria-label="Más acciones" title="Más acciones">${ic('rdots')}</button></div>`) +
       `<div class="rm">${s.err ? `<div class="banner" style="border-color:var(--bad)">${esc(s.err)} <button class="rm-link" data-rm-reload>Reintentar</button></div>` : ''}
-      <div class="segmented small rm-kinds" role="tablist">${RM.kindsFor(s.date).map(k => `<button class="${k === kind ? 'on' : ''}" data-rm-kind="${k}" role="tab" aria-selected="${k === kind}">${RM.KLAB[k]}</button>`).join('')}</div>
-      <div class="rm-kpis">${kpi('lead', 'cal', kind === '24h' ? 'Citas mañana' : 'Citas hoy', st.citas, 'all')}${kpi('', 'rclock', 'Por enviar', st.pend, 'pend')}${kpi('ok', 'rcheck', 'Enviados', st.sent, 'sent')}${kpi('warn', 'rdollar', kind === '24h' ? 'Pedir depósito' : 'Sin depósito', st.follow, 'follow')}${kpi('bad', 'rwarn', 'Sin teléfono', st.nophone, 'nophone')}</div>
+      <div class="rm-pends" role="group" aria-label="Pendientes por pestaña">${RM.tabKinds().map(k => { const n = RM.pendN(k); return `<button class="rm-pend ${k === kind ? 'on' : ''} ${n ? '' : 'zero'}" data-rm-kind="${k}"><b>${n}</b><span>${esc(RM.KLAB[k])}</span><small>${n === 1 ? 'pendiente' : 'pendientes'}</small></button>`; }).join('')}</div>
+      <div class="segmented small rm-kinds" role="tablist">${RM.tabKinds().map(k => `<button class="${k === kind ? 'on' : ''}" data-rm-kind="${k}" role="tab" aria-selected="${k === kind}">${RM.KLAB[k]}</button>`).join('')}</div>
+      <div class="rm-kpis">${kpi('lead', 'cal', { confirmacion: 'Citas nuevas', deposito: 'Por pedir depósito', '24h': 'Citas mañana' }[kind] || 'Citas hoy', st.citas, 'all')}${kpi('', 'rclock', 'Por enviar', st.pend, 'pend')}${kpi('ok', 'rcheck', 'Enviados', st.sent, 'sent')}${kind === 'deposito' ? '' : kpi('warn', 'rdollar', kind === '24h' ? 'Pedir depósito' : 'Sin depósito', st.follow, 'follow')}${kpi('bad', 'rwarn', 'Sin teléfono', st.nophone, 'nophone')}</div>
       <div class="rm-prog ${st.total && st.sent === st.total ? 'done' : ''}"><div class="rm-pl"><span>${st.total && st.sent === st.total ? 'Todo enviado' : st.sent ? 'Enviados · ' + pct + '%' : 'Ningún mensaje enviado todavía'}</span><b>${st.sent} / ${st.total}</b></div><div class="rm-bar"><i style="width:${pct}%"></i></div></div>
       <div class="rm-filters"><div class="chips" role="tablist">${chips}</div><label class="rm-search">${ic('rsearch')}<input type="search" data-rm-q value="${esc(s.q)}" placeholder="Buscar clienta, servicio o técnica…" aria-label="Buscar" autocomplete="off"></label></div>
       <div class="rm-selbar"><label class="rm-selall"><input type="checkbox" data-rm-selall ${allSel ? 'checked' : ''} ${someSel ? 'data-ind="1"' : ''} ${s.msgs.length ? '' : 'disabled'}> <span>Seleccionar todas${s.sel.size ? ` <small class="mutedc">· ${s.sel.size} seleccionadas</small>` : ''}</span></label><button class="btn sm" data-rm-gen ${s.msgs.length ? '' : 'disabled'}>${ic('redit')}Mensaje general</button></div>
@@ -13917,7 +13972,7 @@ document.addEventListener('click', e => {
   if ((el = q('[data-rm-restore]'))) { const id = el.dataset.rmRestore, m = s.msgs.find(x => x.id === id); if (m) { m.text_override = null; RM.pendingText.set(id, m.text); RM.saveText(id, true); RM.paint(); UI.toast('Texto restaurado'); } return; }
   if ((el = q('[data-rm-open]'))) { const id = el.dataset.rmOpen; if (s.open.has(id)) s.open.delete(id); else s.open.add(id); RM.paint(); if (s.open.has(id)) { const ta = $$('[data-rm-text]').find(x => x.dataset.rmText === id); if (ta) ta.focus({ preventScroll: true }); } return; }
   if ((el = q('[data-rm-filter]'))) { s.filter = el.dataset.rmFilter; RM.paint(); const c = $('.rm-filters'); if (c && c.scrollIntoView) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
-  if ((el = q('[data-rm-kind]'))) { s.kind = el.dataset.rmKind; RM.changeBatch(); return; }
+  if ((el = q('[data-rm-kind]'))) { const k = el.dataset.rmKind; if (k === s.kind) return; s.dateOf[s.kind] = s.date; const d = RM.tabDate(k); s.kind = k; s.date = d; s.dateOf[k] = d; RM.changeBatch(); return; }
   if ((el = q('[data-rm-menu]'))) { RM.openMenu(); return; }
   if ((el = q('[data-rm-gen]'))) { RM.openGeneral(); return; }
   if ((el = q('[data-rm-reload]'))) { RM.load(false); return; }
@@ -13927,7 +13982,7 @@ document.addEventListener('change', e => {
   if (t.matches('[data-rm-sel]')) { if (t.checked) s.sel.add(t.dataset.rmSel); else s.sel.delete(t.dataset.rmSel); RM.saveSel(); RM.paint(); }
   else if (t.matches('[data-rm-selall]')) { if (t.checked) s.msgs.forEach(m => s.sel.add(m.id)); else s.sel.clear(); RM.saveSel(); RM.paint(); }
   else if (t.matches('[data-rm-sent]')) RM.mark([t.dataset.rmSent], t.checked);
-  else if (t.matches('[data-rm-date]')) { s.date = t.value; s.kind = ''; RM.pick(); RM.changeBatch(); }
+  else if (t.matches('[data-rm-date]')) { s.date = t.value; s.dateOf[s.kind] = s.date; RM.changeBatch(); }
   else if (t.matches('[data-rm-text]')) RM.saveText(t.dataset.rmText, true);
 });
 document.addEventListener('input', e => {
@@ -13970,6 +14025,13 @@ try { if (typeof UI2 !== 'undefined') { UI2.NAVIC.mensajes = ICON.rmsg; ['admin'
 .rm-ibtn{width:42px;height:42px;padding:0;justify-content:center;flex:none}
 .rm-ibtn.ok{color:var(--ok);border-color:var(--ok)}
 .rm .segmented.rm-kinds{margin:0 0 16px}
+.rm-pends{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 12px}
+.rm-pend{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:10px 14px;cursor:pointer;font:inherit;color:var(--ink);min-width:0}
+.rm-pend b{font-size:26px;font-weight:600;line-height:1.1;font-variant-numeric:lining-nums tabular-nums;color:var(--pink-deep)}.rm-pend span{font-size:13px;font-weight:600}.rm-pend small{font-size:11.5px;color:var(--muted)}
+.rm-pend:hover{border-color:var(--sand)}.rm-pend.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.18)}.rm-pend.zero b{opacity:.35}
+.rm-sub{font-size:13px;font-weight:700;margin:16px 0 8px;color:var(--ink);display:flex;align-items:center;gap:8px}.rm-sub span{font-size:11.5px;font-weight:600;border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
+.rm-card.upcoming{opacity:.6;filter:grayscale(.65)}.rm-card.upcoming:hover,.rm-card.upcoming.open{opacity:1;filter:none}
+.rm-tag.new{border-color:#8b5cc9;color:#7a4fc4;background:rgba(139,92,201,.09)}.rm-tag.go{border-color:var(--ok);color:var(--ok)}
 .rm-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .rm-kpi{display:flex;flex-direction:column;gap:6px;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:14px;padding:12px 14px;cursor:pointer;font:inherit;color:var(--ink);min-width:0}
 .rm-kpi:hover{border-color:var(--sand)}.rm-kpi.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(212,175,55,.18)}
