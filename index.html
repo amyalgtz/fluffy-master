@@ -1001,7 +1001,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-19 20:00';
+window.FM_VERSION = '2026-11-19 21:30';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -9710,8 +9710,13 @@ const CL = {
   show(n) { const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(n || ''); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : (n || ''); },
   key(first, last) { return ckey(first, last); },
   fake(k) { return !k || k.length < 3 || /^(sin cita( previa)?|walk ?in|cliente|clienta|n a|na|test|prueba|sin nombre|desconocid[oa])$/.test(k); },
-  sim(a, b) { if (!a || !b) return 'distinto'; if (a === b) return 'igual'; const ta = a.split(' '), tb = b.split(' '), d = BK.dl(a, b);
-    if (d <= 2 || (ta[ta.length - 1] === tb[tb.length - 1] && (ta[0].startsWith(tb[0]) || tb[0].startsWith(ta[0])) && Math.min(ta[0].length, tb[0].length) >= 3) || (ta[0] === tb[0] && d <= 4)) return 'parecido'; return 'distinto'; },
+  /* nombre: 'igual' solo si la clave es idéntica; 'parecido' solo si el nombre COMPLETO coincide casi perfecto: mismas palabras (nombre y apellido, mínimo 2),
+     misma inicial y solo faltas menores de escritura por palabra (annie/ani, gonzalez/gonsalez; en palabras cortas solo variantes de ortografía, no letras distintas: luis≠luisa). Compartir solo el primer nombre o un prefijo ya NO cuenta. */
+  spell(w) { return w.replace(/(.)\1+/g, '$1').replace(/z/g, 's').replace(/c(?=[ei])/g, 's').replace(/v/g, 'b').replace(/h/g, '').replace(/y/g, 'i').replace(/ie$/, 'i'); },
+  sim(a, b) { if (!a || !b) return 'distinto'; if (a === b) return 'igual'; const ta = a.split(' '), tb = b.split(' ');
+    if (ta.length < 2 || ta.length !== tb.length) return 'distinto';
+    const w = (x, y) => { if (x === y) return true; if (x[0] !== y[0]) return false; const u = CL.spell(x), v = CL.spell(y); if (u === v) return true; const m = Math.max(u.length, v.length), t = m >= 9 ? 2 : m >= 6 ? 1 : 0; return t > 0 && !u.startsWith(v) && !v.startsWith(u) && BK.dl(u, v) <= t; };
+    return ta.every((x, i) => w(x, tb[i])) ? 'parecido' : 'distinto'; },
   name(c) { return title(((c.first || '') + ' ' + (c.last || '')).trim()) || 'Sin nombre'; },
   keys(c) { return [...new Set([c.key || CL.key(c.first, c.last), ...(c.altKeys || [])].filter(Boolean))]; },
   resolve(id) { const m = CL.idx().byId; let c = m.get(id), n = 0; while (c && c.status === 'merged' && c.mergedInto && n++ < 10) c = m.get(c.mergedInto); return c || null; },
@@ -14138,9 +14143,13 @@ const BI = {
     if (sn.duration != null && b.duration_min != null && sn.duration !== b.duration_min) ch.push(`duración ${sn.duration} → ${b.duration_min} min`);
     return ch;
   },
-  similar(b, cl) {   // fichas con nombre igual o parecido
-    const key = CL.key(cl.first, cl.last); if (!key || CL.fake(key)) return []; const out = [];
-    CL.idx().act.forEach(c => { if (CL.keys(c).some(k => CL.sim(key, k) !== 'distinto')) out.push(c); }); return out;
+  similar(b, cl) {   // fichas parecidas: (1) mismo teléfono, o (2) nombre y apellido casi idénticos. Si las dos ya tienen teléfono y son distintos, NO lo son.
+    const key = CL.key(cl.first, cl.last), ph = CL.phone(b.phone), I = CL.idx(), out = [], seen = new Set(), add = c => { if (!seen.has(c.id)) { seen.add(c.id); out.push(c); } };
+    if (ph.ok) (I.ph.get(ph.n) || []).forEach(add);
+    if (key && !CL.fake(key) && key.split(' ').length >= 2) I.act.forEach(c => {
+      if (ph.ok && (c.phones || []).length && !(c.phones || []).some(p => p.n === ph.n)) return;
+      if (CL.keys(c).some(k => CL.sim(key, k) !== 'distinto')) add(c); });
+    return out;
   },
   /* ---------- clienta: teléfono conocido → se liga; nada parecido → ficha nueva; nombre parecido → Revisar ---------- */
   async client(b, cl, ov) {
@@ -14151,7 +14160,7 @@ const BI = {
     }
     if (ph.ok && (I.ph.get(ph.n) || []).length) return { made: false };
     if (!ph.ok || !key || CL.fake(key)) return { made: false };   // sin teléfono utilizable no se crea ficha (la clienta aparece igual por sus citas)
-    if (!(ov && ov.clientMode === 'new')) { const sim = BI.similar(b, cl); if (sim.length) return { review: true, ids: sim.map(c => c.id).slice(0, 5), reason: `Ya hay una ficha con nombre ${sim.length > 1 ? 'parecido' : 'parecido'}: ${sim.slice(0, 3).map(c => CL.name(c)).join(', ')}. Confirma si es la misma persona.` }; }
+    if (!(ov && ov.clientMode === 'new')) { const sim = BI.similar(b, cl); if (sim.length) return { review: true, ids: sim.map(c => c.id).slice(0, 5), reason: `Posible clienta repetida: ${sim.slice(0, 3).map(c => CL.name(c)).join(', ')}. ¿Es la misma persona y quieres unirlas? Si no, se crea una ficha nueva.` }; }
     const c = CL.blank(); c.first = cl.first; c.last = cl.last; c.source = 'booksy'; c.phones = [{ n: ph.n, raw: b.phone }]; const em = CL.email(b.email); if (em) c.emails = [{ e: em }];
     await BI.saveClient(c); return { made: true };
   },
