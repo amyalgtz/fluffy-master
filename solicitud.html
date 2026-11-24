@@ -143,6 +143,19 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 .wd-empty{text-align:center;color:var(--soft);padding:26px 10px;font-size:13.5px;line-height:1.45}
 .wd-end{width:100%;margin:14px 0 0}
 @media (prefers-reduced-motion:no-preference){.wd-body{animation:wdin .22s ease-out}@keyframes wdin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.wd-sk{animation:wdsk 1.2s ease-in-out infinite}@keyframes wdsk{50%{opacity:.5}}.pt-trio .pt-tap{transition:background-color .12s}}
+/* Mis solicitudes: notas de insumos arriba (por pagar + historial) */
+.nz{background:var(--card);border-radius:16px;box-shadow:var(--shadow);margin:0 0 10px;overflow:hidden}
+.nz.due{background:linear-gradient(90deg,var(--goldsoft),transparent 75%),var(--card);box-shadow:var(--shadow),inset 3px 0 0 var(--goldline)}
+.nz-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:12px 14px 6px}.nz-h h2{margin:0 0 1px;font-size:16px}
+.nz-amt{font-family:var(--serif);font-weight:600;font-size:28px;line-height:1;color:var(--gold);letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+.nz-l{background:none;box-shadow:none;border-radius:0;margin:0}.nz.due .nz-l{border-top:1px solid var(--gline)}.nz-l .pt-r2{border-top-color:var(--line)}.nz-l[hidden],#nz-more[hidden]{display:none}.nz-due{font-family:var(--serif);font-weight:600;font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums}
+.nz-f{padding:0 14px 11px;margin:0}
+.nz-ok{display:flex;align-items:center;gap:10px;margin:0;padding:12px 14px;font-size:13.5px;font-weight:600;color:var(--sage)}.nz-tick{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--okbg);color:var(--okfg);font-size:12px;font-weight:700}
+.nz-b{border-top:0;min-height:56px}.nz-b .chev{transition:transform .18s ease-out}.nz-b[aria-expanded="true"] .chev,.nz-more[aria-expanded="true"] .chev{transform:rotate(90deg)}.nz-b[aria-expanded="true"]{box-shadow:inset 0 -1px 0 var(--line)}
+.nz-msg{margin-bottom:10px}
+.nz-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:44px;margin:0 0 10px;border:0;border-radius:12px;background:var(--blush);color:var(--ink);font-weight:600;font-size:13px}.nz-more .chev{transition:transform .18s ease-out}
+.pt-r2:active,.nz-more:active{background:var(--blush)}
+@media (prefers-reduced-motion:reduce){.nz-b .chev,.nz-more .chev{transition:none}}
 @media (prefers-reduced-motion:no-preference){.sheet .pane{animation:mwup .2s ease-out}@keyframes mwup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
 
 /* áreas táctiles amplias sin cambiar el aspecto */
@@ -457,7 +470,6 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   }
 
   // Mis solicitudes
-  const reqRef = r => `Solicitud del ${fshort(r.requestDate)}: ${(r.items || []).map(i => i.name + ' × ' + Number(i.qty)).join(', ')}`.slice(0, 190);
   const itemTag = s => s === 'Entregado' ? '<span class="st ok">Entregado</span>' : s === 'Sin stock' ? '<span class="st warn">Sin stock</span>' : '<span class="st goldt">Pendiente</span>';
   function vMis() {
     if (!S.mine) { need('mine', 'fm_my_requests', {}, r => { if (!r.err) S.mine = { requests: r.requests || [], prices: r.prices || {}, notes: r.notes || [] }; }); }
@@ -468,20 +480,21 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       const m = S.mine, ym = todayISO().slice(0, 7), mes = cap(new Date().toLocaleDateString('es-MX', { month: 'long' }));
       const cur = m.requests.filter(r => (r.deliveredAt || r.requestDate || '').slice(0, 7) === ym), ent = cur.flatMap(r => (r.items || []).filter(i => i.state === 'Entregado'));
       const sub = ent.reduce((t, i) => t + Number(i.qty) * Number(m.prices[i.code] || 0), 0), pz = ent.reduce((t, i) => t + Number(i.qty), 0);
-      body = `<div class="soft sumb"><span class="muted small">Tu nota de insumos de ${esc(mes.toLowerCase())}, aproximada</span><span class="sumv"><b class="mid">${M(sub)}</b><span class="muted small">${pz} pieza${pz === 1 ? '' : 's'} entregada${pz === 1 ? '' : 's'}</span></span></div>
+      body = `${notesTop(m)}
+        <div class="soft sumb"><span class="muted small">Tu nota de insumos de ${esc(mes.toLowerCase())}, aproximada</span><span class="sumv"><b class="mid">${M(sub)}</b><span class="muted small">${pz} pieza${pz === 1 ? '' : 's'} entregada${pz === 1 ? '' : 's'}</span></span></div>
         <p class="fine">A precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
         <h2>Tus solicitudes</h2>
         ${m.requests.length ? m.requests.map(r => S.edit && S.edit.id === r.id ? editBox(r) : `<div class="req"><div class="hd"><b>${esc(fdate(r.requestDate))}</b>${r.status === 'Cancelada' ? '<span class="muted small">Cancelada</span>' : r.deliveredAt ? `<span class="st ok small" style="font-weight:600">Entregado el ${esc(fday(r.deliveredAt))}</span>` : '<span class="goldt small" style="font-weight:700">Por entregar</span>'}</div>
           ${r.editedAt ? '<div class="muted small" style="margin-top:2px">La corregiste</div>' : ''}
           ${(r.items || []).map(i => `<div class="li"><span>${esc(i.name)}</span><span>${(r.items || []).some(x => x.state && x.state !== 'Pendiente') ? itemTag(i.state) + ' ' : ''}<b>× ${Number(i.qty)}</b></span></div>`).join('')}
           ${r.note ? `<div class="muted small" style="margin-top:4px">Nota: ${esc(r.note)}</div>` : ''}
-          <div class="pills">${r.editable ? `<button class="pill pri" data-redit="${esc(r.id)}">Corregir</button><button class="pill" data-rcancel="${esc(r.id)}">Cancelar</button>` : ''}<button class="pill" data-noteref="${esc(reqRef(r))}" data-topic="insumos">Mandar nota</button></div></div>`).join('') : '<p class="empty">No tienes solicitudes en los últimos 75 días.</p>'}
-        ${(m.notes || []).length ? `<h2>Tus notas de insumos</h2><div class="pt-list">${m.notes.map((n, i) => noteCard(n, i)).join('')}</div>` : ''}
+          ${r.editable ? `<div class="pills"><button class="pill pri" data-redit="${esc(r.id)}">Corregir</button><button class="pill" data-rcancel="${esc(r.id)}">Cancelar</button></div>` : ''}</div>`).join('') : '<p class="empty">No tienes solicitudes en los últimos 75 días.</p>'}
         ${notesBlock('insumos')}
         <button class="btn line" style="margin-top:12px" data-noteref="General (insumos o nota del mes)" data-topic="insumos">Mandar nota a administración</button>`;
     }
     paint(`<h1>Mis solicitudes</h1><p class="lead">Puedes corregirlas mientras no se entreguen</p>${yoSeg()}${body}`);
     bindYo(); bindRetry('mine'); bindNotes(); bindEdit();
+    bindFold('[data-nh]', 'nhist'); bindFold('[data-anh]', 'anh');
     $$('[data-redit]').forEach(b => b.onclick = () => { const r = S.mine.requests.find(x => x.id === b.dataset.redit); S.edit = { id: r.id, items: (r.items || []).map(i => ({ code: i.code, name: i.name, qty: Number(i.qty) })), note: r.note || '' }; render(); });
     $$('[data-rcancel]').forEach(b => b.onclick = () => sheet(`<h2 style="margin-top:4px">¿Cancelar esta solicitud?</h2><p class="muted">Recepción ya no la va a entregar.</p><div style="display:grid;gap:10px;margin-top:16px"><button class="btn" id="yes">Sí, cancelar</button><button class="btn line" id="no">No</button></div>`, () => { $('#no').onclick = closeSheet; $('#yes').onclick = () => { closeSheet(); saveEdit(b.dataset.rcancel, [], ''); }; }));
   }
@@ -510,9 +523,37 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 
   // notas a administración
   function notesBlock(topic) {
-    const l = (S.notes || []).filter(n => n.topic === topic); if (!l.length) return S.flash ? `<p class="okmsg">${esc(S.flash)}</p>` : '';
-    const out = `${S.flash ? `<p class="okmsg">${esc(S.flash)}</p>` : ''}<h2>Tus notas a administración</h2>${l.map(n => `<div class="card" style="margin-bottom:10px"><div class="sh"><b style="font-size:13.5px">“${esc(n.text)}”</b><span class="small ${n.status === 'Resuelto' ? 'ok' : 'goldt'}" style="font-weight:600;white-space:nowrap">${n.status === 'Resuelto' ? 'Resuelto' : n.status === 'Visto' ? 'Visto' : 'Enviada'}</span></div><div class="muted small" style="margin-top:4px">${esc(n.ref || '')}</div>${n.reply ? `<div class="reply">Administración: ${esc(n.reply)}</div>` : ''}</div>`).join('')}`;
+    const l = (S.notes || []).filter(n => n.topic === topic); if (!l.length) { const f = S.flash ? `<p class="okmsg" role="status">${esc(S.flash)}</p>` : ''; S.flash = ''; return f; }
+    const card = n => `<div class="card nz-msg"><div class="sh"><b style="font-size:13.5px">“${esc(n.text)}”</b><span class="small ${n.status === 'Resuelto' ? 'ok' : 'goldt'}" style="font-weight:600;white-space:nowrap">${n.status === 'Resuelto' ? 'Resuelto' : n.status === 'Visto' ? 'Visto' : 'Enviada'}</span></div><div class="muted small" style="margin-top:4px">${esc(n.ref || '')}</div>${n.reply ? `<div class="reply">Administración: ${esc(n.reply)}</div>` : ''}</div>`;
+    const first = l.slice(0, 3), rest = l.slice(3), open = !!S.anh;
+    const out = `${S.flash ? `<p class="okmsg" role="status">${esc(S.flash)}</p>` : ''}<h2>Tus notas a administración</h2>${first.map(card).join('')}${rest.length ? `<div id="nz-more" ${open ? '' : 'hidden'}>${rest.map(card).join('')}</div><button type="button" class="nz-more" data-anh aria-expanded="${open}" aria-controls="nz-more"><span data-lbl="Ver las ${rest.length} anteriores">${open ? 'Ver menos' : `Ver las ${rest.length} anteriores`}</span>${IC.chev}</button>` : ''}`;
     S.flash = ''; return out;
+  }
+  /* plegar y desplegar sin volver a pintar la pantalla (se conserva el scroll) */
+  function bindFold(sel, key) {
+    const b = $(sel); if (!b) return;
+    b.onclick = () => {
+      S[key] = !S[key]; b.setAttribute('aria-expanded', S[key] ? 'true' : 'false');
+      const t = $('#' + b.getAttribute('aria-controls')); if (t) t.hidden = !S[key];
+      const sp = b.querySelector('span'); if (sp && sp.dataset.lbl) sp.textContent = S[key] ? 'Ver menos' : sp.dataset.lbl;
+    };
+  }
+  /* Notas de insumos arriba: primero lo que falta por pagar, luego el historial */
+  function notesTop(m) {
+    const list = (m.notes || []).map((n, i) => ({ n, i })); if (!list.length) return '';
+    const by = (a, b) => String(a.n.sentAt || '').localeCompare(String(b.n.sentAt || ''));
+    const pend = list.filter(x => x.n.status === 'Enviada').sort(by), hist = list.filter(x => x.n.status !== 'Enviada').sort((a, b) => by(b, a));
+    const owe = x => Math.max(0, Number(x.n.total || 0) - Number(x.n.paid || 0)), due = pend.reduce((t, x) => t + owe(x), 0);
+    const dueRow = x => { const n = x.n, part = Number(n.paid) > 0, det = Array.isArray(n.items) && n.items.length;
+      const sub = `${esc(n.month)}${n.sentAt ? ' · enviada el ' + esc(fday(n.sentAt)) : ''}${part ? ` · ya pagaste ${M(n.paid, false)}` : ''}`;
+      const l = `<span class="pt-r2t"><b>Nota #${esc(n.invoice)}</b><small>${sub}</small></span>`, r = `<span class="pt-r2r"><b class="nz-due">${M(owe(x))}</b>${det ? IC.chev : ''}</span>`;
+      return det ? `<button type="button" class="pt-r2" data-ni="${x.i}">${l}${r}</button>` : `<div class="pt-r2 static">${l}${r}</div>`; };
+    const top = pend.length
+      ? `<section class="nz due" aria-label="Notas de insumos por pagar"><div class="nz-h"><div><h2>Por pagar</h2><span class="muted small">${pend.length} nota${pend.length === 1 ? '' : 's'} de insumos</span></div><b class="nz-amt" aria-label="Total por pagar">${M(due)}</b></div><div class="pt-list nz-l">${pend.map(dueRow).join('')}</div><p class="fine nz-f">El pago lo confirma administración.</p></section>`
+      : `<section class="nz ok" aria-label="Notas de insumos"><p class="nz-ok"><span class="nz-tick" aria-hidden="true">✓</span>No tienes notas por pagar.</p></section>`;
+    const open = !!S.nhist, last = hist[0] && hist[0].n;
+    const histo = hist.length ? `<section class="nz" aria-label="Historial de notas"><button type="button" class="pt-r2 nz-b" data-nh aria-expanded="${open}" aria-controls="nz-hist"><span class="pt-r2t"><b>Historial de notas</b><small>${hist.length} nota${hist.length === 1 ? '' : 's'}${last ? ' · la última, ' + esc(last.month) : ''}</small></span><span class="pt-r2r">${IC.chev}</span></button><div id="nz-hist" class="pt-list nz-l" ${open ? '' : 'hidden'}>${hist.map(x => noteCard(x.n, x.i)).join('')}</div></section>` : '';
+    return top + histo;
   }
 
   /* nota de insumos completa: productos, precios, descuentos, tax y total; con botón de aclaración */
