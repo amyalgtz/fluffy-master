@@ -156,6 +156,9 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 .nz-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:44px;margin:0 0 10px;border:0;border-radius:12px;background:var(--blush);color:var(--ink);font-weight:600;font-size:13px}.nz-more .chev{transition:transform .18s ease-out}
 .pt-r2:active,.nz-more:active{background:var(--blush)}
 @media (prefers-reduced-motion:reduce){.nz-b .chev,.nz-more .chev{transition:none}}
+.rq-g{margin:0 0 8px}.rq-h{margin:0!important}.rq-body{padding-top:8px}.rq-body[hidden]{display:none}.rq-body .req{margin-bottom:8px}
+.rq-sub{margin-left:8px;padding-left:10px;border-left:2px solid var(--line)}.rq-sub .rq-g:last-child{margin-bottom:0}
+.rq-pill{border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;background:var(--goldsoft);color:var(--gold);white-space:nowrap}
 @media (prefers-reduced-motion:no-preference){.sheet .pane{animation:mwup .2s ease-out}@keyframes mwup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
 
 /* áreas táctiles amplias sin cambiar el aspecto */
@@ -182,7 +185,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   const sb = window.supabase.createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false } });
 
   /* ---------- estado ---------- */
-  const S = { artists: [], products: [], artist: '', pin: '', in: false, view: 'pedir', yo: 'pedir',
+  const S = { rq: {}, artists: [], products: [], artist: '', pin: '', in: false, view: 'pedir', yo: 'pedir',
     qty: {}, cat: '', q: '', note: '', sending: false, sent: null,
     mine: null, edit: null, week: null, wofs: 0, notes: [],
     day: null, today: null, date: '', dep: null, pay: null, pofs: 0, myWeek0: null, allSvc: false, busy: {} };
@@ -471,6 +474,33 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 
   // Mis solicitudes
   const itemTag = s => s === 'Entregado' ? '<span class="st ok">Entregado</span>' : s === 'Sin stock' ? '<span class="st warn">Sin stock</span>' : '<span class="st goldt">Pendiente</span>';
+  const reqCard = r => S.edit && S.edit.id === r.id ? editBox(r) : `<div class="req"><div class="hd"><b>${esc(fdate(r.requestDate))}</b>${r.status === 'Cancelada' ? '<span class="muted small">Cancelada</span>' : r.deliveredAt ? `<span class="st ok small" style="font-weight:600">Entregado el ${esc(fday(r.deliveredAt))}</span>` : '<span class="goldt small" style="font-weight:700">Por entregar</span>'}</div>
+          ${r.editedAt ? '<div class="muted small" style="margin-top:2px">La corregiste</div>' : ''}
+          ${(r.items || []).map(i => `<div class="li"><span>${esc(i.name)}</span><span>${(r.items || []).some(x => x.state && x.state !== 'Pendiente') ? itemTag(i.state) + ' ' : ''}<b>× ${Number(i.qty)}</b></span></div>`).join('')}
+          ${r.note ? `<div class="muted small" style="margin-top:4px">Nota: ${esc(r.note)}</div>` : ''}
+          ${r.editable ? `<div class="pills"><button class="pill pri" data-redit="${esc(r.id)}">Corregir</button><button class="pill" data-rcancel="${esc(r.id)}">Cancelar</button></div>` : ''}</div>`;
+  /* Solicitudes por mes: el mes actual abierto, los anteriores plegados; los años anteriores en un botón de año */
+  const rqPending = r => r.status !== 'Cancelada' && !r.deliveredAt;
+  function reqGroups(list) {
+    const now = todayISO(), cy = now.slice(0, 4), cm = now.slice(0, 7), months = {};
+    list.forEach(r => { const k = String(r.requestDate || '').slice(0, 7) || 'sin-fecha'; (months[k] = months[k] || []).push(r); });
+    const keys = Object.keys(months).sort().reverse(), open = k => (S.edit && months[k].some(r => r.id === S.edit.id)) ? true : (S.rq[k] != null ? S.rq[k] : k === cm);
+    const mname = k => { const [y, mo] = k.split('-'); return /^\d{4}-\d{2}$/.test(k) ? cap(new Date(+y, +mo - 1, 1).toLocaleDateString('es-MX', { month: 'long' })) : 'Sin fecha'; };
+    const stat = rs => { const d = rs.filter(r => r.deliveredAt).length; return `${rs.length} solicitud${rs.length === 1 ? '' : 'es'}${d ? ` · ${d} entregada${d === 1 ? '' : 's'}` : ''}`; };
+    const pill = rs => { const p = rs.filter(rqPending).length; return p ? `<span class="rq-pill">${p} por entregar</span>` : ''; };
+    const head = (key, id, title, sub, rs, isOpen) => `<div class="nz rq-h"><button type="button" class="pt-r2 nz-b" data-fold="${esc(key)}" aria-expanded="${isOpen}" aria-controls="${id}"><span class="pt-r2t"><b>${esc(title)}</b><small>${sub}</small></span><span class="pt-r2r">${pill(rs)}${IC.chev}</span></button></div>`;
+    const monthG = (k, i) => { const rs = months[k], id = 'rq-m' + k, isOpen = open(k); return `<section class="rq-g">${head(k, id, mname(k) + (k.slice(0, 4) === cy ? '' : ' ' + k.slice(0, 4)), stat(rs), rs, isOpen)}<div id="${id}" class="rq-body" ${isOpen ? '' : 'hidden'}>${rs.map(reqCard).join('')}</div></section>`; };
+    const thisYear = keys.filter(k => k.slice(0, 4) === cy || k === 'sin-fecha'), past = keys.filter(k => k !== 'sin-fecha' && k.slice(0, 4) !== cy), years = [...new Set(past.map(k => k.slice(0, 4)))];
+    const yearG = y => { const ks = past.filter(k => k.slice(0, 4) === y), rs = ks.flatMap(k => months[k]), key = 'y' + y, id = 'rq-y' + y, isOpen = (S.edit && rs.some(r => r.id === S.edit.id)) ? true : !!S.rq[key];
+      return `<section class="rq-g rq-y">${head(key, id, y, `${stat(rs)} · ${ks.length} mes${ks.length === 1 ? '' : 'es'}`, rs, isOpen)}<div id="${id}" class="rq-body rq-sub" ${isOpen ? '' : 'hidden'}>${ks.map(monthG).join('')}</div></section>`; };
+    return thisYear.map(monthG).join('') + years.map(yearG).join('');
+  }
+  function bindFolds() {
+    $$('[data-fold]').forEach(b => b.onclick = () => {
+      const t = $('#' + b.getAttribute('aria-controls')), on = b.getAttribute('aria-expanded') !== 'true';
+      S.rq[b.dataset.fold] = on; b.setAttribute('aria-expanded', on ? 'true' : 'false'); if (t) t.hidden = !on;
+    });
+  }
   function vMis() {
     if (!S.mine) { need('mine', 'fm_my_requests', {}, r => { if (!r.err) S.mine = { requests: r.requests || [], prices: r.prices || {}, notes: r.notes || [] }; }); }
     let body;
@@ -484,16 +514,12 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
         <div class="soft sumb"><span class="muted small">Tu nota de insumos de ${esc(mes.toLowerCase())}, aproximada</span><span class="sumv"><b class="mid">${M(sub)}</b><span class="muted small">${pz} pieza${pz === 1 ? '' : 's'} entregada${pz === 1 ? '' : 's'}</span></span></div>
         <p class="fine">A precio lashista, antes de descuentos por metas y tax. La nota final la envía administración.</p>
         <h2>Tus solicitudes</h2>
-        ${m.requests.length ? m.requests.map(r => S.edit && S.edit.id === r.id ? editBox(r) : `<div class="req"><div class="hd"><b>${esc(fdate(r.requestDate))}</b>${r.status === 'Cancelada' ? '<span class="muted small">Cancelada</span>' : r.deliveredAt ? `<span class="st ok small" style="font-weight:600">Entregado el ${esc(fday(r.deliveredAt))}</span>` : '<span class="goldt small" style="font-weight:700">Por entregar</span>'}</div>
-          ${r.editedAt ? '<div class="muted small" style="margin-top:2px">La corregiste</div>' : ''}
-          ${(r.items || []).map(i => `<div class="li"><span>${esc(i.name)}</span><span>${(r.items || []).some(x => x.state && x.state !== 'Pendiente') ? itemTag(i.state) + ' ' : ''}<b>× ${Number(i.qty)}</b></span></div>`).join('')}
-          ${r.note ? `<div class="muted small" style="margin-top:4px">Nota: ${esc(r.note)}</div>` : ''}
-          ${r.editable ? `<div class="pills"><button class="pill pri" data-redit="${esc(r.id)}">Corregir</button><button class="pill" data-rcancel="${esc(r.id)}">Cancelar</button></div>` : ''}</div>`).join('') : '<p class="empty">No tienes solicitudes en los últimos 75 días.</p>'}
+        ${m.requests.length ? reqGroups(m.requests) : '<p class="empty">No tienes solicitudes en los últimos 75 días.</p>'}
         ${notesBlock('insumos')}
         <button class="btn line" style="margin-top:12px" data-noteref="General (insumos o nota del mes)" data-topic="insumos">Mandar nota a administración</button>`;
     }
     paint(`<h1>Mis solicitudes</h1><p class="lead">Puedes corregirlas mientras no se entreguen</p>${yoSeg()}${body}`);
-    bindYo(); bindRetry('mine'); bindNotes(); bindEdit();
+    bindYo(); bindRetry('mine'); bindNotes(); bindEdit(); bindFolds();
     bindFold('[data-nh]', 'nhist'); bindFold('[data-anh]', 'anh');
     $$('[data-redit]').forEach(b => b.onclick = () => { const r = S.mine.requests.find(x => x.id === b.dataset.redit); S.edit = { id: r.id, items: (r.items || []).map(i => ({ code: i.code, name: i.name, qty: Number(i.qty) })), note: r.note || '' }; render(); });
     $$('[data-rcancel]').forEach(b => b.onclick = () => sheet(`<h2 style="margin-top:4px">¿Cancelar esta solicitud?</h2><p class="muted">Recepción ya no la va a entregar.</p><div style="display:grid;gap:10px;margin-top:16px"><button class="btn" id="yes">Sí, cancelar</button><button class="btn line" id="no">No</button></div>`, () => { $('#no').onclick = closeSheet; $('#yes').onclick = () => { closeSheet(); saveEdit(b.dataset.rcancel, [], ''); }; }));
