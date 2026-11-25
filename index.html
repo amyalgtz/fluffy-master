@@ -1022,7 +1022,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-24 21:00';
+window.FM_VERSION = '2026-11-25 12:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1909,7 +1909,7 @@ Views.nueva = {
   html() {
     const edit = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null;
     if (!this.form || this.form._for !== (UI.params.edit || 'new')) {
-      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
+      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '', depositId: edit.depositId || '' } : this.blank();
       this.form._for = UI.params.edit || 'new';
     }
     const f = this.form, ro = !Store.writable();
