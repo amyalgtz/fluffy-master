@@ -162,7 +162,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 .op-h{margin-top:14px}.op-h h2{font-size:15px}.op-r{align-items:flex-start;padding:10px 0;min-height:52px}.op-r .dot{margin-top:6px;flex:none}.op-m{margin-top:3px;font-weight:600}.op-m.ok{color:var(--sage)}.op-m.warn{color:var(--warn)}.op-r .t1,.op-r .t2{overflow-wrap:anywhere}
 .fold-row .chev{transition:transform .18s ease-out;color:var(--soft)}.fold-row[aria-expanded="true"] .chev{transform:rotate(90deg)}.np-l{padding:0 0 4px 18px;margin-bottom:6px;border-left:2px solid var(--warn)}.np-h{margin:8px 0 0;font-size:12.5px;color:var(--soft);line-height:1.4}.sm-r{min-height:48px}.sm-r .t2{line-height:1.35}.rq-body .row:last-child{border-bottom:0}.nz-b.static{cursor:default}
 @media (prefers-reduced-motion:reduce){.fold-row .chev{transition:none}}
-.cm-t{font-size:14px;margin:14px 0 2px}.cm-r{padding:10px 0;border-bottom:1px solid var(--line)}.cm-r:last-of-type{border-bottom:0}.cm-h{display:flex;align-items:center;gap:8px}.cm-h>b{flex:1;font-size:15px}.cm-n{font-weight:700;font-size:15px;min-width:20px;text-align:right}.cm-l{list-style:none;margin:6px 0 0;padding:0}.cm-l li{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:3px 0}.cm-l small{color:var(--soft);text-align:right;overflow-wrap:anywhere}
+.cm-m{border-top:1px solid var(--line)}.cm-m:first-of-type{border-top:0}.cm-m summary{display:flex;align-items:center;gap:10px;padding:12px 0;cursor:pointer;list-style:none;min-height:44px}.cm-m summary::-webkit-details-marker{display:none}.cm-m summary::after{content:"";flex:none;width:7px;height:7px;border-right:2px solid var(--soft);border-bottom:2px solid var(--soft);transform:rotate(-45deg);transition:transform .18s ease-out}.cm-m[open] summary::after{transform:rotate(45deg)}.cm-s{flex:1;display:flex;flex-direction:column;gap:2px}.cm-s small{color:var(--soft);font-size:12.5px;line-height:1.35}.cm-r{padding:8px 0 10px 12px;border-left:2px solid var(--line);margin:0 0 8px 2px}.cm-h{display:flex;align-items:center;gap:8px}.cm-h>b{flex:1;font-size:15px}.cm-n{font-weight:700;font-size:15px;min-width:20px;text-align:right}.cm-l{list-style:none;margin:6px 0 0;padding:0}.cm-l li{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:3px 0}.cm-l small{color:var(--soft);text-align:right;overflow-wrap:anywhere}@media (prefers-reduced-motion:reduce){.cm-m summary::after{transition:none}}
 .rq-pill{border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;background:var(--goldsoft);color:var(--gold);white-space:nowrap}
 @media (prefers-reduced-motion:no-preference){.sheet .pane{animation:mwup .2s ease-out}@keyframes mwup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
 
@@ -712,29 +712,12 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
     const wk = !past && T.today && T.weekStart ? ` · día ${Math.min(7, Math.round((D(T.today) - D(T.weekStart)) / 864e5) + 1)} de 7` : '';
     return foldG('team', 'Cómo va el equipo', esc(sub + wk), '', L.length ? L.map(card).join('') + '<p class="np-h">De la que más apoyo necesita a la que va mejor.</p>' : '<p class="empty">No hay lashistas para mostrar.</p>', false).replace('<section class="rq-g">', '<section class="rq-g eq" style="margin-top:18px">').replace('<span class="pt-r2t">', `<span class="pt-r2i">${pic('team')}</span><span class="pt-r2t">`);
   }
-  /* Compañera del mes (solo manager): quién hizo Redo/Fix y Complimentary/Garantía, por mes. Solo nombre del servicio y fecha; nunca clientas ni montos. */
-  const ymShiftC = (ym, n) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
-  const ymNameC = ym => { const [y, m] = ym.split('-').map(Number); return cap(new Date(Date.UTC(y, m - 1, 15)).toLocaleDateString('es-MX', { month: 'long', year: 'numeric', timeZone: 'UTC' })); };
-  function compBlock() {
-    const C = S.comp; if (!C || C.err || !Array.isArray(C.artists) || !C.ym) return '';
-    const L = C.artists.map(a => ({ id: a.id, name: a.name, redo: Array.isArray(a.redo) ? a.redo : [], compl: Array.isArray(a.compl) ? a.compl : [] }));
-    const mx = Math.max(0, ...L.map(a => a.redo.length)), top = mx > 0 ? L.filter(a => a.redo.length === mx).map(a => a.id) : [];
-    const sorted = k => L.filter(a => a[k].length).sort((x, y) => y[k].length - x[k].length || String(x.name).localeCompare(String(y.name), 'es'));
-    const items = (a, k) => `<ul class="cm-l">${a[k].map(i => `<li><span>${esc(fshort(i.date))}</span><small>${i.service ? (k === 'redo' ? 'de: ' : '') + esc(i.service) : (k === 'redo' ? 'servicio sin indicar' : '')}</small></li>`).join('')}</ul>`;
-    const row = (a, k) => `<div class="cm-r"><div class="cm-h"><b>${esc(shortName(a.name))}</b>${k === 'redo' && top.includes(a.id) ? pill('★ Compañera del mes', 'gold') : ''}<span class="cm-n" aria-label="${a[k].length} ${k === 'redo' ? 'Redo/Fix' : 'servicios'}">${a[k].length}</span></div>${items(a, k)}</div>`;
-    const sec = (k, title, hint, empty) => { const R = sorted(k); return `<h3 class="cm-t">${title}</h3><p class="np-h" style="margin:0 0 2px">${hint}</p>${R.length ? R.map(a => row(a, k)).join('') : `<p class="empty">${empty}</p>`}`; };
-    const busy = !!S.busy.comp, nav = `<div class="wk"><button type="button" data-cm="-1" ${C.min && C.ym > C.min && !busy ? '' : 'disabled'} aria-label="Mes anterior">‹</button><b>${esc(ymNameC(C.ym))}</b><button type="button" data-cm="1" ${C.current && C.ym < C.current && !busy ? '' : 'disabled'} aria-label="Mes siguiente">›</button></div>`;
-    const sub = (top.length ? '★ ' + top.map(id => esc(shortName(L.find(a => a.id === id).name))).join(' y ') : 'Aún sin Redo/Fix') + ' · ' + esc(ymNameC(C.ym));
-    return foldG('comp', 'Compañera del mes', sub, '', nav + sec('redo', 'Buenas compañeras (Redo/Fix)', 'Arreglaron o rehicieron el servicio de otra lashista. Es un reconocimiento: no cambia comisiones ni metas.', 'Nadie hizo Redo/Fix este mes.') + sec('compl', 'Complimentary y Garantía', 'Repusieron su propio trabajo sin cobrar.', 'Sin complimentary ni garantías este mes.'), false)
-      .replace('<section class="rq-g">', '<section class="rq-g eq" style="margin-top:10px">').replace('<span class="pt-r2t">', `<span class="pt-r2i">${pic('crown', 'gold')}</span><span class="pt-r2t">`);
-  }
-  function bindComp() { $$('[data-cm]').forEach(b => b.onclick = () => { if (S.busy.comp || !S.comp || !S.comp.ym) return; const n = ymShiftC(S.comp.ym, +b.dataset.cm); need('comp', 'fm_mgr_companerismo', { p_ym: n }); render(); }); }
   const shortName = n => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${cap(p[0].toLowerCase())} ${p[1][0].toUpperCase()}.` : cap(p[0].toLowerCase()); };
   function vSem() {
     if (!S.week || (!S.week.err && S.week._ofs !== S.wofs)) need('week', 'fm_my_week', { p_offset: S.wofs }, r => { r._ofs = S.wofs; });
     if (S.inc === undefined && !S.busy.inc) need('inc', 'fm_my_incentives', {});
     if (S.redo === undefined && !S.busy.redo) need('redo', 'fm_my_redo', {});
-    if (isMgr() && S.comp === undefined && !S.busy.comp) need('comp', 'fm_mgr_companerismo', {});
+    if (isMgr() && S.comp === undefined && !S.busy.comp) need('comp', 'fm_mgr_companerismo_meses', {});
     if (isMgr() && (!S.team || (!S.team.err && S.team._ofs !== S.wofs))) { if (!S.busy.team) need('team', 'fm_mgr_team', { p_offset: S.wofs }, r => { r._ofs = S.wofs; }); }
     let body, sub = 'De viernes a jueves';
     if (!S.week || S.busy.week) body = '<p class="loading">Cargando…</p>';
@@ -748,7 +731,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
         <div class="pt-duo"><div><span>Ventas netas</span><b>${M(t.sales, false)}</b></div><div class="gold"><span>Total a recibir</span><b>${M(Number(t.commission || 0) + Number(t.tips || 0))}</b></div></div></div>
         <p class="fine">La meta cuenta precio menos descuentos. El total no incluye descuentos de tu nota de insumos ni ajustes de administración.</p>
         ${incCards(x)}
-        ${isMgr() ? teamBlock() + compBlock() : ''}
+        ${isMgr() ? teamBlock() : ''}
         <div class="acts2"><button class="btn line sm" id="reqdet" ${d === 'Pendiente' ? 'disabled' : ''}>${d === 'Pendiente' ? 'Ya pediste el detalle de esta semana' : d === 'Enviado' ? '¿Algo no cuadra? Pedir que lo revisen otra vez' : 'Pedir el detalle de mi semana'}</button><button class="btn line sm" data-noteref="Semana ${esc(fshort(w.weekStart))} – ${esc(fshort(w.weekEnd))}" data-topic="semana">Mandar nota sobre mi semana</button></div>
         ${d === 'Pendiente' ? '<p class="fine" style="text-align:center">Administración va a revisar tu semana; cuando esté lista, tu detalle aparece aquí.</p>' : ''}
         ${d === 'Enviado' ? detail(w) : ''}
@@ -757,7 +740,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       S._x = x;
     }
     paint(`<h1>Mi semana</h1><p class="lead">${esc(sub)}</p>${yoSeg()}<div class="wk"><button data-wk="-1" ${S.wofs <= -8 ? 'disabled' : ''} aria-label="Semana anterior">‹</button><b>${S.wofs === 0 ? 'Esta semana' : S.wofs === -1 ? 'Semana pasada' : `Hace ${-S.wofs} semanas`}</b><button data-wk="1" ${S.wofs >= 0 ? 'disabled' : ''} aria-label="Semana siguiente">›</button></div>${body}`);
-    bindYo(); bindRetry('week'); bindNotes(); bindFolds(); bindComp();
+    bindYo(); bindRetry('week'); bindNotes(); bindFolds();
     $$('[data-card]').forEach(b => b.onclick = () => openCard(b.dataset.card));
     $$('[data-det]').forEach(b => b.onclick = () => openDet(b.dataset.det));
     $$('[data-wk]').forEach(b => b.onclick = () => { S.wofs = Math.max(-8, Math.min(0, S.wofs + Number(b.dataset.wk))); S.week = null; render(); });
@@ -794,9 +777,32 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   /* Redo/Fix: «buena compañera» (solo reconocimiento). Solo se muestra el servicio, nunca el nombre de la compañera */
   function redoCtx(x) { const R = S.redo && !S.redo.err ? (S.redo.items || []) : null; if (!R) return null; const we = x.weekEnd || x.weekStart; return { wk: R.filter(r => r.date >= x.weekStart && r.date <= we), mo: R.filter(r => String(r.date).slice(0, 7) === x.ym) }; }
   const prow = (card, ic, tone, title, sub, right, cls) => `<button class="pt-r2 ${cls || ''}" data-card="${card}" aria-label="Ver ${esc(title)}"><span class="pt-r2i">${pic(ic, tone)}</span><span class="pt-r2t"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="pt-r2r">${right || ''}${pic('next', 'dim')}</span></button>`;
-  function redoCard(x) { const c = redoCtx(x); if (!c) return ''; return prow('redo', 'heart', 'rose', 'Buena compañera', '', x.redoTop ? pill('★ Compañera del mes', 'gold') : c.mo.length ? pill(`${c.mo.length} este mes`, 'gold') : pill('Aún sin ayudas', 'mute')); }
+  /* Manager: Redo/Fix y Complimentary/Garantía de TODAS las lashistas, por mes. Solo fecha y servicio; sin clientas ni dinero. */
+  function evMonths(k) {
+    const C = S.comp; if (!C || C.err || !Array.isArray(C[k])) return null;
+    const nm = Object.fromEntries((C.artists || []).map(a => [a.id, a.name])), by = {};
+    C[k].forEach(e => { const ym = String(e.date).slice(0, 7); (by[ym] = by[ym] || []).push({ ...e, name: nm[e.artistId] || e.artistId }); });
+    const out = Object.keys(by).sort().reverse().map(ym => { const per = {}; by[ym].forEach(e => { (per[e.artistId] = per[e.artistId] || { id: e.artistId, name: e.name, items: [] }).items.push(e); });
+      const L = Object.values(per).map(p => ({ ...p, items: p.items.sort((a, b) => String(b.date).localeCompare(String(a.date))) })).sort((a, b) => b.items.length - a.items.length || String(a.name).localeCompare(String(b.name), 'es'));
+      return { ym, n: by[ym].length, L, top: L.length ? L.filter(p => p.items.length === L[0].items.length) : [] }; });
+    return out.some(m => m.ym === C.current) ? out : [{ ym: C.current, n: 0, L: [], top: [] }, ...out];
+  }
+  function teamEvents(k, hint) {
+    const box = inner => `<section class="pt-box"><h3>Todo el equipo, por mes</h3>${hint ? `<p class="pt-sub" style="margin:0 0 4px">${hint}</p>` : ''}${inner}</section>`;
+    if (S.comp === undefined || S.busy.comp) return box('<p class="pt-sub" style="margin:0">Cargando…</p>');
+    const M2 = evMonths(k); if (!M2) return box('<p class="pt-sub" style="margin:0">Todavía no se puede ver al equipo: falta activar la función en la base de datos.</p>');
+    const nm = p => esc(shortName(p.name));
+    return box(M2.map((m, i) => `<details class="cm-m" ${i === 0 ? 'open' : ''}><summary><span class="cm-s"><b>${esc(mlab(m.ym))}</b><small>${!m.n ? 'Sin registros' : k === 'redo' ? '★ ' + m.top.map(nm).join(' y ') + ' · ' + m.top[0].items.length : m.L.slice(0, 3).map(p => nm(p) + ' ' + p.items.length).join(' · ') + (m.L.length > 3 ? ' · …' : '')}</small></span>${pill(String(m.n), m.n ? (k === 'redo' ? 'gold' : 'rose') : 'mute')}</summary>
+      ${m.L.length ? m.L.map(p => `<div class="cm-r"><div class="cm-h"><b>${nm(p)}</b>${k === 'redo' && m.top.some(t => t.id === p.id) ? pill('★ Compañera del mes', 'gold') : ''}<span class="cm-n" aria-label="${p.items.length} ${k === 'redo' ? 'Redo/Fix' : 'servicios'}">${p.items.length}</span></div><ul class="cm-l">${p.items.map(i => `<li><span>${esc(fshort(i.date))}</span><small>${k === 'redo' ? (i.service ? 'de: ' + esc(i.service) : 'servicio sin indicar') : esc(i.service || '')}</small></li>`).join('')}</ul></div>`).join('') : `<p class="pt-sub" style="margin:0 0 8px">${k === 'redo' ? 'Nadie hizo Redo/Fix este mes.' : 'Sin complimentary ni garantías este mes.'}</p>`}</details>`).join(''));
+  }
+  function complCard() {
+    const M2 = S.comp && !S.comp.err ? evMonths('compl') : null, cur = M2 ? (M2.find(m => m.ym === S.comp.current) || { n: 0 }) : null;
+    return prow('compl', 'medal', 'rose', '⚠️ Atención de calidad', 'Complimentary y Garantía del equipo', cur ? (cur.n ? pill(`${cur.n} este mes`, 'rose') : pill('Sin casos este mes', 'mute')) : '');
+  }
+  function redoCard(x) { const c = redoCtx(x); if (!c) return ''; const tm = isMgr() && S.comp && !S.comp.err ? evMonths('redo') : null, cur = tm ? tm.find(m => m.ym === S.comp.current) : null;
+    return prow('redo', 'heart', 'rose', 'Buena compañera', cur && cur.top.length ? '★ ' + cur.top.map(p => esc(shortName(p.name))).join(' y ') + ' este mes' : '', x.redoTop ? pill('★ Compañera del mes', 'gold') : c.mo.length ? pill(`${c.mo.length} este mes`, 'gold') : pill('Aún sin ayudas', 'mute')); }
   function incCards(x) {
-    if (isMgr()) { const r = redoCard(x); return r ? `<h2 class="pt-title">Tus incentivos</h2><div class="pt-list">${r}</div>` : ''; }
+    if (isMgr()) { const r = [redoCard(x), complCard()].filter(Boolean).join(''); return r ? `<h2 class="pt-title">Tus incentivos</h2><div class="pt-list">${r}</div>` : ''; }
     const qOk = x.qOk, unlocked = !!(x.exc || x.benefit), closed = x.month && x.month.closed, fl = faltan(x), rows = [];
     const mk = v => v === 'O' ? 'ok' : v === 'X' ? 'no' : v === '?' ? 'wait' : '', mg = v => v === 'O' ? '✓' : v === 'X' ? '×' : v === '?' ? '…' : '○';
     rows.push(prow('quality', 'medal', '', 'Indicadores de calidad', CHECKS.map(([k, l]) => `<span class="mkc ${mk(x.checks[k])}">${mg(x.checks[k])} ${l.split(' ')[0]}</span>`).join(''), pill(qOk ? (x.qMan ? 'Cumplido (ajuste)' : '3 de 3 ✓') : `${x.n} de 3`, qOk ? 'ok' : 'mute')));
@@ -826,7 +832,9 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       h = `${head('Buena compañera', 'Cuando arreglas o rehaces el servicio de una compañera ayudas a todo el equipo. ¡Gracias!', 'heart')}${x.redoTop ? `<section class="pt-box glow on"><div class="pt-h"><h3>${pic('crown', 'gold')} Compañera del mes</h3>${pill('★', 'gold')}</div><p class="pt-sub" style="margin:6px 0 0">Fuiste la lashista que más ayudó en ${esc(mlab(x.ym))}.</p></section>` : ''}
         <section class="pt-box"><div class="pt-row"><span>Esta semana</span><b>${c.wk.length}</b></div><div class="pt-row"><span>${esc(mlab(x.ym))}</span><b>${c.mo.length}</b></div></section>
         <section class="pt-box"><h3>Tus Redo/Fix de ${esc(mlab(x.ym))}</h3>${c.mo.length ? c.mo.map(r => `<div class="pt-li">${pic('heart')}<span class="grow"><b>${esc(fshort(r.date))}</b><br><small>${r.ofService ? 'Servicio de una compañera: ' + esc(r.ofService) : 'Servicio de una compañera'}</small></span></div>`).join('') : '<p class="pt-sub" style="margin:0">Todavía no hay Redo/Fix este mes.</p>'}</section>
+        ${isMgr() ? teamEvents('redo', 'Quién fue buena compañera y cuándo, de todas las lashistas.') : ''}
         <section class="pt-note">${pic('info')}<p>Es un reconocimiento: no cambia tu meta, tus comisiones ni tus descuentos.</p></section>`; }
+    else if (k === 'compl') h = `${head('⚠️ Atención de calidad', 'Complimentary y Garantía: cuando una lashista repone su propio trabajo sin cobrar. Sirve para ver dónde cuidar la calidad.')}${teamEvents('compl', 'Quién lo hizo y cuándo, de todas las lashistas.')}<section class="pt-note">${pic('info')}<p>Es solo información para la manager: no cambia metas, comisiones ni descuentos.</p></section>`;
     else if (k === 'tombola') { const tb = x.tomb, st = tb ? tb.status : 'pendiente';
       h = `${head('Tómbola mensual', 'Participan las lashistas que cumplen los 3 indicadores y su meta monetaria del mes.', 'ticket')}<section class="pt-box"><h3>Estado</h3><div class="pt-li"><span class="grow">${({ ganadora: '¡Ganadora!', participa: 'Participas', participo: 'Participaste', pendiente: 'Pendiente (mes en curso)', no_califica: 'No calificaste este mes' }[st]) || 'Pendiente'}</span></div>${tb && tb.date ? row('Fecha de la tómbola', esc(new Date(tb.date + 'T12:00:00').toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }))) : ''}${(x.rewards || []).filter(r => r.type === 'tombola').map(r => row('Tu premio', `${esc(rv(r))} · ${ST[r.status]}${r.noteInvoice ? ` · nota #${esc(r.noteInvoice)}` : ''}`)).join('')}</section>`; }
     else if (k === 'content') h = `${head('Content Reward', 'Si uno de los videos que subiste se selecciona para promocionar el salón en redes, ganas un descuento adicional en tu nota de insumos.', 'play')}<section class="pt-box">${x.content.length ? x.content.map(r => `<div class="pt-li"><span class="grow"><b>${esc((r.detail || {}).ref || 'Contenido seleccionado')}</b><br><small>${esc(r.periodLabel)}${r.noteInvoice ? ` · nota #${esc(r.noteInvoice)}` : ''}</small></span><b>${esc(rv(r))}</b>${pill(ST[r.status], r.status === 'aplicado' ? 'ok' : 'gold')}</div>`).join('') : `<p class="pt-sub" style="margin:0">Todavía no se ha seleccionado uno de tus videos en ${esc(mlab(x.ym))}. Si se elige para redes, administración lo marca y se suma tu descuento.</p>`}</section>`;
