@@ -1022,7 +1022,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-25 12:00';
+window.FM_VERSION = '2026-11-24 21:00';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -1909,7 +1909,7 @@ Views.nueva = {
   html() {
     const edit = UI.params.edit ? Store.appSales.find(s => s.id === UI.params.edit) : null;
     if (!this.form || this.form._for !== (UI.params.edit || 'new')) {
-      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '', depositId: edit.depositId || '' } : this.blank();
+      this.form = edit ? { date: Dates.toISO(edit.day), artistId: edit.artistKey, serviceId: edit.serviceId, price: edit.price, discount: edit.discount || '', tip: edit.tip || '', method: edit.method || '', first: edit.first, last: edit.last, comments: edit.comments, fixOfArtistId: edit.fixOf || '', manualOn: edit.manual, manualCommission: edit.manual ? edit.commission : '' , txn: edit.txn || '' } : this.blank();
       this.form._for = UI.params.edit || 'new';
     }
     const f = this.form, ro = !Store.writable();
@@ -2633,7 +2633,9 @@ Store.invalidate = function () { this._notesCache = null; _inv(); };
 const ymLabel = ym => { if (!ym) return 'Sin mes'; const [y, m] = ym.split('-').map(Number); return `${Dates.monthName(y, m - 1)} ${y}`; };
 const artistName = id => (Store.config.artists.find(a => a.id === id) || {}).name || id;
 const checkMark = v => v === 'O' ? '<span class="ck ok" title="Cumplió">✓</span>' : v === 'X' ? '<span class="ck no" title="No cumplió">✗</span>' : v === '?' ? '<span class="ck q" title="Pendiente">?</span>' : '<span class="ck none" title="Sin registrar">–</span>';
-const pctCell = (real, meta) => { if (!meta) return '—'; const p = real / meta; return `<div class="meter"><i style="width:${Math.min(100, p * 100)}%" class="${p >= 1 ? 'hit' : ''}"></i></div><span class="${p >= 1 ? 'okc' : ''}">${pct(p)}</span>`; };
+/* una meta semanal cuenta como cumplida desde el 94.6% (la misma cifra que se ve con un decimal) */
+const GOAL_PCT = 0.946, goalMet = (real, meta) => !!meta && meta > 0 && Math.round(real / meta * 1000) / 1000 >= GOAL_PCT;
+const pctCell = (real, meta) => { if (!meta) return '—'; const p = real / meta, ok = goalMet(real, meta); return `<div class="meter"><i style="width:${Math.min(100, p * 100)}%" class="${ok ? 'hit' : ''}"></i></div><span class="${ok ? 'okc' : ''}">${pct(p)}</span>`; };
 const shiftMonth = (ym, k) => { const [y, m] = ym.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + k, 1)); return d.toISOString().slice(0, 7); };
 
 const NOTE_STATUS = ['Borrador', 'Enviada', 'Pagada', 'Cancelada'];
@@ -2729,7 +2731,7 @@ Views.rendimiento = {
   },
 
   notas() {
-    const f = S.perf, src = Store.notes.filter(n => !n.month || n.month >= '2026-01'), months = [...new Set(src.map(n => n.month || ''))].sort().reverse();   /* el historial anterior a 2026 ya no se muestra aquí */
+    const f = S.perf, src = Store.notes.filter(n => n.month ? n.month >= '2026-01' : n.source !== 'excel'), months = [...new Set(src.map(n => n.month || ''))].sort().reverse();   /* el historial anterior a 2026 ya no se muestra aquí */
     const list = src.filter(n => (!f.nMonth || (n.month || 'none') === f.nMonth) && (!f.nArtist || n.artistId === f.nArtist) && (!f.nStatus || n.status === f.nStatus));
     this._notesList = list;
     const tot = k => r2(list.filter(n => n.status !== 'Cancelada').reduce((t, n) => t + (n[k] || 0), 0));
@@ -11109,7 +11111,7 @@ const WeekReminder = {
     WeekReminder.show();
   },
   summary(ws) {
-    try { const rows = Views.rendimiento.metasData(ws), con = rows.filter(r => r.meta), ok = con.filter(r => r.real >= r.meta).length, sin = rows.length - con.length, vt = r2(rows.reduce((t, r) => t + r.real, 0));
+    try { const rows = Views.rendimiento.metasData(ws), con = rows.filter(r => r.meta), ok = con.filter(r => goalMet(r.real, r.meta)).length, sin = rows.length - con.length, vt = r2(rows.reduce((t, r) => t + r.real, 0));
       return `<p class="remsub" style="margin:0 0 8px;font-size:13.5px">Ventas de la semana hasta hoy: <b>${money(vt)}</b> · ${con.length ? `ya cumplen su meta <b>${ok} de ${con.length}</b>` : 'todavía no hay metas asignadas'}${sin && con.length ? ` · sin meta: <b>${sin}</b>` : ''}</p>`; } catch (e) { return ''; }
   },
   show() {
@@ -11142,7 +11144,7 @@ setInterval(() => WeekReminder.check(), 30000); setTimeout(() => WeekReminder.ch
 const Rd = {
   sel: null, ptab: 'resumen', open: false, RISK: 0.75,
   twoCol(root) { const l = $('.rd-layout', root); return !!l && getComputedStyle(l).gridTemplateColumns.trim().split(/\s+/).length > 1; },
-  state(r) { if (!r || !r.meta) return 'none'; const p = r.real / r.meta; return p >= 1 ? 'ok' : p >= Rd.RISK ? 'risk' : 'low'; },
+  state(r) { if (!r || !r.meta) return 'none'; const p = r.real / r.meta; return goalMet(r.real, r.meta) ? 'ok' : p >= Rd.RISK ? 'risk' : 'low'; },
   LAB: { ok: 'Cumple la meta', risk: 'En riesgo', low: 'Por debajo del 75%', none: 'Sin meta' },
   count(r) { return CHECKS.filter(([k]) => r[k] === 'O').length; },
   /* etiqueta semanal del incentivo (solo presentación: 3 indicadores = Quality; + meta de la semana = Excellence) */
@@ -11285,16 +11287,18 @@ const Inc = {
   adjMonth: (id, ym) => Store.incAdj.find(x => x.id === `m_${id}_${ym}`) || null,
   weekEval(id, ws) {
     const g = Store.goalsFor(ws)[id] || {}, meta = g.meta == null ? null : num(g.meta), real = Perf.weekSales(Store.sales, ws).get(id) || 0, n = CHECKS.filter(([k]) => g[k] === 'O').length;
-    const autoQ = n === 3, autoG = !!meta && real >= meta, a = Inc.adjWeek(id, ws), mQ = !!a && a.qualityMet != null, mG = !!a && a.goalMet != null;
+    const autoQ = n === 3, autoG = goalMet(real, meta), a = Inc.adjWeek(id, ws), mQ = !!a && a.qualityMet != null, mG = !!a && a.goalMet != null;
     const quality = mQ ? !!a.qualityMet : autoQ, goal = mG ? !!a.goalMet : autoG;
     return { ws, checks: { limpieza: g.limpieza || '', reviews: g.reviews || '', fotos: g.fotos || '' }, n, meta, real, quality, goal, excellence: quality && goal, autoQuality: autoQ, autoGoal: autoG, mQ, mG, adj: mQ || mG ? { reason: a.reason, byName: a.byName, at: a.at } : null };
   },
   monthEval(id, ym) {
     const W = Perf.weeksOfMonth(ym).map(ws => Inc.weekEval(id, ws)), cfg = Inc.cfg(), total = W.length, req = cfg.requiredWeeks === 'all' ? total : Math.max(1, Math.min(total, num(cfg.requiredWeeks) || total));
     const q = W.filter(w => w.quality).length, gl = W.filter(w => w.goal).length, e = W.filter(w => w.excellence).length, am = Inc.adjMonth(id, ym);
-    const qAuto = total > 0 && q >= req, eAuto = total > 0 && e >= req, mQ = !!am && am.quality != null, mE = !!am && am.excellence != null, mT = !!am && am.tombola != null;
+    /* meta del mes en conjunto: si lo vendido en las semanas con meta alcanza la suma de sus metas (las semanas fuertes compensan a las flojas), la parte monetaria cuenta como cumplida */
+    const wm = W.filter(w => w.meta > 0), totalMeta = r2(wm.reduce((t, w) => t + w.meta, 0)), totalReal = r2(wm.reduce((t, w) => t + w.real, 0)), globalOk = totalMeta > 0 && totalReal >= totalMeta;
+    const qAuto = total > 0 && q >= req, eAuto = total > 0 && (e >= req || (q >= req && globalOk)), mQ = !!am && am.quality != null, mE = !!am && am.excellence != null, mT = !!am && am.tombola != null;
     const qualityOk = mQ ? !!am.quality : qAuto, excellenceOk = mE ? !!am.excellence : eAuto, tombolaOk = mT ? !!am.tombola : excellenceOk;
-    return { ym, weeks: W, total, required: req, q, gl, e, qualityOk, excellenceOk, tombolaOk, qualityAuto: qAuto, excellenceAuto: eAuto, mQ, mE, mT, adjM: am, anyManual: mQ || mE || mT || W.some(w => w.mQ || w.mG) };
+    return { ym, weeks: W, total, required: req, q, gl, e, totalMeta, totalReal, globalOk, qualityOk, excellenceOk, tombolaOk, qualityAuto: qAuto, excellenceAuto: eAuto, mQ, mE, mT, adjM: am, anyManual: mQ || mE || mT || W.some(w => w.mQ || w.mG) };
   },
   tombolaOk(id, ym) { const c = Inc.closeOf(ym), r = c && c.results[id]; return r ? (r.tombolaOk != null ? !!r.tombolaOk : !!r.excellenceOk) : Inc.monthEval(id, ym).tombolaOk; },
   /* ---------- ajustes manuales (guardan original, modificado, fecha, Admin y motivo) ---------- */
@@ -11390,7 +11394,7 @@ const Inc = {
   },
   /* ---------- "foto" para el portal ---------- */
   snap(a) {
-    const cfg = Inc.cfg(), cur = Inc.ym0(), prev = shiftMonth(cur, -1), mk = ym => { const ev = Inc.monthEval(a.id, ym), c = Inc.closeOf(ym), r = c && c.results[a.id]; return { ym, label: ymLabel(ym), closed: !!c, ended: Inc.ended(ym), required: ev.required, total: ev.total, q: r ? r.q : ev.q, e: r ? r.e : ev.e, qualityOk: r ? r.qualityOk : ev.qualityOk, excellenceOk: r ? r.excellenceOk : ev.excellenceOk, manualQ: ev.mQ, manualE: ev.mE, weeks: ev.weeks.map(w => ({ ws: Dates.toISO(w.ws), label: weekLabel(w.ws), n: w.n, quality: w.quality, goal: w.goal, excellence: w.excellence, meta: w.meta, qm: w.mQ ? w.quality : null, gm: w.mG ? w.goal : null, reason: w.adj ? w.adj.reason : '' })) }; };
+    const cfg = Inc.cfg(), cur = Inc.ym0(), prev = shiftMonth(cur, -1), mk = ym => { const ev = Inc.monthEval(a.id, ym), c = Inc.closeOf(ym), r = c && c.results[a.id]; return { ym, label: ymLabel(ym), closed: !!c, ended: Inc.ended(ym), required: ev.required, total: ev.total, q: r ? r.q : ev.q, e: r ? r.e : ev.e, qualityOk: r ? r.qualityOk : ev.qualityOk, excellenceOk: r ? r.excellenceOk : ev.excellenceOk, manualQ: ev.mQ, manualE: ev.mE, globalOk: !!ev.globalOk, totalMeta: ev.totalMeta, totalReal: ev.totalReal, weeks: ev.weeks.map(w => ({ ws: Dates.toISO(w.ws), label: weekLabel(w.ws), n: w.n, quality: w.quality, goal: w.goal, excellence: w.excellence, meta: w.meta, qm: w.mQ ? w.quality : null, gm: w.mG ? w.goal : null, reason: w.adj ? w.adj.reason : '' })) }; };
     const rewards = Inc.rw(r => r.artistId === a.id && String(r.period) >= shiftMonth(cur, -12)).map(r => ({ id: r.id, type: r.type, label: Inc.TY[r.type], period: r.period, periodLabel: ymLabel(r.period), valueType: r.valueType, value: r.value, status: r.status, noteInvoice: r.noteInvoice || '', detail: r.type === 'content' ? { ref: Inc.refTxt(r) } : r.type === 'extra' ? { ref: (r.detail || {}).concept } : undefined, edited: !!r.edited }));
     const tmb = ym => { const t = Inc.tmb(a.id, ym), ts = Inc.tmbOf(ym), mine = ts.find(x => x.winnerId === a.id), last = ts[ts.length - 1]; return { ym, label: ymLabel(ym), closed: t.closed, eligible: t.eligible, drawn: t.drawn, date: mine ? mine.date : (last ? last.date : ''), winner: t.winner, amount: t.amount, status: t.status }; };
     return { v: 1, artistId: a.id, artistName: a.name, updatedAt: new Date().toISOString(), cfg: { quality: cfg.quality.pct, excellence: cfg.excellence.pct, tombola: cfg.tombola.amount, content: cfg.content.amount, requiredWeeks: cfg.requiredWeeks, replaces: cfg.excellenceReplacesQuality }, cur: mk(cur), prev: mk(prev), rewards, tombola: { cur: tmb(cur), prev: tmb(prev) } };
@@ -11497,7 +11501,7 @@ Inc.editForm = function (artistId, ym) {
     <div class="ie-sum"><span>${E.closed ? 'Ganado en el mes' : 'Proyección del mes'}</span><b>${E.pct ? E.pct + '%' : ''}${E.pct && E.amt ? ' + ' : ''}${E.amt ? money(E.amt, 1) : ''}${!E.pct && !E.amt ? '$0' : ''}</b>${E.approx != null ? `<small>≈ ${money(E.approx, 1)} en su nota de insumos</small>` : '<small>los % se convierten a $ cuando exista su nota de insumos</small>'}</div>
     ${closed ? '<div class="banner" style="margin:0 0 8px;border-color:var(--warn)">Mes cerrado: sus resultados no se modifican. Aún puedes marcar el Content Reward y agregar extras.</div>' : '<p class="mutedc" style="margin:0 0 8px;font-size:12.5px">Los ajustes no cambian las ventas reales. Se guarda el valor automático, el modificado, quién, cuándo y el motivo.</p>'}
     <div class="ie-body">
-      <section class="ie-box"><h4>Semanas del mes <small>indicadores · meta semanal</small></h4>${wr}</section>
+      <section class="ie-box"><h4>Semanas del mes <small>indicadores · meta semanal</small></h4>${wr}${ev.totalMeta > 0 ? `<div class="ie-note" style="margin-top:6px"><b>Meta del mes en conjunto:</b> ${money(ev.totalReal)} de ${money(ev.totalMeta)} ${ev.globalOk ? '✓ la alcanzó (las semanas que vendieron de más compensan)' : '✗ aún no'}</div>` : ''}</section>
       <section class="ie-box"><h4>Cumplimiento mensual <small>y lo que gana si cumple</small></h4>${mrow('Fluffy Quality', 'mq', ev.qualityAuto, ev.mQ ? ev.qualityOk : null, er('quality'))}${mrow('Fluffy Excellence', 'me', ev.excellenceAuto, ev.mE ? ev.excellenceOk : null, er('excellence'))}${mrow('Elegibilidad para la tómbola', 'mt', ev.excellenceOk, ev.mT ? ev.tombolaOk : null, er('tombola'))}${am ? `<div class="ie-note">Último ajuste del mes: ${esc(am.reason)} · ${esc(am.byName || '')} · ${esc(when(am.at))}</div>` : ''}
         <label class="field" style="margin:10px 0 0">Motivo del ajuste (obligatorio si cambias semanas o mes)<input data-ie2="reason" autocomplete="off" placeholder="Ej. estuvo a $50 de la meta y compensó otra semana" ${dis}></label></section>
       <section class="ie-box"><h4>Content Reward <small>video seleccionado para redes</small></h4><div class="ie-m"><b>¿Uno de sus videos se seleccionó para promocionar en redes?</b><span></span><select class="inp ie-sel" data-ie2="album" ${alb && alb.status === 'aplicado' ? 'disabled' : ''}><option value="0" ${alb ? '' : 'selected'}>No</option><option value="1" ${alb ? 'selected' : ''}>Sí</option></select><span class="ie-earn ${alb ? 'ok' : ''}">${alb ? `Gana ${esc(money(alb.value, 1))}${alb.status === 'aplicado' ? ' · ya aplicado' : ''}` : `Ganaría ${esc(money(Inc.cfg().content.amount, 1))}`}</span></div></section>

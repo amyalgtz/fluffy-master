@@ -378,11 +378,14 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
     $('#refresh').onclick = () => { S.today = S.dep = S.myWeek0 = S.ops = null; render(); };
     bindRetry('today');
   }
+  // la meta semanal cuenta como cumplida desde el 94.6% (igual que en el admin)
+  const metaCumple = (sales, meta) => Number(meta) > 0 && Math.round(Number(sales) / Number(meta) * 1000) / 1000 >= 0.946, pc1 = (sales, meta) => (Math.round(Number(sales) / Number(meta) * 1000) / 10).toLocaleString('es-MX');
   function goalInfo(w, past) {
     const meta = Number(w.goal || 0), neto = Number((w.totals || {}).sales || 0), falta = Math.round((meta - neto) * 100) / 100, fs = Number(w.fullSet || 180), rf = Number(w.refill || 100);
     if (!meta) return { meta, neto, msg: 'Todavía no tienes meta asignada esta semana.' };
     let msg;
     if (falta <= 0) msg = past ? `Lograste tu meta: quedaste ${M(-falta)} arriba.` : `Ya lograste tu meta: vas ${M(-falta)} arriba.`;
+    else if (metaCumple(neto, meta)) msg = past ? `Tu meta cuenta como lograda (${pc1(neto, meta)}%). Faltaron ${M(falta)} para el 100%.` : `Tu meta ya cuenta como lograda (${pc1(neto, meta)}%). Te faltan ${M(falta)} para el 100%.`;
     else if (past) msg = `Te faltaron ${M(falta)} para tu meta.`;
     else if (falta <= rf) msg = `Estás a un refill de tu meta: te faltan ${M(falta)}.`;
     else if (falta <= fs) msg = `Estás a un full set de tu meta: te faltan ${M(falta)}.`;
@@ -681,6 +684,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       if (!meta) return { k: 3, tone: 'mute', pc: 0, msg: 'Sin meta asignada esta semana', falta: 0 };
       if (falta <= 0) return { k: 2, tone: 'ok', pc: 100, msg: past ? 'Logró su meta' : `Meta lograda: va ${M(-falta)} arriba`, falta };
       const pc = Math.round(sales / meta * 100);
+      if (metaCumple(sales, meta)) return { k: 2, tone: 'ok', pc, msg: past ? `Logró su meta (${pc1(sales, meta)}%)` : `Meta cumplida (${pc1(sales, meta)}%): faltan ${M(falta)} para el 100%`, falta };
       if (past) return { k: 0, tone: 'warn', pc, msg: `Le faltaron ${M(falta)} para su meta`, falta };
       if (falta <= rf) return { k: 1, tone: 'gold', pc, msg: `Está a un refill de su meta: faltan ${M(falta)}`, falta };
       if (falta <= fs) return { k: 1, tone: 'gold', pc, msg: `Está a un full set de su meta: faltan ${M(falta)}`, falta };
@@ -696,7 +700,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       const money = `<b>${M(a.sales, false)}</b>${Number(a.goal) ? ` de ${M(a.goal, false)}` : ''}`, ck = a.checks && typeof a.checks === 'object' ? a.checks : null, key = 'tm-' + a.id, open = !!S.rq[key];
       const st = v => v === 'O' ? 'Cumplido' : v === 'X' ? 'No cumplido' : v === '?' ? 'Por revisar' : 'Sin revisar';
       let head = `<div class="eq-h"><b>${esc(shortName(a.name))}</b><span>${money}</span></div>`, panel = '';
-      if (ck) { const n = CHECKS.filter(([k]) => ck[k] === 'O').length, wait = CHECKS.filter(([k]) => ck[k] === '?').length, none = CHECKS.every(([k]) => !ck[k]), metaOk = Number(a.goal) > 0 && e.falta <= 0;
+      if (ck) { const n = CHECKS.filter(([k]) => ck[k] === 'O').length, wait = CHECKS.filter(([k]) => ck[k] === '?').length, none = CHECKS.every(([k]) => !ck[k]), metaOk = e.tone === 'ok';
         const sum = none ? 'Administración aún no revisa sus indicadores de esta semana.' : n === 3 ? (metaOk ? 'Cumple los 3 indicadores y su meta de la semana.' : Number(a.goal) > 0 ? 'Cumple los 3 indicadores; le falta la meta.' : 'Cumple los 3 indicadores.') : `Cumple ${n} de 3 indicadores${wait ? ` · ${wait} por revisar` : ''}.`;
         head = `<button type="button" class="eq-b" data-fold="${esc(key)}" aria-expanded="${open}" aria-controls="f-${esc(key)}" aria-label="Indicadores de ${esc(a.name)}"><b>${esc(shortName(a.name))}</b><span class="eq-s">${money}</span>${IC.chev}</button>`;
         panel = `<div id="f-${esc(key)}" class="eq-i" ${open ? '' : 'hidden'}><div class="eq-it">Indicadores de la semana</div>${CHECKS.map(([k, l]) => `<div class="eq-ir">${circ(ck[k])}<span class="g">${esc(l)}</span><small>${st(ck[k])}</small></div>`).join('')}<div class="eq-is">${esc(sum)}</div></div>`; }
@@ -752,7 +756,7 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   const CKI = { limpieza: 'spray', reviews: 'star', fotos: 'play' };
   function incCtx(w, g) {
     const dd = D(w.weekStart); dd.setDate(dd.getDate() + 3); const ym = `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}`, nx = nextYm(ym), I = S.inc && !S.inc.err ? S.inc.data : null;
-    const n = CHECKS.filter(([k]) => (w.checks || {})[k] === 'O').length, goalOk = Number(w.goal || 0) > 0 && Number((w.totals || {}).sales || 0) >= Number(w.goal), x = { ym, nx, n, goalOk, qOk: n === 3, I, checks: w.checks || {}, falta: g && g.meta ? Math.max(0, Math.round((g.meta - g.neto) * 100) / 100) : 0, meta: g ? g.meta : 0, neto: g ? g.neto : 0, weekStart: w.weekStart, weekEnd: w.weekEnd };
+    const n = CHECKS.filter(([k]) => (w.checks || {})[k] === 'O').length, goalOk = metaCumple((w.totals || {}).sales || 0, w.goal || 0), x = { ym, nx, n, goalOk, qOk: n === 3, I, checks: w.checks || {}, falta: g && g.meta ? Math.max(0, Math.round((g.meta - g.neto) * 100) / 100) : 0, meta: g ? g.meta : 0, neto: g ? g.neto : 0, weekStart: w.weekStart, weekEnd: w.weekEnd };
     if (!I) return x;
     const all = I.rewards || [], rs = all.filter(r => r.period === ym), cfg = I.cfg || {};
     x.month = [I.cur, I.prev].find(m => m && m.ym === ym) || null; x.rewards = rs; x.benefit = all.find(r => r.type === 'commission100' && r.period === nx) || null; x.exc = rs.find(r => r.type === 'excellence') || null;
