@@ -10720,6 +10720,55 @@ const DP = {
 { const H = Views.depositos.html, M = Views.depositos.mount;
   Views.depositos.html = function () { let h = H.apply(this, arguments); const n = DP.pairs().length; return n ? h.replace('<button class="btn primary" data-newdep', `<button class="btn" data-dpdup>Posibles duplicados · ${n}</button><button class="btn primary" data-newdep`) : h; };
   Views.depositos.mount = function (root) { const r = M.apply(this, arguments); const b = $('[data-dpdup]', root); if (b) b.onclick = () => DP.panel(); return r; }; }
+/* Depósitos «Disponibles» que en realidad ya se usaron: la cita ya está cobrada (o la venta dice que lo usó) pero el depósito quedó libre.
+   Se listan para revisarlos y se reparan uno por uno (o todos los claros). Antes de escribir se vuelve a leer de la base: si alguien lo cambió, no se toca. */
+DP.stale = () => {
+  const aps = Store.appointments || [], sales = Store.appSales || [], out = [];
+  (Store.deposits || []).forEach(d => {
+    if (d.outcome || d.status === 'Rechazado') return;
+    const A = aps.find(a => a.status === 'Pagada' && a.saleId && a.depositId === d.id) || null, mine = sales.filter(x => x.depositId === d.id);
+    if (!A && !mine.length) return;
+    const S = mine[0] || sales.find(x => x.id === A.saleId); if (!S) return;
+    const kind = mine.length > 1 ? 'conflicto' : (!mine.length && S.depositId && S.depositId !== d.id) ? 'conflicto' : mine.length ? 'marcar' : 'reaplicar';
+    const ev = (d.history || []).filter(h => /quit[oó] de la venta|se elimin/i.test(h.what || '')).pop() || null;
+    out.push({ d, A, S, kind, ev });
+  });
+  return out.sort((a, b) => (b.d.date || '').localeCompare(a.d.date || ''));
+};
+DP.fixOne = async it => {
+  const { d, S, A } = it, rd = async path => { const sn = await Store.db.doc(path).get(); return sn && sn.exists !== false && sn.data ? sn.data() : null; };
+  if (it.kind === 'conflicto') throw new Error('Hay más de una venta o un depósito distinto involucrado: revísalo a mano.');
+  const fd = await rd('deposits/' + d.id), fs = await rd('sales/' + S.id);
+  if (!fd || !fs) throw new Error('No se encontró el depósito o la venta.');
+  if (fd.outcome) throw new Error(`El depósito ya cambió (${fd.outcome}).`); if (fd.status === 'Rechazado') throw new Error('El depósito está rechazado.');
+  if (fs.depositId && fs.depositId !== d.id) throw new Error('La venta ya tiene otro depósito.');
+  if ((Store.appSales || []).some(x => x.id !== S.id && x.depositId === d.id)) throw new Error('Otra venta ya usa este depósito.');
+  const now = new Date().toISOString(), who = `${S.first || ''} ${S.last || ''}`.trim() || 'la clienta';
+  if (fs.depositId !== d.id) { const ref = Store.db.doc('sales/' + S.id); if (!ref.update) throw new Error('Esta versión no permite actualizar la venta.'); await ref.update({ depositId: d.id, depositAmount: r2(num(fd.amount)), depositMethod: fd.method || '', updatedAt: now }); }
+  const doc = { ...fd, outcome: 'Aplicado', saleId: S.id, appliedAt: now, appointmentId: fd.appointmentId || (A ? A.id : ''), updatedAt: now, updatedByName: Mode.who(), history: (fd.history || []).concat([{ at: now, by: Mode.who(), what: `Reparado: se volvió a aplicar a la venta de ${who}` }]) };
+  await Store.db.doc('deposits/' + d.id).set(doc); Store.upsertLocal('deposits', d.id, doc, x => ({ ...x, day: Dates.fromISO(x.date) }));
+  try { if (typeof Audit !== 'undefined') await Audit.log({ entity: 'DEPOSITO', entityId: d.id, entityLabel: `${depClient(d)} · ${money(d.amount, 1)}`, action: 'UPDATE', detail: `Reparado: depósito disponible que ya se había usado; se aplicó a la venta de ${who}`, byName: Mode.who() }); } catch (e) { /* la bitácora no frena la reparación */ }
+};
+DP.stalePanel = function () {
+  const fmtAt = ts => ts ? new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  const LBL = { reaplicar: 'La cita ya se cobró, pero la venta quedó sin su depósito', marcar: 'La venta ya dice que usó el depósito, pero él sigue «Disponible»', conflicto: 'Hay un conflicto: revísalo a mano' };
+  DP.layer(`<h3>Depósitos «Disponibles» que ya se usaron</h3><p style="color:var(--muted);margin:0 0 12px">La cita ya está cobrada y su depósito sigue libre. Aquí ves cuándo y quién lo quitó. «Aplicar» lo vuelve a poner en su venta (la venta recupera su depósito y el depósito pasa a «Aplicado»). Nada cambia hasta que lo pulses.</p><div data-sp style="max-height:58vh;overflow:auto"></div><p class="err" data-spe style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="all"></button><button class="btn primary" data-x="c">Cerrar</button></div>`, (m, close) => {
+    $('[data-x=c]', m).onclick = () => { close(); UI.render(); };
+    const draw = () => { const L = DP.stale(), ok = L.filter(i => i.kind !== 'conflicto'), all = $('[data-x=all]', m); all.style.display = ok.length > 1 ? '' : 'none'; all.textContent = `Aplicar los ${ok.length} claros`;
+      $('[data-sp]', m).innerHTML = L.length ? L.map((i, k) => { const S = i.S, d = i.d, net = r2(num(S.price) - num(S.discount)); return `<div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px">
+        <div><b>${esc(depClient(d))}</b> · ${money(d.amount, 1)} · ${esc(d.method || '')}${d.day != null ? ` · cita ${Dates.fmt(d.day, { day: 'numeric', month: 'short' })}` : ''}</div>
+        <div class="mutedc" style="font-size:13px;margin:4px 0">Venta: ${esc((S.first || '') + ' ' + (S.last || ''))} · ${esc(S.artistName || '')} · ${esc(S.service || '')} · ${money(net, 1)} · ${S.day != null ? Dates.fmt(S.day, { day: 'numeric', month: 'short' }) : ''}</div>
+        <div style="font-size:13px;margin-bottom:8px">${esc(LBL[i.kind])}${i.ev ? `<br><span class="mutedc">«${esc(i.ev.what)}» · ${esc(i.ev.by || '')} · ${esc(fmtAt(i.ev.at))}</span>` : ''}</div>
+        ${i.kind === 'conflicto' ? '' : `<button class="btn sm primary" data-fx="${k}">Aplicar a su venta</button>`}</div>`; }).join('') : '<p class="mutedc">No hay depósitos por reparar.</p>';
+      $$('[data-fx]', m).forEach(b => b.onclick = async () => { const it = L[+b.dataset.fx]; b.disabled = true; $('[data-spe]', m).textContent = ''; try { await DP.fixOne(it); UI.toast('Depósito aplicado a su venta'); } catch (e) { $('[data-spe]', m).textContent = e.message || 'No se pudo reparar'; } draw(); }); };
+    $('[data-x=all]', m).onclick = async () => { const ok = DP.stale().filter(i => i.kind !== 'conflicto'); if (!await UI.confirm(`Aplicar ${ok.length} depósitos`, 'Cada uno se vuelve a poner en su venta. Antes de guardar se revisa de nuevo que nadie lo haya cambiado; los que no coincidan se dejan.', 'Aplicar')) return;
+      let n = 0, bad = 0; for (const it of ok) { try { await DP.fixOne(it); n++; } catch (e) { bad++; } } UI.toast(`${n} aplicado${n === 1 ? '' : 's'}${bad ? ` · ${bad} se dejaron (cambiaron o hay conflicto)` : ''}`, !!bad); draw(); };
+    draw();
+  }, 700);
+};
+{ const H2 = Views.depositos.html, M2 = Views.depositos.mount;
+  Views.depositos.html = function () { let h = H2.apply(this, arguments); const n = Store.writable() && !Mode.reception ? DP.stale().length : 0; return n ? h.replace('<button class="btn primary" data-newdep', `<button class="btn" data-dpstale>Ya usados · ${n}</button><button class="btn primary" data-newdep`) : h; };
+  Views.depositos.mount = function (root) { const r = M2.apply(this, arguments); const b = $('[data-dpstale]', root); if (b) b.onclick = () => DP.stalePanel(); return r; }; }
 /* Cobrar: también ofrece depósitos de la clienta con el nombre mal escrito (se ve a nombre de quién está) */
 DP.like = (d, f) => { if (!f || !DP.live(d) || d.day == null) return false; const ap = f._appt ? Store.appointments.find(a => a.id === f._appt) : null, day = Dates.fromISO(f.date); return day != null && Math.abs(d.day - day) <= 1 && DP.same(d, { first: f.first, last: f.last, phone: ap ? ap.phone : '' }); };
 DP.nameNote = (d, f) => DP.norm(d.first + ' ' + d.last) === DP.norm((f.first || '') + ' ' + (f.last || '')) ? '' : ` · <b>a nombre de ${esc(depClient(d))}</b>`;
