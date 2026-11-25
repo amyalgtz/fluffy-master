@@ -1022,7 +1022,7 @@ table.stk td:not([data-l])::before,table.stk td[data-l=""]::before{display:none}
 <div id="overlay"></div>
 <div id="gate" style="display:none"></div>
 <script>
-window.FM_VERSION = '2026-11-24 21:00';
+window.FM_VERSION = '2026-11-25 13:30';
 /* =========================================================
    VERSIÓN WEB (Supabase) — reemplaza el almacenamiento de Claude por Supabase:
    - login por persona (correo y contraseña) y roles en la tabla members
@@ -4066,6 +4066,7 @@ function apptForm(a, preset) {
     $$('[data-wk]', m).forEach(b => b.onclick = () => { $('[data-a=date]', m).value = Dates.toISO(Dates.today() + 7 * +b.dataset.wk); $$('[data-wk]', m).forEach(x => x.classList.toggle('on', x === b)); });
     if (preset && preset._focusDate) setTimeout(() => $('[data-a=date]', m).focus(), 0);
     $('[data-x=no]', m).onclick = UI.close;
+    let okChg = '';
     $('[data-x=ok]', m).onclick = async () => {
       const v = k => $(`[data-a="${k}"]`, m).value.trim(), err = $('[data-aerr]', m);
       if (!Dates.fromISO(v('date'))) { err.textContent = 'Escribe la fecha.'; return; }
@@ -4080,15 +4081,17 @@ function apptForm(a, preset) {
       const data = { addons: AddOns.clean(addons), date: v('date'), time: v('time'), first: v('first'), last: v('last'), phone: v('phone'), email: v('email').toLowerCase(), artistId: art.id, artistName: art.name, serviceId: svc.id, serviceName: svc.name, price: svc.price, notes: v('notes'), fixOfArtistId: isFixSvc(svc.id) ? v('fixOfArtistId') : '', fixOfArtistName: isFixSvc(svc.id) ? ((Store.config.artists.find(x => x.id === v('fixOfArtistId')) || {}).name || '') : '' };
       const b = $('[data-x=ok]', m); b.disabled = true;
       try {
-        let depId = dsel.value === '__new' ? '' : dsel.value;
-        if (dsel.value === '__new') {
+        const prevDep = a && a.depositId; let want = dsel.value;
+        if (prevDep && want === '' && !dsel.querySelector(`option[value="${prevDep}"]`)) want = prevDep;   /* su depósito ya no sale en la lista (cobrado o aún no cargó): se conserva, no se quita en silencio */
+        if (prevDep && want !== prevDep && okChg !== prevDep + '>' + want) { const pd = Store.deposits.find(x => x.id === prevDep); okChg = prevDep + '>' + want; err.textContent = `Esta cita tenía un depósito${pd ? ' de ' + money(pd.amount) + ' (' + (pd.method || '') + ')' : ''}. Si lo ${want ? 'cambias' : 'quitas'}, ese depósito queda libre. Pulsa Guardar otra vez para confirmar.`; b.disabled = false; return; }
+        let depId = want === '__new' ? '' : want;
+        if (want === '__new') {
           const amt = num($('[data-nd=amount]', m).value); if (!(amt > 0)) { err.textContent = 'Escribe el monto del depósito.'; b.disabled = false; return; }
           const status = $('[data-nd=status]', m).value;
           depId = await Store.saveDeposit({ first: data.first, last: data.last, phone: data.phone, date: data.date, time: data.time, artistId: art.id, artistName: art.name, service: svc.name, amount: r2(amt), method: $('[data-nd=method]', m).value, txn: $('[data-nd=txn]', m).value.trim(), status, note: '',
             ...(status === 'Verificado' ? { verifiedAt: new Date().toISOString(), verifiedByName: Mode.who() } : {}), _event: `Registró depósito al agendar` });
         }
-        const prevDep = a && a.depositId;
-        const id = await Store.saveAppointment({ ...data, depositId: depId }, a && a.id);
+        const id = await Store.saveAppointment({ ...data, depositId: depId, ...(prevDep && prevDep !== depId ? { history: (((a._raw && a._raw.history) || a.history || [])).concat({ at: new Date().toISOString(), by: Mode.who(), what: depId ? 'Cambió el depósito de la cita' : 'Quitó el depósito de la cita' }) } : {}) }, a && a.id);
         if (depId && depId !== prevDep) await Store.saveDeposit({ appointmentId: id, _event: 'Vinculado a la cita' }, depId);
         if (prevDep && prevDep !== depId) await Store.saveDeposit({ appointmentId: '', _event: 'Se desvinculó de la cita' }, prevDep);
         UI.close(); UI.toast(a ? 'Cita actualizada' : 'Cita agendada');
@@ -10726,12 +10729,25 @@ DP.stale = () => {
   const aps = Store.appointments || [], sales = Store.appSales || [], out = [];
   (Store.deposits || []).forEach(d => {
     if (d.outcome || d.status === 'Rechazado') return;
-    const A = aps.find(a => a.status === 'Pagada' && a.saleId && a.depositId === d.id) || null, mine = sales.filter(x => x.depositId === d.id);
-    if (!A && !mine.length) return;
+    let A = aps.find(a => a.status === 'Pagada' && a.saleId && (a.depositId === d.id || a.id === d.appointmentId)) || null, orphan = false;
+    const mine = sales.filter(x => x.depositId === d.id);
+    let dupId = '';
+    if (!A && !mine.length) {   /* ¿su duplicado (rechazado) es el que quedó en la cita y la venta? */
+      const dp = aps.find(a => a.status === 'Pagada' && a.saleId && a.depositId && a.depositId !== d.id && (Store.deposits || []).some(x => x.id === a.depositId && x.status === 'Rechazado' && x.dupOf === d.id));
+      if (dp) { A = dp; dupId = dp.depositId; }
+    }
+    if (!A && !mine.length) {   /* libre y sin cita: ¿su clienta se cobró ese mismo día sin depósito? (se desvinculó al editar la cita) */
+      if (d.appointmentId || !d.date || (d.history || []).some(h => /conserva el dep[oó]sito/i.test(h.what || ''))) return;   /* conservado a propósito para otra cita: no es huérfano */
+      const cand = aps.filter(a => a.status === 'Pagada' && a.saleId && !a.depositId && a.date === d.date && sameClient(d, a.first, a.last) && !(a.history || []).some(h => /conserv/i.test(h.what || '')));
+      if (cand.length !== 1) return;
+      const sl = sales.find(x => x.id === cand[0].saleId); if (!sl || sl.depositId) return;
+      A = cand[0]; orphan = true;
+    }
     const S = mine[0] || sales.find(x => x.id === A.saleId); if (!S) return;
-    const kind = mine.length > 1 ? 'conflicto' : (!mine.length && S.depositId && S.depositId !== d.id) ? 'conflicto' : mine.length ? 'marcar' : 'reaplicar';
-    const ev = (d.history || []).filter(h => /quit[oó] de la venta|se elimin/i.test(h.what || '')).pop() || null;
-    out.push({ d, A, S, kind, ev });
+    const rm = A ? (A.history || []).filter(h => /quit[oó] el dep[oó]sito despu[eé]s del cobro|cambi[oó] el dep[oó]sito despu[eé]s del cobro|conserv/i.test(h.what || '')).pop() || null : null;   /* alguien lo quitó a propósito desde «¿Dejó depósito?» */
+    const dpo = dupId && (Store.deposits || []).find(x => x.id === dupId), kind = dupId ? ((S.depositId === dupId && dpo && r2(num(dpo.amount)) === r2(num(d.amount))) ? 'duplicado' : 'conflicto') : orphan ? 'huerfano' : mine.length > 1 ? 'conflicto' : (!mine.length && S.depositId && S.depositId !== d.id) ? 'conflicto' : mine.length ? 'marcar' : rm ? 'revisar' : 'reaplicar';
+    const ev = (d.history || []).filter(h => /quit[oó] de la venta|se elimin|se desvincul/i.test(h.what || '')).pop() || null;
+    out.push({ d, A, S, kind, ev, rm, dupId });
   });
   return out.sort((a, b) => (b.d.date || '').localeCompare(a.d.date || ''));
 };
@@ -10741,28 +10757,30 @@ DP.fixOne = async it => {
   const fd = await rd('deposits/' + d.id), fs = await rd('sales/' + S.id);
   if (!fd || !fs) throw new Error('No se encontró el depósito o la venta.');
   if (fd.outcome) throw new Error(`El depósito ya cambió (${fd.outcome}).`); if (fd.status === 'Rechazado') throw new Error('El depósito está rechazado.');
-  if (fs.depositId && fs.depositId !== d.id) throw new Error('La venta ya tiene otro depósito.');
+  if (it.kind === 'duplicado') { const fdup = await rd('deposits/' + it.dupId); if (!fdup || fdup.dupOf !== d.id || fdup.status !== 'Rechazado' || fs.depositId !== it.dupId) throw new Error('El duplicado cambió: revísalo a mano.'); } else if (fs.depositId && fs.depositId !== d.id) throw new Error('La venta ya tiene otro depósito.');
   if ((Store.appSales || []).some(x => x.id !== S.id && x.depositId === d.id)) throw new Error('Otra venta ya usa este depósito.');
   const now = new Date().toISOString(), who = `${S.first || ''} ${S.last || ''}`.trim() || 'la clienta';
   if (fs.depositId !== d.id) { const ref = Store.db.doc('sales/' + S.id); if (!ref.update) throw new Error('Esta versión no permite actualizar la venta.'); await ref.update({ depositId: d.id, depositAmount: r2(num(fd.amount)), depositMethod: fd.method || '', updatedAt: now }); }
+  if (A && A.depositId !== d.id) { const ra = Store.db.doc('appointments/' + A.id); if (ra.update) { const fa = await rd('appointments/' + A.id); if (fa && (!fa.depositId || fa.depositId === d.id || (it.kind === 'duplicado' && fa.depositId === it.dupId))) await ra.update({ depositId: d.id, updatedAt: now }); } }
   const doc = { ...fd, outcome: 'Aplicado', saleId: S.id, appliedAt: now, appointmentId: fd.appointmentId || (A ? A.id : ''), updatedAt: now, updatedByName: Mode.who(), history: (fd.history || []).concat([{ at: now, by: Mode.who(), what: `Reparado: se volvió a aplicar a la venta de ${who}` }]) };
   await Store.db.doc('deposits/' + d.id).set(doc); Store.upsertLocal('deposits', d.id, doc, x => ({ ...x, day: Dates.fromISO(x.date) }));
   try { if (typeof Audit !== 'undefined') await Audit.log({ entity: 'DEPOSITO', entityId: d.id, entityLabel: `${depClient(d)} · ${money(d.amount, 1)}`, action: 'UPDATE', detail: `Reparado: depósito disponible que ya se había usado; se aplicó a la venta de ${who}`, byName: Mode.who() }); } catch (e) { /* la bitácora no frena la reparación */ }
 };
 DP.stalePanel = function () {
   const fmtAt = ts => ts ? new Date(ts).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
-  const LBL = { reaplicar: 'La cita ya se cobró, pero la venta quedó sin su depósito', marcar: 'La venta ya dice que usó el depósito, pero él sigue «Disponible»', conflicto: 'Hay un conflicto: revísalo a mano' };
+  const LBL = { reaplicar: 'La cita ya se cobró, pero la venta quedó sin su depósito', duplicado: 'Este depósito quedó marcado como el bueno y el otro (el duplicado, rechazado) se quedó en la cita y en la venta. «Aplicar» los pasa a este depósito: el monto es el mismo y los totales no cambian.', huerfano: 'Este depósito quedó libre sin cita, y su clienta se cobró ese mismo día sin depósito (se desvinculó al editar la cita). Antes de aplicarlo confirma qué pagó la clienta ese día: si pagó el servicio completo, el depósito sigue a su favor (guárdalo para otra cita o devuélvelo) y NO se aplica a esa venta.', revisar: 'Alguien lo quitó a propósito después del cobro (¿se devolvió, se guardó para otra cita o fue un error?). Si pagó el servicio completo, NO lo apliques: el depósito sigue a su favor.', marcar: 'La venta ya dice que usó el depósito, pero él sigue «Disponible»', conflicto: 'Hay un conflicto: revísalo a mano' };
   DP.layer(`<h3>Depósitos «Disponibles» que ya se usaron</h3><p style="color:var(--muted);margin:0 0 12px">La cita ya está cobrada y su depósito sigue libre. Aquí ves cuándo y quién lo quitó. «Aplicar» lo vuelve a poner en su venta (la venta recupera su depósito y el depósito pasa a «Aplicado»). Nada cambia hasta que lo pulses.</p><div data-sp style="max-height:58vh;overflow:auto"></div><p class="err" data-spe style="color:var(--bad);font-size:13px;font-weight:600;min-height:18px"></p><div class="acts"><button class="btn" data-x="all"></button><button class="btn primary" data-x="c">Cerrar</button></div>`, (m, close) => {
     $('[data-x=c]', m).onclick = () => { close(); UI.render(); };
-    const draw = () => { const L = DP.stale(), ok = L.filter(i => i.kind !== 'conflicto'), all = $('[data-x=all]', m); all.style.display = ok.length > 1 ? '' : 'none'; all.textContent = `Aplicar los ${ok.length} claros`;
+    const draw = () => { const L = DP.stale(), ok = L.filter(i => ['reaplicar', 'marcar', 'duplicado'].includes(i.kind)), all = $('[data-x=all]', m); all.style.display = ok.length > 1 ? '' : 'none'; all.textContent = `Aplicar los ${ok.length} claros`;
       $('[data-sp]', m).innerHTML = L.length ? L.map((i, k) => { const S = i.S, d = i.d, net = r2(num(S.price) - num(S.discount)); return `<div style="border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px">
         <div><b>${esc(depClient(d))}</b> · ${money(d.amount, 1)} · ${esc(d.method || '')}${d.day != null ? ` · cita ${Dates.fmt(d.day, { day: 'numeric', month: 'short' })}` : ''}</div>
         <div class="mutedc" style="font-size:13px;margin:4px 0">Venta: ${esc((S.first || '') + ' ' + (S.last || ''))} · ${esc(S.artistName || '')} · ${esc(S.service || '')} · ${money(net, 1)} · ${S.day != null ? Dates.fmt(S.day, { day: 'numeric', month: 'short' }) : ''}</div>
-        <div style="font-size:13px;margin-bottom:8px">${esc(LBL[i.kind])}${i.ev ? `<br><span class="mutedc">«${esc(i.ev.what)}» · ${esc(i.ev.by || '')} · ${esc(fmtAt(i.ev.at))}</span>` : ''}</div>
+        <div style="font-size:13px;margin-bottom:8px">${esc(LBL[i.kind])}${i.rm ? `<br><span class="mutedc">En la cita: «${esc(i.rm.what)}» · ${esc(i.rm.by || '')} · ${esc(fmtAt(i.rm.at))}</span>` : ''}${i.ev ? `<br><span class="mutedc">En el depósito: «${esc(i.ev.what)}» · ${esc(i.ev.by || '')} · ${esc(fmtAt(i.ev.at))}</span>` : ''}</div>
         ${i.kind === 'conflicto' ? '' : `<button class="btn sm primary" data-fx="${k}">Aplicar a su venta</button>`}</div>`; }).join('') : '<p class="mutedc">No hay depósitos por reparar.</p>';
       $$('[data-fx]', m).forEach(b => b.onclick = async () => { const it = L[+b.dataset.fx]; b.disabled = true; $('[data-spe]', m).textContent = ''; try { await DP.fixOne(it); UI.toast('Depósito aplicado a su venta'); } catch (e) { $('[data-spe]', m).textContent = e.message || 'No se pudo reparar'; } draw(); }); };
-    $('[data-x=all]', m).onclick = async () => { const ok = DP.stale().filter(i => i.kind !== 'conflicto'); if (!await UI.confirm(`Aplicar ${ok.length} depósitos`, 'Cada uno se vuelve a poner en su venta. Antes de guardar se revisa de nuevo que nadie lo haya cambiado; los que no coincidan se dejan.', 'Aplicar')) return;
-      let n = 0, bad = 0; for (const it of ok) { try { await DP.fixOne(it); n++; } catch (e) { bad++; } } UI.toast(`${n} aplicado${n === 1 ? '' : 's'}${bad ? ` · ${bad} se dejaron (cambiaron o hay conflicto)` : ''}`, !!bad); draw(); };
+    let armed = 0; const allB = $('[data-x=all]', m);   /* confirmación dentro del propio panel (UI.confirm quedaría debajo de esta capa) */
+    allB.onclick = async () => { const ok = DP.stale().filter(i => ['reaplicar', 'marcar', 'duplicado'].includes(i.kind)); if (!armed) { armed = 1; allB.textContent = `Confirmar: aplicar ${ok.length}`; allB.classList.add('primary'); setTimeout(() => { if (armed === 1) { armed = 0; allB.classList.remove('primary'); draw(); } }, 6000); return; } armed = 2; allB.disabled = true;
+      let n = 0, bad = 0; for (const it of ok) { try { await DP.fixOne(it); n++; } catch (e) { bad++; } } UI.toast(`${n} aplicado${n === 1 ? '' : 's'}${bad ? ` · ${bad} se dejaron (cambiaron o hay conflicto)` : ''}`, !!bad); armed = 0; allB.disabled = false; allB.classList.remove('primary'); draw(); };
     draw();
   }, 700);
 };
