@@ -158,6 +158,9 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
 @media (prefers-reduced-motion:reduce){.nz-b .chev,.nz-more .chev{transition:none}}
 .rq-g{margin:0 0 8px}.rq-h{margin:0!important}.rq-body{padding-top:8px}.rq-body[hidden]{display:none}.rq-body .req{margin-bottom:8px}
 .rq-sub{margin-left:8px;padding-left:10px;border-left:2px solid var(--line)}.rq-sub .rq-g:last-child{margin-bottom:0}
+.op-h{margin-top:14px}.op-h h2{font-size:15px}.op-r{align-items:flex-start;padding:10px 0;min-height:52px}.op-r .dot{margin-top:6px;flex:none}.op-m{margin-top:3px;font-weight:600}.op-m.ok{color:var(--sage)}.op-m.warn{color:var(--warn)}.op-r .t1,.op-r .t2{overflow-wrap:anywhere}
+.fold-row .chev{transition:transform .18s ease-out;color:var(--soft)}.fold-row[aria-expanded="true"] .chev{transform:rotate(90deg)}.np-l{padding:0 0 4px 18px;margin-bottom:6px;border-left:2px solid var(--warn)}.np-h{margin:8px 0 0;font-size:12.5px;color:var(--soft);line-height:1.4}.sm-r{min-height:48px}.sm-r .t2{line-height:1.35}.rq-body .row:last-child{border-bottom:0}.nz-b.static{cursor:default}
+@media (prefers-reduced-motion:reduce){.fold-row .chev{transition:none}}
 .rq-pill{border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;background:var(--goldsoft);color:var(--gold);white-space:nowrap}
 @media (prefers-reduced-motion:no-preference){.sheet .pane{animation:mwup .2s ease-out}@keyframes mwup{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}}
 
@@ -312,10 +315,29 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   const bindRetry = (key) => $$('[data-retry]').forEach(b => b.onclick = () => { S[key] = null; render(); });
 
   // HOY (manager)
+  // Agenda de hoy y mañana (fm_mgr_ops). Si la función aún no está instalada o falla, simplemente no se muestra.
+  function opsBlock(o) {
+    const lab = (d, t) => `${rel(d, o.today)}${t ? ' ' + fmtTime(t) : ''}`, money = a => a && Number(a.amount) ? `depósito ${M(a.amount, false)}${/verific/i.test(a.status || '') ? '' : ', por verificar'}` : 'sin depósito';
+    const it = (c, title, meta, mean, tone) => `<div class="row op-r"><i class="dot" style="background:${c}"></i><div class="grow"><div class="t1">${esc(title)}</div><div class="t2">${esc(meta)}</div>${mean ? `<div class="t2 op-m ${tone || ''}">${esc(mean)}</div>` : ''}</div></div>`;
+    const sec = (title, side, inner) => `<div class="sh op-h"><h2>${esc(title)}</h2><span class="muted small">${esc(side || '')}</span></div>${inner}`;
+    const one = c => { const base = `${lab(c.date, c.time)} · ${c.artist || 'sin lashista'} · ${c.service || 'sin servicio'}`;
+      if (c.type === 'entro') return it('var(--sage)', `${c.client} entró`, `${base} · ${money(c.deposit)}`);
+      if (c.type === 'cancelo') { const w = Number(c.waiting || 0); return it('var(--warn)', `${c.client} canceló`, `${base} · ${money(c.deposit)}`, c.coveredBy ? `Hueco cubierto: entró ${c.coveredBy}` : w ? `Hueco libre: ${w} en lista de espera lo podrían cubrir` : 'Hueco libre, nadie en lista de espera', c.coveredBy ? 'ok' : 'warn'); }
+      if (c.type === 'movio') return it('var(--gold)', `${c.client} movió su cita`, `${base} · ${money(c.deposit)}`, c.detail || '');
+      if (c.type === 'noshow') return it('var(--warn)', `${c.client} no llegó`, `${base} · ${money(c.deposit)}`, c.deposit && Number(c.deposit.amount) && !c.deposit.outcome ? 'Su depósito sigue sin aplicar: revísalo' : '', 'warn');
+      return ''; };
+    const ch = o.changes || [], nd = o.noDeposit || [], wl = o.waitlist || { active: 0, new: [] }, nNew = (wl.new || []).length;
+    const html = sec('Cambios en la agenda', 'últimas 24 h', ch.length ? ch.map(one).join('') : '<p class="empty">Sin cambios en las últimas 24 horas.</p>')
+      + sec('Citas sin depósito', nd.length ? String(nd.length) : '', nd.length ? nd.map(a => it('var(--gold)', a.client, `${lab(a.date, a.time)} · ${a.artist || 'sin lashista'} · ${a.service || 'sin servicio'}`)).join('') : '<p class="empty">Todas las citas de hoy y mañana tienen depósito.</p>')
+      + sec('Lista de espera', `${wl.active} en total`, nNew ? wl.new.map(w => it('var(--sage)', w.client, `Nueva · ${w.service || 'sin servicio'}${w.artist ? ' · con ' + w.artist : ''}`)).join('') : '<p class="empty">Sin clientas nuevas en lista de espera.</p>');
+    const n = t => ch.filter(c => c.type === t).length;
+    return { html, ch: ch.length, nd: nd.length, ns: n('noshow'), nNew };
+  }
   function vHoy() {
     if (!S.today) need('today', 'fm_mgr_day', {});
     if (!S.dep) need('dep', 'fm_mgr_deposits');
     if (!S.myWeek0) need('myWeek0', 'fm_my_week', { p_offset: 0 });
+    if (!S.ops) need('ops', 'fm_mgr_ops');
     let body;
     if (!S.today) body = '<p class="loading">Cargando el día…</p>';
     else if (S.today.err) body = errBox(S.today);
@@ -326,18 +348,33 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       const dep = S.dep && !S.dep.err ? S.dep : null, unv = dep ? dep.upcoming.filter(a => !/verific/i.test(a.depStatus || '')) : [];
       const w = S.myWeek0 && !S.myWeek0.err ? S.myWeek0 : null;
       const pend = [];
-      if (nNone) pend.push(['var(--warn)', `${nNone} cobro${nNone > 1 ? 's' : ''} sin forma de pago`, `De ${M(none)}; avísale a recepción para asignarlo`, 'caja']);
-      if (unv.length) pend.push(['var(--gold)', `${unv.length} depósito${unv.length > 1 ? 's' : ''} por verificar`, unv.slice(0, 2).map(a => a.client).join(' y ') + (unv.length > 2 ? ` y ${unv.length - 2} más` : ''), 'dep']);
+      const noRows = (x.rows || []).filter(r => /sin m[eé]todo/i.test(r.method)), noOpen = S.rq.nopay === true;
+      const noPay = nNone ? `<button type="button" class="row fold-row" data-fold="nopay" aria-expanded="${noOpen}" aria-controls="f-nopay"><i class="dot" style="background:var(--warn)"></i><div class="grow"><div class="t1">${nNone} cobro${nNone > 1 ? 's' : ''} sin forma de pago</div><div class="t2">De ${M(none)}. Toca para ver quién es</div></div>${IC.chev}</button>
+        <div id="f-nopay" class="rq-body np-l" ${noOpen ? '' : 'hidden'}>${noRows.map(r => `<div class="row"><div class="tm">${esc(hm(r.at))}</div><div class="grow"><div class="t1">${esc(r.client || 'Sin nombre')}</div><div class="t2">${esc(r.service)}, con ${esc(first(r.artist))}</div></div><div class="r t1">${M(Number(r.net) + Number(r.tip))}</div></div>`).join('')}<p class="np-h">Avísale a recepción quién es para que le asigne la forma de pago.</p></div>` : '';
+      const upc = dep ? dep.upcoming : [], tdy = dep ? dep.today : todayISO(), dn = a => Math.round((D(a.date) - D(tdy)) / 864e5);
+      const cHoy = upc.filter(a => dn(a) <= 0), cMan = upc.filter(a => dn(a) === 1), isV = a => /verific/i.test(a.depStatus || '');
+      const sumLine = (l) => !l.length ? 'ninguna cita con depósito' : `${l.length} cita${plural(l.length, '', 's')} con depósito${l.filter(a => !isV(a)).length ? `, ${l.filter(a => !isV(a)).length} por verificar` : ', todos verificados'}`;
+      const rcv = dep ? dep.received : [], rcvSum = rcv.reduce((a, y) => a + Number(y.amount || 0), 0);
+      const sRow = (label, val, to) => `<${to ? 'button type="button" data-goto="' + to + '"' : 'div'} class="row sm-r"><div class="grow"><div class="t1">${esc(label)}</div><div class="t2">${esc(val)}</div></div>${to ? IC.chev : ''}</${to ? 'button' : 'div'}>`;
+      const ops = S.ops && !S.ops.err ? opsBlock(S.ops) : null;
+      const sumItems = [ops && ops.ch ? `${ops.ch} cambio${plural(ops.ch, '', 's')}` : '', ops && ops.ns ? `${ops.ns} no llegó` : '', ops && ops.nd ? `${ops.nd} sin depósito` : '', nNone ? `${nNone} sin forma de pago` : '', dep && unv.length ? `${unv.length} por verificar` : ''].filter(Boolean).slice(0, 3);
+      if (!sumItems.length) sumItems.push(`${t.count} servicio${plural(Number(t.count), '', 's')} hecho${plural(Number(t.count), '', 's')}`);
+      const summary = foldG('resumen', 'Resumen del salón', esc(sumItems.join(' · ')), '',
+        sRow('Servicios de hoy', `${t.count} hecho${plural(Number(t.count), '', 's')}, ${M(tot)} cobrado${Number(t.tips) ? `, ${M(t.tips, false)} en tips` : ''}`, 'caja')
+        + sRow('Cobros sin forma de pago', nNone ? `${nNone} por ${M(none)}; ábrelos arriba para ver quién es` : 'Ninguno, todo tiene forma de pago')
+        + (dep ? sRow('Depósitos de hoy', `${rcv.length} recibido${plural(rcv.length, '', 's')}${rcv.length ? ' por ' + M(rcvSum) : ''}; citas de hoy: ${sumLine(cHoy)}`, 'dep')
+          + sRow('Depósitos de mañana', sumLine(cMan), 'dep') : sRow('Depósitos', 'No se pudieron cargar; toca Actualizar')) + (ops ? ops.html : ''), false);      if (unv.length) pend.push(['var(--gold)', `${unv.length} depósito${unv.length > 1 ? 's' : ''} por verificar`, unv.slice(0, 2).map(a => a.client).join(' y ') + (unv.length > 2 ? ` y ${unv.length - 2} más` : ''), 'dep']);
       body = `<div class="fanwrap">${fan(fams.length ? fams : [['Sin forma de pago', 1]])}<div class="fanc"><b>${M(tot)}</b><span>cobrado hoy en el salón</span></div></div>
         <div class="legend">${fams.map(([n]) => `<span><i class="dot" style="background:${FAM[n]};width:8px;height:8px"></i>${n === 'Sin forma de pago' ? 'Sin forma' : n}</span>`).join('')}</div>
         <div class="stats"><div><b>${t.count}</b><span>Servicios</span></div><div><b>${M(t.tips, false)}</b><span>Tips</span></div><div><b>${M(t.count ? t.net / t.count : 0, false)}</b><span>Ticket prom.</span></div></div>
-        <h2>Pendientes de hoy</h2>${pend.length ? pend.map(([c, a, b, to]) => `<button class="row" data-goto="${to}"><i class="dot" style="background:${c}"></i><div class="grow"><div class="t1">${esc(a)}</div><div class="t2">${esc(b)}</div></div>${IC.chev}</button>`).join('') : '<p class="empty">Todo en orden: no hay cobros sin forma de pago ni depósitos por verificar.</p>'}
+        <h2>Pendientes de hoy</h2>${noPay}${pend.length ? pend.map(([c, a, b, to]) => `<button class="row" data-goto="${to}"><i class="dot" style="background:${c}"></i><div class="grow"><div class="t1">${esc(a)}</div><div class="t2">${esc(b)}</div></div>${IC.chev}</button>`).join('') : (nNone ? '' : '<p class="empty">Todo en orden: no hay cobros sin forma de pago ni depósitos por verificar.</p>')}
+        <div style="margin-top:14px">${summary}</div>
         ${w ? weekCard(w) : ''}`;
     }
     paint(`<h1>${hello()}, ${esc(first(me().name))}</h1><p class="lead">${esc(fdate(todayISO()))}</p>${body}<button class="pill" id="refresh" style="margin-top:22px">Actualizar</button>`);
-    $$('[data-goto]').forEach(b => b.onclick = () => go(b.dataset.goto));
+    $$('[data-goto]').forEach(b => b.onclick = () => go(b.dataset.goto)); bindFolds();
     const wc = $('#weekcard'); if (wc) wc.onclick = () => { S.yo = 'sem'; go('yo'); };
-    $('#refresh').onclick = () => { S.today = S.dep = S.myWeek0 = null; render(); };
+    $('#refresh').onclick = () => { S.today = S.dep = S.myWeek0 = S.ops = null; render(); };
     bindRetry('today');
   }
   function goalInfo(w, past) {
@@ -385,22 +422,31 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
   }
 
   // DEPÓSITOS (manager)
+  function depGroups(d, sum, st) {
+    const dn = a => Math.round((D(a.date) - D(d.today)) / 864e5), isV = a => /verific/i.test(a.depStatus || '');
+    const hoy = d.upcoming.filter(a => dn(a) <= 0), man = d.upcoming.filter(a => dn(a) === 1), sig = d.upcoming.filter(a => dn(a) > 1);
+    const row = a => `<div class="row"><div class="tm">${esc(fmtTime(a.time))}</div><div class="grow"><div class="t1">${esc(a.client)}</div><div class="t2">${esc(first(a.artist))}, ${esc(a.service || '')}</div></div><div class="r"><div class="t1">${M(a.amount)}</div><div class="t2">${st(a.method, a.depStatus)}</div></div></div>`;
+    const sub = l => `${l.length} cita${plural(l.length, '', 's')} · ${M(sum(l))}`, pill = l => { const n = l.filter(a => !isV(a)).length; return n ? `<span class="rq-pill">${n} por verificar</span>` : ''; };
+    const one = (key, title, l, dflt, inner) => l.length ? foldG(key, title, esc(sub(l)), pill(l), inner || l.map(row).join(''), dflt)
+      : `<section class="rq-g"><div class="nz rq-h"><div class="pt-r2 nz-b static"><span class="pt-r2t"><b>${esc(title)}</b><small>Sin citas con depósito</small></span></div></div></section>`;
+    const days = {}; sig.forEach(a => (days[a.date] = days[a.date] || []).push(a));
+    const sigIn = Object.entries(days).map(([day, l]) => `<div class="sh"><h2>${esc(cap(D(day).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric' })))}</h2><span class="muted small">${M(sum(l))}</span></div>${l.map(row).join('')}`).join('');
+    return one('dep-hoy', 'Hoy', hoy, true) + one('dep-man', 'Mañana', man, false) + one('dep-sig', 'Días siguientes', sig, false, sigIn);
+  }
   function vDep() {
     if (!S.dep) need('dep', 'fm_mgr_deposits');
     let body;
     if (!S.dep) body = '<p class="loading">Cargando…</p>';
     else if (S.dep.err) body = errBox(S.dep);
     else {
-      const d = S.dep, sum = l => l.reduce((a, x) => a + Number(x.amount || 0), 0), groups = {};
-      d.upcoming.forEach(a => (groups[a.date] = groups[a.date] || []).push(a));
+      const d = S.dep, sum = l => l.reduce((a, x) => a + Number(x.amount || 0), 0);
       const st = (m, s) => /verific/i.test(s || '') ? `<span class="ok">${esc(m || '')}, verificado</span>` : `<b class="goldt">${esc(m || '')}, por verificar</b>`;
       body = `<div class="stats" style="margin-top:0"><div><b class="big" style="font-size:32px">${M(sum(d.received))}</b><span>recibidos hoy en ${d.received.length} depósito${d.received.length === 1 ? '' : 's'}</span></div><div><b class="big" style="font-size:32px">${d.upcoming.length}</b><span>cita${d.upcoming.length === 1 ? '' : 's'} con depósito</span></div></div>
-        ${Object.keys(groups).length ? Object.entries(groups).map(([day, l]) => `<div class="sh"><h2>${esc(rel(day, d.today) === 'Mañana' ? 'Mañana, ' + D(day).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric' }) : rel(day, d.today))}</h2><span class="muted small">${M(sum(l))}</span></div>
-          ${l.map(a => `<div class="row"><div class="tm">${esc(fmtTime(a.time))}</div><div class="grow"><div class="t1">${esc(a.client)}</div><div class="t2">${esc(first(a.artist))}, ${esc(a.service || '')}</div></div><div class="r"><div class="t1">${M(a.amount)}</div><div class="t2">${st(a.method, a.depStatus)}</div></div></div>`).join('')}`).join('') : '<p class="empty">No hay citas con depósito en los próximos 14 días.</p>'}
+        ${d.upcoming.length ? depGroups(d, sum, st) : '<p class="empty">No hay citas con depósito en los próximos 14 días.</p>'}
         <h2>Recibidos hoy</h2>${d.received.length ? d.received.map(x => `<div class="row"><div class="grow"><div class="t1">${esc(x.client || 'Sin nombre')}</div><div class="t2">${st(x.method, x.status)}${x.outcome ? `, ${esc(x.outcome)}` : ''}</div></div><div class="r t1">${M(x.amount)}</div></div>`).join('') : '<p class="empty">Hoy no se ha registrado ningún depósito.</p>'}`;
     }
     paint(`<h1>Depósitos</h1><p class="lead">Hoy y los próximos 14 días</p>${body}<button class="pill" id="refresh" style="margin-top:22px">Actualizar</button>`);
-    $('#refresh').onclick = () => { S.dep = null; render(); }; bindRetry('dep');
+    $('#refresh').onclick = () => { S.dep = null; render(); }; bindRetry('dep'); bindFolds();
   }
   const fmtTime = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); if (!m) return t || ''; const h = +m[1]; return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; };
 
@@ -495,6 +541,9 @@ nav.tab button.on{color:var(--mauve)}nav.tab button.on::before{content:"";positi
       return `<section class="rq-g rq-y">${head(key, id, y, `${stat(rs)} · ${ks.length} mes${ks.length === 1 ? '' : 'es'}`, rs, isOpen)}<div id="${id}" class="rq-body rq-sub" ${isOpen ? '' : 'hidden'}>${ks.map(monthG).join('')}</div></section>`; };
     return thisYear.map(monthG).join('') + years.map(yearG).join('');
   }
+  const foldG = (key, title, sub, pill, inner, dflt) => { const isOpen = S.rq[key] != null ? S.rq[key] : !!dflt, id = 'f-' + key;
+    return `<section class="rq-g"><div class="nz rq-h"><button type="button" class="pt-r2 nz-b" data-fold="${esc(key)}" aria-expanded="${isOpen}" aria-controls="${id}"><span class="pt-r2t"><b>${esc(title)}</b><small>${sub}</small></span><span class="pt-r2r">${pill || ''}${IC.chev}</span></button></div><div id="${id}" class="rq-body" ${isOpen ? '' : 'hidden'}>${inner}</div></section>`; };
+  const plural = (n, a, b) => n === 1 ? a : b;
   function bindFolds() {
     $$('[data-fold]').forEach(b => b.onclick = () => {
       const t = $('#' + b.getAttribute('aria-controls')), on = b.getAttribute('aria-expanded') !== 'true';
